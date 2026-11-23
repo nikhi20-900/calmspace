@@ -1,0 +1,22 @@
+{
+  "name": "calmspace",
+  "version": "1.0.0",
+  "description": "A calm, privacy-first university student wellbeing companion.",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "backend": "uvicorn app.main:app --app-dir backend --reload --port 8000",
+    "test:backend": "PYTHONPATH=backend python3 backend/test_backend.py"
+  },
+  "keywords": [
+    "student-wellbeing",
+    "mental-health",
+    "privacy-first",
+    "fastapi",
+    "react",
+    "tailwindcss"
+  ],
+  "author": "Calmspace Team",
+  "license": "MIT"
+}
