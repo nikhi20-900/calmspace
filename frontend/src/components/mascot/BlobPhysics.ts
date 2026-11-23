@@ -1,9 +1,6 @@
 /**
- * Calmspace Blob Physics Engine
- * Damped harmonic oscillator for:
- * 1. Volumetric squash-and-stretch
- * 2. Elastic rubber-band drag & return
- * 3. Natural breathing & floating rhythm
+ * Calmspace Blob Physics Engine — Enhanced Tactile Dynamics
+ * Damped harmonic oscillator with secondary jelly jiggle & volume preservation
  */
 
 export interface Spring1D {
@@ -15,7 +12,7 @@ export interface Spring1D {
   mass: number;
 }
 
-export function createSpring(initialValue = 0, stiffness = 160, damping = 14, mass = 1): Spring1D {
+export function createSpring(initialValue = 0, stiffness = 180, damping = 14, mass = 1): Spring1D {
   return {
     value: initialValue,
     velocity: 0,
@@ -27,8 +24,8 @@ export function createSpring(initialValue = 0, stiffness = 160, damping = 14, ma
 }
 
 export function updateSpring(spring: Spring1D, dt: number): void {
-  // Cap delta time to prevent instability
-  const clampedDt = Math.min(dt, 0.05);
+  // Clamp dt to maintain mathematical stability
+  const clampedDt = Math.min(dt, 0.033);
   const force = -spring.stiffness * (spring.value - spring.target);
   const dampingForce = -spring.damping * spring.velocity;
   const acceleration = (force + dampingForce) / spring.mass;
@@ -38,60 +35,76 @@ export function updateSpring(spring: Spring1D, dt: number): void {
 }
 
 export class BlobPhysicsController {
-  // Position springs (drag & spring back)
-  posX = createSpring(0, 180, 16, 1.2);
-  posY = createSpring(0, 180, 16, 1.2);
-  posZ = createSpring(0, 180, 16, 1.2);
+  // 3D Position springs (drag, tether resistance, and return)
+  posX = createSpring(0, 190, 15, 1.1);
+  posY = createSpring(0, 190, 15, 1.1);
+  posZ = createSpring(0, 190, 15, 1.1);
 
-  // Scale springs (squash & stretch)
-  scaleX = createSpring(1, 240, 14, 1);
-  scaleY = createSpring(1, 240, 14, 1);
-  scaleZ = createSpring(1, 240, 14, 1);
+  // 3D Scale springs (volume-preserving squash & stretch)
+  scaleX = createSpring(1, 260, 14, 0.9);
+  scaleY = createSpring(1, 260, 14, 0.9);
+  scaleZ = createSpring(1, 260, 14, 0.9);
 
-  // Rotation springs (subtle tilt toward pointer / drag)
-  rotX = createSpring(0, 140, 15, 1);
-  rotY = createSpring(0, 140, 15, 1);
-  rotZ = createSpring(0, 140, 15, 1);
+  // 3D Rotation springs (tactile tilt in direction of motion/pointer)
+  rotX = createSpring(0, 150, 16, 1);
+  rotY = createSpring(0, 150, 16, 1);
+  rotZ = createSpring(0, 150, 16, 1);
+
+  // Secondary surface jiggle oscillation
+  jiggleAmplitude = 0;
+  jiggleDecay = 4.2;
+  jiggleFrequency = 14;
+  jiggleTime = 0;
 
   isDragging = false;
-  dragStartX = 0;
-  dragStartY = 0;
+  dragDistance = 0;
 
-  // Trigger a squash & stretch impulse (on click/touch)
+  // Trigger a soft squash & stretch impulse (on tap/click)
   triggerSquashImpulse(intensity = 1.0): void {
-    // Compress vertically, expand horizontally (volume preservation)
-    this.scaleY.velocity -= 5.5 * intensity;
-    this.scaleX.velocity += 2.8 * intensity;
-    this.scaleZ.velocity += 2.8 * intensity;
+    // Compress along Y, expand radially along X & Z for strict volume preservation
+    this.scaleY.velocity -= 6.2 * intensity;
+    this.scaleX.velocity += 3.1 * intensity;
+    this.scaleZ.velocity += 3.1 * intensity;
+
+    // Trigger secondary surface ripple
+    this.jiggleAmplitude = Math.min(this.jiggleAmplitude + 0.18 * intensity, 0.35);
   }
 
-  // Set drag target in normalized 3D space
+  // Update drag target in normalized coordinates
   updateDrag(dx: number, dy: number): void {
-    // Rubber-band resistance: displacement decays non-linearly
     const maxDrag = 1.6;
     const dist = Math.hypot(dx, dy);
+    this.dragDistance = dist;
+
+    // Non-linear rubber-band resistance
     const resistance = Math.tanh(dist / maxDrag) * maxDrag;
     const angle = Math.atan2(dy, dx);
 
-    const clampedX = Math.cos(angle) * resistance;
-    const clampedY = Math.sin(angle) * resistance;
+    const targetX = Math.cos(angle) * resistance;
+    const targetY = Math.sin(angle) * resistance;
 
-    this.posX.target = clampedX;
-    this.posY.target = clampedY;
+    this.posX.target = targetX;
+    this.posY.target = targetY;
 
-    // Stretch in the direction of the drag
-    const stretchAmount = Math.min(dist * 0.25, 0.45);
-    this.scaleX.target = 1 + stretchAmount * Math.abs(Math.cos(angle));
-    this.scaleY.target = 1 + stretchAmount * Math.abs(Math.sin(angle));
-    this.scaleZ.target = 1 - stretchAmount * 0.5;
+    // Tactile stretch along drag vector
+    const stretchRatio = Math.min(dist * 0.28, 0.48);
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
 
-    // Tilt in direction of drag
-    this.rotZ.target = -clampedX * 0.3;
-    this.rotX.target = clampedY * 0.3;
+    this.scaleX.target = 1 + stretchRatio * Math.abs(cosA) - stretchRatio * 0.35 * Math.abs(sinA);
+    this.scaleY.target = 1 + stretchRatio * Math.abs(sinA) - stretchRatio * 0.35 * Math.abs(cosA);
+    this.scaleZ.target = 1 - stretchRatio * 0.45;
+
+    // Organic tilt in drag direction
+    this.rotZ.target = -targetX * 0.28;
+    this.rotX.target = targetY * 0.28;
   }
 
+  // Release drag with spring-back rebound
   releaseDrag(): void {
     this.isDragging = false;
+    const releaseEnergy = Math.min(this.dragDistance * 0.8, 1.2);
+
     this.posX.target = 0;
     this.posY.target = 0;
     this.posZ.target = 0;
@@ -104,8 +117,8 @@ export class BlobPhysicsController {
     this.rotY.target = 0;
     this.rotZ.target = 0;
 
-    // Small bounce impulse on release
-    this.triggerSquashImpulse(0.7);
+    // Rebound squash impulse on release
+    this.triggerSquashImpulse(Math.max(0.6, releaseEnergy));
   }
 
   step(dt: number): void {
@@ -120,5 +133,19 @@ export class BlobPhysicsController {
     updateSpring(this.rotX, dt);
     updateSpring(this.rotY, dt);
     updateSpring(this.rotZ, dt);
+
+    // Decay jiggle oscillation
+    if (this.jiggleAmplitude > 0.001) {
+      this.jiggleTime += dt;
+      this.jiggleAmplitude *= Math.exp(-this.jiggleDecay * dt);
+    } else {
+      this.jiggleAmplitude = 0;
+      this.jiggleTime = 0;
+    }
+  }
+
+  getSurfaceJiggle(): number {
+    if (this.jiggleAmplitude <= 0.001) return 0;
+    return Math.sin(this.jiggleTime * this.jiggleFrequency) * this.jiggleAmplitude;
   }
 }
