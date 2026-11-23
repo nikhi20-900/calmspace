@@ -120,11 +120,14 @@ calmspace/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
+│   │   │   ├── mascot/              # Interactive 3D Lavender Blob (BlobScene, BlobModel, BlobEyes, BlobPhysics)
+│   │   │   ├── landing/             # 8-Section Editorial Landing Page (Hero, Reality, Works, Preview, Insights, Safety, Privacy, Footer)
 │   │   │   ├── ui/                  # Button, Card, Badge, Slider, Stepper, Dialog, Toggle
 │   │   │   ├── layout/              # AppLayout, Sidebar, MobileNavigation, PageHeader, SupportModal
 │   │   │   └── checkin/             # MoodQuestion, StressQuestion, SleepQuestion, ReflectionInput
 │   │   ├── pages/
-│   │   │   ├── OverviewPage.tsx     # Personalized warm dashboard, summary cards, trend preview
+│   │   │   ├── LandingPage.tsx      # Official 3D Interactive Mascot Homepage (Route: /)
+│   │   │   ├── OverviewPage.tsx     # Personalized warm dashboard, summary cards, trend preview (Route: /app)
 │   │   │   ├── CheckInPage.tsx      # Step-by-step single-column check-in
 │   │   │   ├── CheckInResultPage.tsx# High-risk escalation screen & AI guidance
 │   │   │   ├── InsightsPage.tsx     # Recharts analytics, filters & screen-reader tables

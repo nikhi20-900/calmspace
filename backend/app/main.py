@@ -6,7 +6,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from app.routers.checkin import router as checkin_router
 from app.routers.insights import router as insights_router
 from app.routers.planner import router as planner_router
@@ -41,10 +41,11 @@ async def health_check():
         "principle": "Rules decide safety. AI writes the language. Humans help."
     }
 
-# Mount landing page static files
-landing_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../landing"))
-if os.path.exists(landing_dir):
-    app.mount("/landing", StaticFiles(directory=landing_dir, html=True), name="landing")
+# Redirect legacy /landing routes to official 3D homepage at /
+@app.get("/landing")
+@app.get("/landing/{path:path}")
+async def redirect_old_landing(path: str = ""):
+    return RedirectResponse(url="/", status_code=301)
 
 # Serve frontend build static files if frontend/dist exists
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
@@ -55,8 +56,8 @@ if os.path.exists(frontend_dist):
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Allow API routes and landing page to be handled separately
-        if full_path.startswith("api/") or full_path.startswith("landing"):
+        # Allow API routes and documentation to be handled by FastAPI
+        if full_path.startswith("api/") or full_path in ["docs", "redoc", "openapi.json"]:
             return None
         file_path = os.path.join(frontend_dist, full_path)
         if os.path.isfile(file_path):
