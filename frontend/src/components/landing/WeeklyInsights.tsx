@@ -1,7 +1,38 @@
-import React from 'react';
-import { Sparkles, Calendar, TrendingUp, Sun, Moon, AlertCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Sparkles } from 'lucide-react';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 export const WeeklyInsights: React.FC = () => {
+  const isReducedMotion = useReducedMotion();
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    if (isReducedMotion) {
+      setIsInView(true);
+      return;
+    }
+
+    const element = chartContainerRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.unobserve(element);
+        }
+      },
+      {
+        threshold: 0.2,
+        rootMargin: '0px 0px -40px 0px',
+      }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [isReducedMotion]);
+
   // Exact mathematical points:
   // Mon: 3.4, Tue: 3.8, Wed: 3.2, Thu: 3.6, Fri: 4.0, Sat: 3.8, Sun: 3.4
   // Sum = 25.2, Avg = 3.60
@@ -37,7 +68,10 @@ export const WeeklyInsights: React.FC = () => {
         </div>
 
         {/* Insight Showcase Card */}
-        <div className="bg-white rounded-3xl border border-[#E8E6F1] shadow-card p-6 sm:p-10 max-w-4xl mx-auto">
+        <div
+          ref={chartContainerRef}
+          className="bg-white rounded-3xl border border-[#E8E6F1] shadow-card p-6 sm:p-10 max-w-4xl mx-auto"
+        >
           {/* Top Metric Bar */}
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#F0EFF7] pb-6 mb-6">
             <div>
@@ -68,7 +102,7 @@ export const WeeklyInsights: React.FC = () => {
             </div>
           </div>
 
-          {/* SVG Chart Container */}
+          {/* SVG Chart Container with Progressive Drawing on Entry */}
           <div className="w-full overflow-x-auto pb-4">
             <div className="min-w-[500px]">
               <svg
@@ -93,10 +127,17 @@ export const WeeklyInsights: React.FC = () => {
                 <text x="35" y="94" fill="#9C99B3" fontSize="10" textAnchor="end">3.0</text>
                 <text x="35" y="124" fill="#9C99B3" fontSize="10" textAnchor="end">2.0</text>
 
-                {/* Shaded Area Under Curve */}
-                <path d={areaD} fill="url(#chartGradient)" />
+                {/* Shaded Area Under Curve - Fades in as trend line draws */}
+                <path
+                  d={areaD}
+                  fill="url(#chartGradient)"
+                  style={{
+                    opacity: isInView || isReducedMotion ? 1 : 0,
+                    transition: isReducedMotion ? 'none' : 'opacity 1.1s ease-out 0.35s',
+                  }}
+                />
 
-                {/* Main Trend Line */}
+                {/* Main Trend Line - Progressive Path Drawing from Monday to Sunday */}
                 <path
                   d={pathD}
                   fill="none"
@@ -104,52 +145,89 @@ export const WeeklyInsights: React.FC = () => {
                   strokeWidth="3.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  style={{
+                    strokeDasharray: 550,
+                    strokeDashoffset: isInView || isReducedMotion ? 0 : 550,
+                    transition: isReducedMotion
+                      ? 'none'
+                      : 'stroke-dashoffset 1.35s cubic-bezier(0.22, 1, 0.36, 1)',
+                  }}
                 />
 
-                {/* Points and Labels */}
-                {days.map((d, i) => (
-                  <g key={i}>
-                    {/* Vertical guideline */}
-                    <line
-                      x1={d.x}
-                      y1={d.y}
-                      x2={d.x}
-                      y2="150"
-                      stroke="#E8E6F1"
-                      strokeDasharray="2 2"
-                      strokeWidth="1"
-                    />
+                {/* Points and Labels - Cascade in progressively as the line arrives */}
+                {days.map((d, i) => {
+                  const pointDelay = 0.12 + i * 0.16;
 
-                    {/* Outer halo */}
-                    <circle cx={d.x} cy={d.y} r="7" fill="white" stroke="#5554B8" strokeWidth="2.5" />
-                    {/* Inner core */}
-                    <circle cx={d.x} cy={d.y} r="3" fill="#5554B8" />
+                  return (
+                    <g key={i}>
+                      {/* Vertical guideline */}
+                      <line
+                        x1={d.x}
+                        y1={d.y}
+                        x2={d.x}
+                        y2="150"
+                        stroke="#E8E6F1"
+                        strokeDasharray="2 2"
+                        strokeWidth="1"
+                        style={{
+                          opacity: isInView || isReducedMotion ? 1 : 0,
+                          transition: isReducedMotion
+                            ? 'none'
+                            : `opacity 0.4s ease-out ${pointDelay}s`,
+                        }}
+                      />
 
-                    {/* Day label below */}
-                    <text
-                      x={d.x}
-                      y="166"
-                      fill="#625F78"
-                      fontSize="11"
-                      fontWeight="600"
-                      textAnchor="middle"
-                    >
-                      {d.name}
-                    </text>
+                      {/* Point Circle Assembly with spring scale-in */}
+                      <g
+                        style={{
+                          opacity: isInView || isReducedMotion ? 1 : 0,
+                          transform: isInView || isReducedMotion ? 'scale(1)' : 'scale(0)',
+                          transformOrigin: `${d.x}px ${d.y}px`,
+                          transition: isReducedMotion
+                            ? 'none'
+                            : `transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) ${pointDelay}s, opacity 0.25s ease-out ${pointDelay}s`,
+                        }}
+                      >
+                        {/* Outer halo */}
+                        <circle cx={d.x} cy={d.y} r="7" fill="white" stroke="#5554B8" strokeWidth="2.5" />
+                        {/* Inner core */}
+                        <circle cx={d.x} cy={d.y} r="3" fill="#5554B8" />
+                      </g>
 
-                    {/* Score badge above point */}
-                    <text
-                      x={d.x}
-                      y={d.y - 12}
-                      fill="#5554B8"
-                      fontSize="11"
-                      fontWeight="700"
-                      textAnchor="middle"
-                    >
-                      {d.mood.toFixed(1)}
-                    </text>
-                  </g>
-                ))}
+                      {/* Day label below */}
+                      <text
+                        x={d.x}
+                        y="166"
+                        fill="#625F78"
+                        fontSize="11"
+                        fontWeight="600"
+                        textAnchor="middle"
+                      >
+                        {d.name}
+                      </text>
+
+                      {/* Score badge above point - Pops in right after point */}
+                      <text
+                        x={d.x}
+                        y={d.y - 12}
+                        fill="#5554B8"
+                        fontSize="11"
+                        fontWeight="700"
+                        textAnchor="middle"
+                        style={{
+                          opacity: isInView || isReducedMotion ? 1 : 0,
+                          transform: isInView || isReducedMotion ? 'translateY(0)' : 'translateY(6px)',
+                          transformOrigin: `${d.x}px ${d.y - 12}px`,
+                          transition: isReducedMotion
+                            ? 'none'
+                            : `transform 0.38s cubic-bezier(0.16, 1, 0.3, 1) ${pointDelay + 0.08}s, opacity 0.3s ease-out ${pointDelay + 0.08}s`,
+                        }}
+                      >
+                        {d.mood.toFixed(1)}
+                      </text>
+                    </g>
+                  );
+                })}
               </svg>
             </div>
           </div>

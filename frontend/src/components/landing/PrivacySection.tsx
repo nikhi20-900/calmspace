@@ -1,5 +1,6 @@
 import React from 'react';
 import { Lock, KeyRound, EyeOff, Trash2, Sparkles, ShieldCheck } from 'lucide-react';
+import { ScrollStagger, ScrollStaggerItem } from './ScrollReveal';
 
 export const PrivacySection: React.FC = () => {
   const privacyPillars = [
@@ -48,11 +49,11 @@ export const PrivacySection: React.FC = () => {
         </div>
 
         {/* 4 Privacy Pillars */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <ScrollStagger className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {privacyPillars.map((pillar, idx) => {
             const Icon = pillar.icon;
             return (
-              <div
+              <ScrollStaggerItem
                 key={idx}
                 className="bg-white rounded-3xl p-8 border border-[#E8E6F1] shadow-subtle hover:border-[#DCD9F5] transition-all duration-300"
               >
@@ -65,10 +66,10 @@ export const PrivacySection: React.FC = () => {
                 <p className="text-sm text-[#625F78] leading-relaxed">
                   {pillar.description}
                 </p>
-              </div>
+              </ScrollStaggerItem>
             );
           })}
-        </div>
+        </ScrollStagger>
 
         {/* Zero Tracker Guarantee Badge */}
         <div className="mt-12 text-center">

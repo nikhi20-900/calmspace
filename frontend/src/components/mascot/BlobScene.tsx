@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { createBlobCharacter, BlobModelOutput } from './BlobModel';
-import { BlobPhysicsController } from './BlobPhysics';
+import { BlobController } from './BlobController';
+import { setupStudioEnvironment, StudioEnvironmentHandle } from './BlobMaterials';
+import { BlobAnimationState } from './BlobAnimations';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
-export type BlobExpression = 'idle' | 'curious' | 'welcoming' | 'resting' | 'interacting' | 'reducedMotion';
+export type BlobExpression = BlobAnimationState;
 
 export interface BlobSceneProps {
   expression?: BlobExpression;
@@ -29,8 +30,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Cross-frame references
-  const physicsRef = useRef(new BlobPhysicsController());
-  const blobModelRef = useRef<BlobModelOutput | null>(null);
+  const controllerRef = useRef<BlobController | null>(null);
   const pointerRef = useRef({ x: 0, y: 0, isHovering: false, isDragging: false });
   const dragStartRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
@@ -45,19 +45,9 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     const container = containerRef.current;
     if (!canvas || !container) return;
 
-    // Check WebGL availability
-    try {
-      const testGl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      if (!testGl) {
-        setHasWebGlError(true);
-        return;
-      }
-    } catch {
-      setHasWebGlError(true);
-      return;
-    }
-
     // 1. SETUP THREE.JS SCENE, CAMERA & RENDERER
+    // WebGLRenderer performs the capability check itself. Creating a separate
+    // context here prevents Three.js from acquiring its own context on this canvas.
     const scene = new THREE.Scene();
 
     const camera = new THREE.PerspectiveCamera(35, container.clientWidth / container.clientHeight, 0.1, 50);
@@ -74,54 +64,63 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       renderer.setSize(container.clientWidth, container.clientHeight, false);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.18;
+      renderer.toneMappingExposure = 1.0;
     } catch (e) {
       console.warn('WebGL init failed, using fallback', e);
       setHasWebGlError(true);
       return;
     }
 
-    // 2. STUDIO 4-POINT LIGHTING WITH SOFT HIGHLIGHTS
+    // 2. STUDIO PMREM ENVIRONMENT (Soft Image-Based Lighting)
+    let studioEnv: StudioEnvironmentHandle | null = null;
+    try {
+      studioEnv = setupStudioEnvironment(renderer, scene);
+    } catch (e) {
+      console.warn('Studio PMREM Environment init notice:', e);
+    }
+
+    // 3. STUDIO 4-POINT LIGHTING WITH SOFT HIGHLIGHTS
     // A. Ambient sky/ground hemisphere
-    const hemiLight = new THREE.HemisphereLight(0xF7F6FB, 0xEDEBF7, 1.25);
+    const hemiLight = new THREE.HemisphereLight(0xF7F6FB, 0x777087, 0.72);
     scene.add(hemiLight);
 
     // B. Warm peach key light (Top-Right)
-    const keyLight = new THREE.DirectionalLight(0xFFF6EE, 1.5);
+    const keyLight = new THREE.DirectionalLight(0xFFF4E8, 2.1);
     keyLight.position.set(4.5, 5.5, 4.0);
     scene.add(keyLight);
 
+    // A broad studio panel creates the long, soft clay highlight that reveals curvature.
+    const keyPanel = new THREE.RectAreaLight(0xF5EEFF, 2.4, 3.2, 3.8);
+    keyPanel.position.set(-3.2, 2.8, 4.2);
+    keyPanel.lookAt(0, 0.05, 0);
+    scene.add(keyPanel);
+
     // C. Cool mint fill light (Bottom-Left)
-    const fillLight = new THREE.DirectionalLight(0xDCE9DF, 0.75);
-    fillLight.position.set(-4.0, -1.0, 2.5);
+    const fillLight = new THREE.DirectionalLight(0xDCE4F7, 0.28);
+    fillLight.position.set(-4.0, 0.2, 2.5);
     scene.add(fillLight);
 
     // D. Soft lavender rim light (Behind-Above for glowing silhouette)
-    const rimLight = new THREE.DirectionalLight(0xDCD6FB, 1.85);
+    const rimLight = new THREE.DirectionalLight(0xDCD6FB, 1.25);
     rimLight.position.set(0, 4.5, -4.5);
     scene.add(rimLight);
 
     // E. Warm floor bounce light
-    const floorBounce = new THREE.DirectionalLight(0xF4DCCB, 0.45);
+    const floorBounce = new THREE.DirectionalLight(0xF4DCCB, 0.16);
     floorBounce.position.set(0, -3.5, 1.5);
     scene.add(floorBounce);
 
-    // 3. CREATE VOLUMETRIC CHARACTER
-    const blobCharacter = createBlobCharacter();
-    blobModelRef.current = blobCharacter;
-    scene.add(blobCharacter.rootGroup);
+    // 4. CREATE VOLUMETRIC CHARACTER CONTROLLER
+    const controller = new BlobController();
+    controllerRef.current = controller;
+    scene.add(controller.rootGroup);
 
     setIsLoaded(true);
 
-    // 4. ANIMATION & BLINK TIMING
+    // 5. ANIMATION & TIMING LOOP
     let animFrameId: number;
     let lastTime = performance.now();
     let isVisible = true;
-    let blinkTimer = 0;
-    let nextBlinkTime = 3.2;
-    let isBlinking = false;
-    let blinkDuration = 0.16;
-    let blinkElapsed = 0;
 
     // Visibility Observer to pause rendering when scrolled off-screen
     const observer = new IntersectionObserver(
@@ -139,7 +138,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
-    // 5. MAIN RENDER LOOP
+    // Main Render Loop
     const renderLoop = (time: number) => {
       animFrameId = requestAnimationFrame(renderLoop);
 
@@ -148,15 +147,12 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
       const dt = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
 
-      const physics = physicsRef.current;
-      physics.step(dt);
-
       const sec = time / 1000;
 
-      // Determine active expression
+      // Determine active expression state
       let activeExp: BlobExpression = currentExpressionRef.current;
       if (isBreathingActive) {
-        activeExp = 'resting';
+        activeExp = 'breathing';
       } else if (pointerRef.current.isDragging) {
         activeExp = 'interacting';
       } else if (isCtaHovered) {
@@ -165,78 +161,22 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
         activeExp = 'curious';
       }
 
-      // Blinking physics
-      if (activeExp === 'resting') {
-        blobCharacter.eyeController.setBlink(0.96);
-      } else if (isReducedMotion) {
-        blobCharacter.eyeController.setBlink(0);
-      } else {
-        blinkTimer += dt;
-        if (!isBlinking && blinkTimer > nextBlinkTime) {
-          isBlinking = true;
-          blinkElapsed = 0;
-        }
-
-        if (isBlinking) {
-          blinkElapsed += dt;
-          const progress = blinkElapsed / blinkDuration;
-          if (progress <= 0.5) {
-            blobCharacter.eyeController.setBlink(progress * 2);
-          } else if (progress < 1.0) {
-            blobCharacter.eyeController.setBlink(1.0 - (progress - 0.5) * 2);
-          } else {
-            isBlinking = false;
-            blinkTimer = 0;
-            nextBlinkTime = 3.0 + Math.random() * 3.5;
-            blobCharacter.eyeController.setBlink(0);
-          }
-        }
-      }
-
-      // Expression state
-      blobCharacter.eyeController.setExpression(activeExp);
+      controller.setExpression(activeExp);
 
       // Gaze Tracking
       let targetGazeX = pointerRef.current.x;
       let targetGazeY = pointerRef.current.y;
 
       if (isCtaHovered) {
-        // Look downward with welcoming gaze toward the primary button
+        // Look downward with welcoming gaze toward the primary CTA
         targetGazeX = 0;
         targetGazeY = -0.75;
       }
 
-      blobCharacter.eyeController.setGaze(targetGazeX, targetGazeY);
+      controller.setGaze(targetGazeX, targetGazeY);
 
-      // Idle Floating & Natural Respiratory Rhythm
-      const floatCycle = isReducedMotion ? 0 : Math.sin(sec * 1.3) * 0.11;
-      const breatheCycle = isReducedMotion
-        ? 1.0
-        : isBreathingActive
-        ? 1.0 + Math.sin(sec * 0.785) * 0.085 // 4s inhale, 4s exhale
-        : 1.0 + Math.sin(sec * 1.45) * 0.024; // subtle idle breathing
-
-      // Apply physics displacement to body
-      const body = blobCharacter.bodyMesh;
-      body.position.x = physics.posX.value;
-      body.position.y = physics.posY.value + floatCycle;
-      body.position.z = physics.posZ.value;
-
-      // Pointer rotation influence (clamped to natural tilt)
-      const lookRotY = THREE.MathUtils.clamp(targetGazeX * 0.24, -0.25, 0.25);
-      const lookRotX = THREE.MathUtils.clamp(-targetGazeY * 0.18, -0.18, 0.18);
-
-      body.rotation.x = physics.rotX.value + lookRotX;
-      body.rotation.y = physics.rotY.value + lookRotY;
-      body.rotation.z = physics.rotZ.value;
-
-      // Apply squash, stretch, and breath scale
-      body.scale.x = physics.scaleX.value * breatheCycle;
-      body.scale.y = physics.scaleY.value * breatheCycle;
-      body.scale.z = physics.scaleZ.value * breatheCycle;
-
-      // Surface jiggle micro-waves
-      blobCharacter.updateDeformation(sec, breatheCycle, physics.getSurfaceJiggle());
+      // Advance physics springs & animation poses
+      controller.step(dt, sec, isReducedMotion);
 
       renderer.render(scene, camera);
     };
@@ -254,11 +194,15 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     };
     window.addEventListener('resize', handleResize);
 
+    // 7. TEARDOWN AND RESOURCE CLEANUP
     return () => {
       cancelAnimationFrame(animFrameId);
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       observer.disconnect();
+
+      studioEnv?.dispose();
+      controller.dispose();
       renderer.dispose();
     };
   }, [isBreathingActive, isCtaHovered, isReducedMotion]);
@@ -272,12 +216,11 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     pointerRef.current.isDragging = true;
     hasDraggedRef.current = false;
     dragStartRef.current = { x: e.clientX, y: e.clientY };
-    physicsRef.current.isDragging = true;
 
     try {
       (e.target as HTMLElement)?.setPointerCapture?.(e.pointerId);
     } catch {
-      // safe fallback
+      // Safe fallback
     }
   };
 
@@ -293,7 +236,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     pointerRef.current.y = THREE.MathUtils.clamp(ny, -1, 1);
     pointerRef.current.isHovering = true;
 
-    if (pointerRef.current.isDragging) {
+    if (pointerRef.current.isDragging && controllerRef.current) {
       const dx = (e.clientX - dragStartRef.current.x) / (rect.width * 0.35);
       const dy = -(e.clientY - dragStartRef.current.y) / (rect.height * 0.35);
 
@@ -301,7 +244,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
         hasDraggedRef.current = true;
       }
 
-      physicsRef.current.updateDrag(dx, dy);
+      controllerRef.current.updateDrag(dx, dy);
     }
   };
 
@@ -312,16 +255,18 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     try {
       (e.target as HTMLElement)?.releasePointerCapture?.(e.pointerId);
     } catch {
-      // safe fallback
+      // Safe fallback
     }
 
-    if (!hasDraggedRef.current) {
-      // Pure click/tap: soft squash & stretch impulse!
-      physicsRef.current.triggerSquashImpulse(1.0);
-      onBlobClick?.();
-    } else {
-      // Released after dragging: rubber-band spring back to center
-      physicsRef.current.releaseDrag();
+    if (controllerRef.current) {
+      if (!hasDraggedRef.current) {
+        // Pure click/tap: soft squash & stretch impulse
+        controllerRef.current.triggerSquashImpulse(1.0);
+        onBlobClick?.();
+      } else {
+        // Released after dragging: rubber-band spring back to center
+        controllerRef.current.releaseDrag();
+      }
     }
   };
 
@@ -336,7 +281,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full min-h-[380px] sm:min-h-[460px] md:min-h-[520px] flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing ${className}`}
+      className={`relative w-full h-full flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing ${className}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -367,13 +312,6 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
           </span>
         </div>
       )}
-
-      {/* Tactile interaction badge */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-xs px-3.5 py-1 rounded-full border border-[#E8E6F1] shadow-subtle pointer-events-none transition-opacity duration-300 opacity-60 hover:opacity-100">
-        <span className="text-[11px] font-semibold text-[#5554B8] tracking-wide">
-          Tap or drag the blob
-        </span>
-      </div>
     </div>
   );
 };

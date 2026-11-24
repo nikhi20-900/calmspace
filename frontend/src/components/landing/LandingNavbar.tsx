@@ -29,7 +29,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onOpenSupportModal
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#F7F6FB]/85 backdrop-blur-md border-b border-[#E8E6F1]/80 transition-colors">
+    <header className="sticky top-0 z-40 bg-[#F7F6FB]/95 sm:bg-[#F7F6FB]/85 backdrop-blur-none sm:backdrop-blur-md border-b border-[#E8E6F1]/80 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         {/* Brand Logo */}
         <Link
@@ -111,7 +111,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onOpenSupportModal
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-[#E8E6F1] bg-white/95 backdrop-blur-md px-6 py-6 shadow-xl animate-fade-in">
+        <div className="lg:hidden border-t border-[#E8E6F1] bg-white sm:bg-white/95 backdrop-blur-none sm:backdrop-blur-md px-6 py-6 shadow-xl animate-fade-in">
           <nav className="flex flex-col gap-4">
             {navLinks.map((link) => (
               <a

@@ -13,7 +13,7 @@ export const FinalCTA: React.FC<FinalCTAProps> = ({ onOpenSupportModal }) => {
     <section className="py-24 sm:py-32 bg-white relative overflow-hidden border-t border-[#E8E6F1]">
       {/* Ambient gradient glow */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-[#E9E7FB]/50 via-[#F4DCCB]/30 to-[#DCE9DF]/40 rounded-full blur-3xl pointer-events-none -z-10"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-[#E9E7FB]/50 via-[#F4DCCB]/30 to-[#DCE9DF]/40 rounded-full blur-xl sm:blur-3xl pointer-events-none -z-10"
         aria-hidden="true"
       />
 

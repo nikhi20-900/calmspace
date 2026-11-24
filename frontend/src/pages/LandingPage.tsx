@@ -10,6 +10,7 @@ import { PrivacySection } from '../components/landing/PrivacySection';
 import { FinalCTA } from '../components/landing/FinalCTA';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { SupportModal } from '../components/layout/SupportModal';
+import { ScrollReveal } from '../components/landing/ScrollReveal';
 
 export const LandingPage: React.FC = () => {
   const [supportModalOpen, setSupportModalOpen] = useState(false);
@@ -25,25 +26,39 @@ export const LandingPage: React.FC = () => {
         <HeroSection onOpenSupportModal={() => setSupportModalOpen(true)} />
 
         {/* Section 2: Student Reality */}
-        <StudentReality />
+        <ScrollReveal distance={40}>
+          <StudentReality />
+        </ScrollReveal>
 
         {/* Section 3: How Calmspace Works */}
-        <HowItWorks />
+        <ScrollReveal distance={40}>
+          <HowItWorks />
+        </ScrollReveal>
 
         {/* Section 4: Product Experience Preview */}
-        <ProductPreview />
+        <ScrollReveal distance={40}>
+          <ProductPreview />
+        </ScrollReveal>
 
         {/* Section 5: Weekly Insights & Rhythms */}
-        <WeeklyInsights />
+        <ScrollReveal distance={40}>
+          <WeeklyInsights />
+        </ScrollReveal>
 
         {/* Section 6: Safety Engine & Human Escalation */}
-        <SafetySection onOpenSupportModal={() => setSupportModalOpen(true)} />
+        <ScrollReveal distance={40}>
+          <SafetySection onOpenSupportModal={() => setSupportModalOpen(true)} />
+        </ScrollReveal>
 
         {/* Section 7: Privacy First Architecture */}
-        <PrivacySection />
+        <ScrollReveal distance={40}>
+          <PrivacySection />
+        </ScrollReveal>
 
         {/* Section 8: Final CTA */}
-        <FinalCTA onOpenSupportModal={() => setSupportModalOpen(true)} />
+        <ScrollReveal distance={32}>
+          <FinalCTA onOpenSupportModal={() => setSupportModalOpen(true)} />
+        </ScrollReveal>
       </main>
 
       {/* Editorial Footer */}

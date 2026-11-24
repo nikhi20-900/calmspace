@@ -1,5 +1,6 @@
 import React from 'react';
 import { BookOpen, Moon, Users, Compass, Sparkles } from 'lucide-react';
+import { ScrollStagger, ScrollStaggerItem } from './ScrollReveal';
 
 export const StudentReality: React.FC = () => {
   const experiences = [
@@ -56,11 +57,11 @@ export const StudentReality: React.FC = () => {
         </div>
 
         {/* 4 Empathetic Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <ScrollStagger className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
           {experiences.map((item, idx) => {
             const Icon = item.icon;
             return (
-              <div
+              <ScrollStaggerItem
                 key={idx}
                 className="p-8 rounded-3xl bg-[#F7F6FB] border border-[#E8E6F1] hover:border-[#DCD9F5] hover:bg-white hover:shadow-card transition-all duration-300 flex flex-col justify-between group"
               >
@@ -80,10 +81,10 @@ export const StudentReality: React.FC = () => {
                     {item.description}
                   </p>
                 </div>
-              </div>
+              </ScrollStaggerItem>
             );
           })}
-        </div>
+        </ScrollStagger>
 
         {/* Thoughtful Callout Banner */}
         <div className="mt-14 p-6 sm:p-8 rounded-3xl bg-[#F2F1FD] border border-[#DCD9F5] text-center max-w-3xl mx-auto shadow-subtle">

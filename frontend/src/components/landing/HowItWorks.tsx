@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Sliders, LineChart, HeartHandshake, ArrowRight, Sparkles } from 'lucide-react';
+import { ScrollStagger, ScrollStaggerItem } from './ScrollReveal';
 
 export const HowItWorks: React.FC = () => {
   const navigate = useNavigate();
@@ -54,11 +55,11 @@ export const HowItWorks: React.FC = () => {
         </div>
 
         {/* 3 Step Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <ScrollStagger className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {steps.map((step) => {
             const Icon = step.icon;
             return (
-              <div
+              <ScrollStaggerItem
                 key={step.num}
                 className="bg-white rounded-3xl p-8 border border-[#E8E6F1] shadow-subtle hover:shadow-card hover:border-[#DCD9F5] transition-all duration-300 flex flex-col justify-between"
               >
@@ -93,10 +94,10 @@ export const HowItWorks: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              </div>
+              </ScrollStaggerItem>
             );
           })}
-        </div>
+        </ScrollStagger>
 
         {/* Action Callout */}
         <div className="mt-14 text-center">

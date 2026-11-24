@@ -120,9 +120,9 @@ calmspace/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── mascot/              # Interactive 3D Lavender Blob (BlobScene, BlobModel, BlobEyes, BlobPhysics)
+│   │   │   ├── mascot/              # Volumetric 3D Lavender Blob (BlobGeometry, BlobMaterials, BlobAnimations, BlobController, BlobScene)
 │   │   │   ├── landing/             # 8-Section Editorial Landing Page (Hero, Reality, Works, Preview, Insights, Safety, Privacy, Footer)
-│   │   │   ├── ui/                  # Button, Card, Badge, Slider, Stepper, Dialog, Toggle
+│   │   │   ├── ui/                  # calmspace-blob, Button, Card, Badge, Slider, Stepper, Dialog, Toggle
 │   │   │   ├── layout/              # AppLayout, Sidebar, MobileNavigation, PageHeader, SupportModal
 │   │   │   └── checkin/             # MoodQuestion, StressQuestion, SleepQuestion, ReflectionInput
 │   │   ├── pages/
