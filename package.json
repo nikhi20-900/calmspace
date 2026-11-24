@@ -7,7 +7,7 @@
     "build": "npm --prefix frontend run build",
     "preview": "npm --prefix frontend run preview",
     "backend": "uvicorn app.main:app --app-dir backend --reload --port 8000",
-    "test:backend": "PYTHONPATH=backend python3 backend/test_backend.py"
+    "test:backend": "cd backend && pytest"
   },
   "keywords": [
     "student-wellbeing",

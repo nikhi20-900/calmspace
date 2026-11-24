@@ -18,3 +18,6 @@ venv/
 .env
 *.log
 npm-debug.log*
+.coverage
+.pytest_cache/
+htmlcov/
