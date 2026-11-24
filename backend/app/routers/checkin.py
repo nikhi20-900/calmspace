@@ -59,6 +59,7 @@ async def submit_checkin(
             sleep_hours=payload.sleep_hours,
             reflection=payload.reflection if payload.consent_ai_processing else None,
             consent_given=payload.consent_ai_processing,
+            session_id=session_id,
         )
 
     # 5. Fetch verified support directory
