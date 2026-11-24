@@ -16,10 +16,9 @@ Safety Boundary:
 """
 
 import json
-import math
 import os
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,29 +27,19 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.main import app
-from app.models.schemas import CheckInRecord, RiskRoute, SafetyEvaluation
+from app.models.schemas import CheckInRecord
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.ai_providers.mock_provider import MockAIProvider
 from app.services.safety_evaluator import (
     RULE_CONSECUTIVE_LOW_MOOD,
     RULE_CRISIS_OVERRIDE,
-    RULE_DISTRESS_KEYWORD,
-    RULE_MOOD_LOW,
     RULE_MOOD_VERY_LOW,
     RULE_SLEEP_CRITICAL,
     RULE_SLEEP_SHORT,
-    RULE_STRESS_HIGH,
-    RULE_STRESS_MODERATE,
     RULE_STRESS_VERY_HIGH,
     evaluate,
-    evaluate_wellbeing_route,
-    extract_valid_mood,
-    is_crisis_negated,
-    is_crisis_negated_following,
-    is_in_academic_quote,
     validate_checkin_inputs,
 )
-from app.services.storage import storage
 
 CORPUS_PATH = os.path.join(os.path.dirname(__file__), "data", "safety_corpus.json")
 
@@ -145,7 +134,9 @@ class TestScoringBoundaries:
         # Exactly 4.0 -> SHORT (+1), NOT critical
         res_4_0 = evaluate({"mood": 3, "stress": 2, "sleep_hours": 4.0})
         assert any(r.rule_id == RULE_SLEEP_SHORT for r in res_4_0.triggered_rules)
-        assert not any(r.rule_id == RULE_SLEEP_CRITICAL for r in res_4_0.triggered_rules)
+        assert not any(
+            r.rule_id == RULE_SLEEP_CRITICAL for r in res_4_0.triggered_rules
+        )
         assert res_4_0.score == 1
 
         # Exactly below 6.0 (5.999) -> SHORT (+1)
@@ -191,7 +182,11 @@ class TestScoringBoundaries:
 
         # Score 2 -> MEDIUM (lower boundary of MEDIUM)
         s2_mood = evaluate({"mood": 2, "stress": 2, "sleep_hours": 8.0})
-        assert s2_mood.score == 2 and s2_mood.route == "MEDIUM" and s2_mood.ai_eligible is True
+        assert (
+            s2_mood.score == 2
+            and s2_mood.route == "MEDIUM"
+            and s2_mood.ai_eligible is True
+        )
 
         s2_stress = evaluate({"mood": 3, "stress": 4, "sleep_hours": 8.0})
         assert s2_stress.score == 2 and s2_stress.route == "MEDIUM"
@@ -332,7 +327,9 @@ class TestCrisisOverridePrecedence:
         )
         assert len(res.triggered_rules) >= 4
         for trigger in res.triggered_rules:
-            assert isinstance(trigger.rule_id, str) and trigger.rule_id.startswith("RULE_")
+            assert isinstance(trigger.rule_id, str) and trigger.rule_id.startswith(
+                "RULE_"
+            )
             assert isinstance(trigger.name, str) and len(trigger.name) > 3
             assert isinstance(trigger.points, int) and trigger.points >= 1
             assert isinstance(trigger.rationale, str) and len(trigger.rationale) > 10
@@ -350,14 +347,18 @@ class TestRepeatedLowMoodHistory:
         """History requires current mood <= 2 AND exactly preceding 2 check-ins with mood <= 2."""
         # 0 past check-ins + current 2 -> Does NOT trigger
         r0 = evaluate({"mood": 2, "stress": 2, "sleep_hours": 7.0}, history=[])
-        assert not any(r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in r0.triggered_rules)
+        assert not any(
+            r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in r0.triggered_rules
+        )
 
         # 1 past check-in (mood 2) + current 2 -> Does NOT trigger
         r1 = evaluate(
             {"mood": 2, "stress": 2, "sleep_hours": 7.0},
             history=[{"mood": 2}],
         )
-        assert not any(r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in r1.triggered_rules)
+        assert not any(
+            r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in r1.triggered_rules
+        )
 
         # 2 past check-ins (both mood <= 2) + current 2 -> TRIGGERS (+2 points)
         r2 = evaluate(
@@ -400,7 +401,8 @@ class TestRepeatedLowMoodHistory:
             history=[{"mood": 4}, {"mood": 2}],
         )
         assert not any(
-            r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in r_prev2_break.triggered_rules
+            r.rule_id == RULE_CONSECUTIVE_LOW_MOOD
+            for r in r_prev2_break.triggered_rules
         )
 
         # Longer history with earlier highs: [5, 4, 2, 2] + current 2 -> TRIGGERS (last 2 in history were <= 2)
@@ -454,7 +456,9 @@ class TestRepeatedLowMoodHistory:
             {"other_key": 2},
         ]:
             history = [bad_entry, {"mood": 2}]
-            res = evaluate({"mood": 2, "stress": 2, "sleep_hours": 7.0}, history=history)
+            res = evaluate(
+                {"mood": 2, "stress": 2, "sleep_hours": 7.0}, history=history
+            )
             # Bad entry must not trigger false positive
             assert not any(
                 r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in res.triggered_rules
@@ -502,7 +506,9 @@ class TestMultilingualCorpusRegression:
                     f"Expected (route={entry['expected_route']}, crisis={entry['expected_crisis_flag']}), "
                     f"Got (route={res.route}, crisis={res.crisis_flag})"
                 )
-        assert not failures, f"Corpus benchmark failures ({len(failures)}):\n" + "\n".join(failures)
+        assert not failures, (
+            f"Corpus benchmark failures ({len(failures)}):\n" + "\n".join(failures)
+        )
 
     @pytest.mark.parametrize(
         "phrase",
@@ -534,7 +540,9 @@ class TestMultilingualCorpusRegression:
     )
     def test_direct_crisis_phrases_across_languages(self, phrase: str):
         """Direct crisis statements in en, hi-Latn, and hi-Deva strictly trigger HIGH."""
-        res = evaluate({"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": phrase})
+        res = evaluate(
+            {"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": phrase}
+        )
         assert res.route == "HIGH", f"Failed for: {phrase}"
         assert res.crisis_flag is True, f"Crisis flag missing for: {phrase}"
         assert res.ai_eligible is False
@@ -553,7 +561,9 @@ class TestMultilingualCorpusRegression:
     )
     def test_misspelling_and_leetspeak_variants(self, misspelling: str):
         """Common typos and leetspeak evasions are reliably caught."""
-        res = evaluate({"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": misspelling})
+        res = evaluate(
+            {"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": misspelling}
+        )
         assert res.route == "HIGH"
         assert res.crisis_flag is True
 
@@ -566,7 +576,9 @@ class TestMultilingualCorpusRegression:
             "आत्महत्या",
         ]
         for p in phrases:
-            res = evaluate({"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": p})
+            res = evaluate(
+                {"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": p}
+            )
             assert res.route == "HIGH"
             assert res.crisis_flag is True
 
@@ -614,7 +626,9 @@ class TestNegationAndBenignLookalikes:
                 "reflection": negated_reflection,
             }
         )
-        assert res.crisis_flag is False, f"False positive crisis for: '{negated_reflection}'"
+        assert res.crisis_flag is False, (
+            f"False positive crisis for: '{negated_reflection}'"
+        )
         assert res.route != "HIGH"
 
     @pytest.mark.parametrize(
@@ -646,7 +660,9 @@ class TestNegationAndBenignLookalikes:
                 "reflection": boundary_stmt,
             }
         )
-        assert res.crisis_flag is True, f"Failed to catch crisis across boundary in: '{boundary_stmt}'"
+        assert res.crisis_flag is True, (
+            f"Failed to catch crisis across boundary in: '{boundary_stmt}'"
+        )
         assert res.route == "HIGH"
         assert res.ai_eligible is False
 
@@ -681,7 +697,9 @@ class TestNegationAndBenignLookalikes:
                 "reflection": idiom,
             }
         )
-        assert res.crisis_flag is False, f"Benign idiom falsely triggered crisis: '{idiom}'"
+        assert res.crisis_flag is False, (
+            f"Benign idiom falsely triggered crisis: '{idiom}'"
+        )
         assert res.route != "HIGH"
 
     def test_academic_and_quoted_inquiry_isolation(self):
@@ -790,7 +808,9 @@ class TestHighRouteAIBypassIntegration:
         client = TestClient(app)
         session_id = "test-session-issue-13-high-bypass"
 
-        with patch("app.routers.checkin.generate_supportive_guidance") as mock_guidance_fn:
+        with patch(
+            "app.routers.checkin.generate_supportive_guidance"
+        ) as mock_guidance_fn:
             response = client.post(
                 "/api/checkin",
                 json={
@@ -831,7 +851,9 @@ class TestHighRouteAIBypassIntegration:
             assert emergency["is_urgent"] is True
 
             # Data privacy: reflection text is NEVER stored in check-in history
-            history_res = client.get("/api/checkin/history", headers={"x-session-id": session_id})
+            history_res = client.get(
+                "/api/checkin/history", headers={"x-session-id": session_id}
+            )
             assert history_res.status_code == 200
             history_data = history_res.json()
             assert len(history_data) >= 1
@@ -861,7 +883,9 @@ class TestHighRouteAIBypassIntegration:
                 "mental illness",
             ]
             for term in prohibited_clinical:
-                assert term not in text, f"Prohibited clinical term '{term}' found in evaluation text: {text}"
+                assert term not in text, (
+                    f"Prohibited clinical term '{term}' found in evaluation text: {text}"
+                )
 
             # Must NEVER make false absolute guarantees of safety
             prohibited_guarantees = [
@@ -871,4 +895,6 @@ class TestHighRouteAIBypassIntegration:
                 "cured",
             ]
             for term in prohibited_guarantees:
-                assert term not in text, f"Prohibited safety guarantee '{term}' found: {text}"
+                assert term not in text, (
+                    f"Prohibited safety guarantee '{term}' found: {text}"
+                )
