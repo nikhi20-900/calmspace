@@ -24,7 +24,7 @@ class CheckInRequest(BaseModel):
         ..., ge=0.0, le=24.0, description="Sleep duration in hours"
     )
     reflection: str | None = Field(
-        None, max_length=1500, description="Optional personal reflection"
+        None, max_length=2000, description="Optional personal reflection"
     )
     consent_ai_processing: bool = Field(
         False, description="Explicit consent if reflection is evaluated for guidance"

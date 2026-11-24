@@ -3,6 +3,12 @@ Calmspace Safety & Backend Tests
 Verifies core safety rules, privacy retention, and routing.
 """
 
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from app.main import app
+from app.models.schemas import CheckInRequest
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import evaluate_wellbeing_route
 from app.services.storage import storage
@@ -207,10 +213,77 @@ def test_support_resources():
     print("✓ Support directory verification verified")
 
 
+def test_reflection_length_and_consent_contracts():
+    client = TestClient(app)
+
+    # 1. 2000 characters is valid in CheckInRequest schema
+    valid_text = "a" * 2000
+    req = CheckInRequest(
+        mood=3,
+        stress=2,
+        sleep_hours=7.0,
+        reflection=valid_text,
+        consent_ai_processing=False,
+    )
+    assert req.reflection is not None
+    assert len(req.reflection) == 2000
+
+    # 2. 2001 characters raises ValidationError
+    with pytest.raises(ValidationError):
+        CheckInRequest(
+            mood=3,
+            stress=2,
+            sleep_hours=7.0,
+            reflection="a" * 2001,
+            consent_ai_processing=False,
+        )
+
+    # 3. Unconsented reflection still triggers local deterministic safety evaluation
+    # (escalating to HIGH route) while strictly bypassing AI guidance
+    crisis_text = "I feel hopeless and want to kill myself"
+    resp = client.post(
+        "/api/checkin",
+        headers={"X-Session-ID": "test-session-unconsented-safety"},
+        json={
+            "mood": 3,
+            "stress": 3,
+            "sleep_hours": 7.0,
+            "reflection": crisis_text,
+            "consent_ai_processing": False,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["safety"]["route"] == "HIGH"
+    assert data["safety"]["ai_eligible"] is False
+    assert data["guidance"] is None
+
+    # 4. Unconsented non-crisis reflection receives fallback guidance without AI generation
+    resp_benign = client.post(
+        "/api/checkin",
+        headers={"X-Session-ID": "test-session-unconsented-benign"},
+        json={
+            "mood": 4,
+            "stress": 2,
+            "sleep_hours": 8.0,
+            "reflection": "Doing okay today.",
+            "consent_ai_processing": False,
+        },
+    )
+    assert resp_benign.status_code == 200
+    data_benign = resp_benign.json()
+    assert data_benign["safety"]["route"] == "LOW"
+    assert data_benign["safety"]["ai_eligible"] is True
+    assert data_benign["guidance"] is not None
+    assert data_benign["guidance"]["generated_by_ai"] is False
+    assert data_benign["guidance"]["fallback_used"] is True
+
+
 if __name__ == "__main__":
     test_safety_rules()
     test_ai_guidance_bypass()
     test_privacy_storage()
     test_high_risk_data_retention_and_safe_exit_purge()
     test_support_resources()
+    test_reflection_length_and_consent_contracts()
     print("\nALL BACKEND SAFETY & PRIVACY TESTS PASSED!")

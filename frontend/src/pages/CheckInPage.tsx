@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -8,7 +8,16 @@ import { StressQuestion } from '../components/checkin/StressQuestion';
 import { SleepQuestion } from '../components/checkin/SleepQuestion';
 import { ReflectionInput } from '../components/checkin/ReflectionInput';
 import { api } from '../services/api';
-import { ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { CheckInRecord } from '../types';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ShieldCheck,
+  AlertCircle,
+  RefreshCw,
+  Info,
+} from 'lucide-react';
 
 export const CheckInPage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,6 +32,41 @@ export const CheckInPage: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isNetworkError, setIsNetworkError] = useState(false);
+
+  // Duplicate same-day check-in detection state
+  const [priorTodayCheckin, setPriorTodayCheckin] = useState<CheckInRecord | null>(null);
+
+  useEffect(() => {
+    async function checkPriorCheckins() {
+      try {
+        const history = await api.getCheckInHistory();
+        const now = new Date();
+        const isSameLocalDate = (d1: Date, d2: Date) =>
+          d1.getFullYear() === d2.getFullYear() &&
+          d1.getMonth() === d2.getMonth() &&
+          d1.getDate() === d2.getDate();
+
+        // Filter valid entries logged on the user's current calendar day
+        const todayEntries = history.filter((c) => {
+          const recordDate = new Date(c.timestamp);
+          return !isNaN(recordDate.getTime()) && isSameLocalDate(recordDate, now);
+        });
+
+        if (todayEntries.length > 0) {
+          // Sort descending by timestamp so the most recent entry of the day is displayed
+          todayEntries.sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setPriorTodayCheckin(todayEntries[0]);
+        }
+      } catch (err) {
+        // Non-blocking history lookup
+        console.debug('Could not load checkin history for duplicate policy check:', err);
+      }
+    }
+    checkPriorCheckins();
+  }, []);
 
   const stepTitles = [
     'Your Mood',
@@ -31,7 +75,52 @@ export const CheckInPage: React.FC = () => {
     'Reflection (Optional)',
   ];
 
+  /**
+   * Client-side validation ensuring inputs adhere strictly to agreed ranges
+   * before sending payload to FastAPI backend.
+   */
+  const validateCurrentInputs = (): string | null => {
+    if (!Number.isInteger(mood) || mood < 1 || mood > 5) {
+      return 'Mood must be a whole rating between 1 (Very low) and 5 (Great).';
+    }
+    if (!Number.isInteger(stress) || stress < 1 || stress > 5) {
+      return 'Stress must be a whole rating between 1 (Very low) and 5 (Very high).';
+    }
+    if (
+      typeof sleepHours !== 'number' ||
+      !Number.isFinite(sleepHours) ||
+      sleepHours < 0.0 ||
+      sleepHours > 24.0
+    ) {
+      return 'Sleep duration must be a finite number between 0.0 and 24.0 hours.';
+    }
+    if (reflection.length > 2000) {
+      return 'Optional reflection text must be within 2000 characters.';
+    }
+    return null;
+  };
+
   const handleNext = () => {
+    setErrorMsg(null);
+    setIsNetworkError(false);
+
+    // Validate active step inputs
+    if (currentStep === 1 && (!Number.isInteger(mood) || mood < 1 || mood > 5)) {
+      setErrorMsg('Please select a valid mood rating between 1 and 5.');
+      return;
+    }
+    if (currentStep === 2 && (!Number.isInteger(stress) || stress < 1 || stress > 5)) {
+      setErrorMsg('Please select a valid stress rating between 1 and 5.');
+      return;
+    }
+    if (
+      currentStep === 3 &&
+      (!Number.isFinite(sleepHours) || sleepHours < 0.0 || sleepHours > 24.0)
+    ) {
+      setErrorMsg('Sleep duration must be between 0.0 and 24.0 hours.');
+      return;
+    }
+
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -41,6 +130,8 @@ export const CheckInPage: React.FC = () => {
   };
 
   const handleBack = () => {
+    setErrorMsg(null);
+    setIsNetworkError(false);
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -48,8 +139,17 @@ export const CheckInPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    // 1. Validate inputs thoroughly in React
+    const validationError = validateCurrentInputs();
+    if (validationError) {
+      setErrorMsg(validationError);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg(null);
+    setIsNetworkError(false);
+
     try {
       const response = await api.submitCheckIn({
         mood,
@@ -69,59 +169,65 @@ export const CheckInPage: React.FC = () => {
       navigate('/checkin/result', { state: { result: response } });
     } catch (err: any) {
       console.error('Checkin submission error:', err);
-      // Clear any prior safe-exit flag for fallback submission
-      sessionStorage.removeItem('calmspace_high_risk_exited');
-
-      // Fallback for safety offline simulation if backend isn't running
-      const fallbackResult = {
-        record: {
-          id: 'local-' + Date.now(),
-          session_id: 'anonymous-default-session',
-          timestamp: new Date().toISOString(),
-          mood,
-          stress,
-          sleep_hours: sleepHours,
-          route: mood <= 1 || stress >= 5 || sleepHours < 3.5 ? 'HIGH' : mood === 2 || stress >= 3 || sleepHours < 6 ? 'MEDIUM' : 'LOW',
-        },
-        safety: {
-          route: mood <= 1 || stress >= 5 || sleepHours < 3.5 ? 'HIGH' : mood === 2 || stress >= 3 || sleepHours < 6 ? 'MEDIUM' : 'LOW',
-          status_label: mood <= 1 || stress >= 5 ? "Let's get you support" : mood === 2 || stress >= 3 ? "Worth some support" : "Doing okay",
-          status_summary: mood <= 1 || stress >= 5 ? "You don't have to carry this alone. Human support is ready." : "Gentle support and self-pacing can help your routine.",
-          requires_human_escalation: mood <= 1 || stress >= 5 || sleepHours < 3.5,
-          ai_eligible: !(mood <= 1 || stress >= 5 || sleepHours < 3.5),
-          reasons: ['Self-reported check-in metrics evaluation.'],
-        },
-        guidance: mood <= 1 || stress >= 5 ? null : {
-          message: "Navigating university life has natural ebbs and flows. Honour where you are today, take one breath at a time, and remember that resting is productive.",
-          suggestion_chips: ["Step outside for a 5-minute break", "Hydrate and stretch your back"],
-          disclaimer: "This is supportive guidance, not medical advice.",
-          generated_by_ai: consentAi,
-          fallback_used: true,
-        },
-        support_contacts: [],
-      };
-      sessionStorage.setItem('calmspace_latest_checkin', JSON.stringify(fallbackResult));
-      navigate('/checkin/result', { state: { result: fallbackResult } });
+      setIsNetworkError(true);
+      setErrorMsg(
+        err?.message ||
+          'Unable to submit check-in to server. Please check your connection and retry.'
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-xl mx-auto py-2 sm:py-6">
+    <div className="max-w-xl mx-auto px-3 sm:px-6 py-2 sm:py-6">
       <PageHeader
         tag="Daily Wellbeing Check-in"
         title="A moment to pause with yourself"
-        description="Takes about 60 seconds. Rules decide your safety, reflection text is never stored, and you remain anonymous."
+        description="Takes about 60 seconds. Rules decide your safety, reflection text is never saved to history, and you remain anonymous."
       />
 
+      {/* Same-day duplicate policy notice banner */}
+      {priorTodayCheckin && (
+        <div
+          className="mb-4 p-3.5 rounded-card bg-[#F0EFFC] border border-[#D5D1E5] text-xs text-[#25233B] flex items-start gap-2.5 animate-fade-in"
+          role="status"
+        >
+          <Info className="w-4 h-4 text-[#5554B8] shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <span className="font-semibold text-[#5554B8]">
+              Most recent check-in logged today{' '}
+            </span>
+            at{' '}
+            {new Date(priorTodayCheckin.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+            . You can submit an updated check-in anytime if your feelings, stress, or rest
+            have shifted.
+          </div>
+        </div>
+      )}
+
       {/* Progress Stepper Bar */}
-      <div className="mb-6 bg-white p-4 rounded-card border border-[#E8E6F1] shadow-subtle">
+      <div
+        className="mb-6 bg-white p-4 rounded-card border border-[#E8E6F1] shadow-subtle"
+        aria-label="Check-in progress"
+      >
         <div className="flex items-center justify-between text-xs font-medium text-[#625F78] mb-2">
-          <span>Step {currentStep} of {totalSteps}: <strong className="text-[#25233B]">{stepTitles[currentStep - 1]}</strong></span>
+          <span>
+            Step {currentStep} of {totalSteps}:{' '}
+            <strong className="text-[#25233B]">{stepTitles[currentStep - 1]}</strong>
+          </span>
           <span>{Math.round((currentStep / totalSteps) * 100)}%</span>
         </div>
-        <div className="w-full bg-[#E8E6F1] h-1.5 rounded-full overflow-hidden" role="progressbar" aria-valuenow={currentStep} aria-valuemin={1} aria-valuemax={totalSteps}>
+        <div
+          className="w-full bg-[#E8E6F1] h-1.5 rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={currentStep}
+          aria-valuemin={1}
+          aria-valuemax={totalSteps}
+        >
           <div
             className="bg-[#5554B8] h-full transition-all duration-300 ease-out rounded-full"
             style={{ width: `${(currentStep / totalSteps) * 100}%` }}
@@ -132,22 +238,38 @@ export const CheckInPage: React.FC = () => {
       {/* Step Card Content */}
       <Card padding="lg" className="animate-fade-up">
         {errorMsg && (
-          <div className="p-3 mb-4 rounded-button bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-            {errorMsg}
+          <div
+            className={`p-3.5 mb-5 rounded-button text-xs flex items-start gap-2.5 ${
+              isNetworkError
+                ? 'bg-rose-50 border border-rose-200 text-rose-800'
+                : 'bg-amber-50 border border-amber-200 text-amber-800'
+            }`}
+            role="alert"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold">{isNetworkError ? 'Connection Issue' : 'Validation Error'}</p>
+              <p className="mt-0.5">{errorMsg}</p>
+              {isNetworkError && (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="mt-2 inline-flex items-center gap-1.5 font-semibold text-xs text-rose-900 underline hover:no-underline"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
+                  <span>Retry Submission</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {currentStep === 1 && (
-          <MoodQuestion value={mood} onChange={setMood} />
-        )}
+        {currentStep === 1 && <MoodQuestion value={mood} onChange={setMood} />}
 
-        {currentStep === 2 && (
-          <StressQuestion value={stress} onChange={setStress} />
-        )}
+        {currentStep === 2 && <StressQuestion value={stress} onChange={setStress} />}
 
-        {currentStep === 3 && (
-          <SleepQuestion value={sleepHours} onChange={setSleepHours} />
-        )}
+        {currentStep === 3 && <SleepQuestion value={sleepHours} onChange={setSleepHours} />}
 
         {currentStep === 4 && (
           <ReflectionInput
@@ -166,6 +288,7 @@ export const CheckInPage: React.FC = () => {
               variant="outline"
               size="md"
               onClick={handleBack}
+              disabled={isSubmitting}
               leftIcon={<ArrowLeft className="w-4 h-4" />}
             >
               Previous
@@ -180,6 +303,7 @@ export const CheckInPage: React.FC = () => {
             size="md"
             onClick={handleNext}
             isLoading={isSubmitting}
+            disabled={isSubmitting}
             rightIcon={
               currentStep === totalSteps ? (
                 <CheckCircle2 className="w-4 h-4" />
@@ -196,7 +320,7 @@ export const CheckInPage: React.FC = () => {
       {/* Privacy Footnote */}
       <div className="flex items-center justify-center gap-2 mt-6 text-xs text-[#625F78]">
         <ShieldCheck className="w-4 h-4 text-[#245532]" />
-        <span>Encrypted anonymous session. No medical diagnosis.</span>
+        <span>Encrypted anonymous session. No clinical diagnosis.</span>
       </div>
     </div>
   );
