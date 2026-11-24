@@ -41,12 +41,24 @@ export const CheckInPage: React.FC = () => {
     async function checkPriorCheckins() {
       try {
         const history = await api.getCheckInHistory();
-        const todayStr = new Date().toDateString();
-        const existing = history.find(
-          (c) => new Date(c.timestamp).toDateString() === todayStr
-        );
-        if (existing) {
-          setPriorTodayCheckin(existing);
+        const now = new Date();
+        const isSameLocalDate = (d1: Date, d2: Date) =>
+          d1.getFullYear() === d2.getFullYear() &&
+          d1.getMonth() === d2.getMonth() &&
+          d1.getDate() === d2.getDate();
+
+        // Filter valid entries logged on the user's current calendar day
+        const todayEntries = history.filter((c) => {
+          const recordDate = new Date(c.timestamp);
+          return !isNaN(recordDate.getTime()) && isSameLocalDate(recordDate, now);
+        });
+
+        if (todayEntries.length > 0) {
+          // Sort descending by timestamp so the most recent entry of the day is displayed
+          todayEntries.sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setPriorTodayCheckin(todayEntries[0]);
         }
       } catch (err) {
         // Non-blocking history lookup
@@ -172,7 +184,7 @@ export const CheckInPage: React.FC = () => {
       <PageHeader
         tag="Daily Wellbeing Check-in"
         title="A moment to pause with yourself"
-        description="Takes about 60 seconds. Rules decide your safety, reflection text is never stored, and you remain anonymous."
+        description="Takes about 60 seconds. Rules decide your safety, reflection text is never saved to history, and you remain anonymous."
       />
 
       {/* Same-day duplicate policy notice banner */}
@@ -184,7 +196,7 @@ export const CheckInPage: React.FC = () => {
           <Info className="w-4 h-4 text-[#5554B8] shrink-0 mt-0.5" />
           <div className="leading-relaxed">
             <span className="font-semibold text-[#5554B8]">
-              Previous check-in logged today{' '}
+              Most recent check-in logged today{' '}
             </span>
             at{' '}
             {new Date(priorTodayCheckin.timestamp).toLocaleTimeString([], {

@@ -62,7 +62,7 @@ export const ReflectionInput: React.FC<ReflectionInputProps> = ({
         <div className="flex items-start gap-2 text-xs text-[#625F78]">
           <ShieldCheck className="w-4 h-4 text-[#245532] shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <strong className="text-[#25233B]">Privacy guarantee:</strong> Your reflection is completely optional. It is <em>never</em> stored in your check-in history database or server logs.
+            <strong className="text-[#25233B]">Privacy guarantee:</strong> Your reflection is completely optional and is never saved in your check-in history database. It is processed locally by deterministic safety rules to detect crisis indicators.
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export const ReflectionInput: React.FC<ReflectionInputProps> = ({
             className="mt-1 h-4 w-4 rounded border-[#D5D1E5] text-[#5554B8] focus:ring-[#5554B8] cursor-pointer"
           />
           <span className="text-xs text-[#25233B] leading-relaxed">
-            I consent to allowing the supportive AI assistant to read this reflection to tailor my kind guidance message. (If left unchecked, standard gentle tips will be provided without sending your reflection to any AI model).
+            I consent to allowing the supportive AI assistant to read this reflection to tailor my kind guidance message. (If left unchecked, your reflection is only evaluated by local rule-based safety checks and is never shared with external AI guidance models).
           </span>
         </label>
       </div>
