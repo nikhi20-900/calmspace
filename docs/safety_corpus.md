@@ -23,12 +23,13 @@ All 65 test cases were evaluated using neutral check-in baseline metrics (`mood=
 | Metric | Target | Result | Status |
 | :--- | :---: | :---: | :---: |
 | **Total Corpus Entries** | $\ge 50$ | **65** | Passed |
-| **Direct Crisis Recall** | 100.0% | **100.0%** (32/32) | Passed |
+| **Direct Crisis Recall** (`direct_crisis` category) | 100.0% | **100.0%** (21/21) | Passed |
+| **Corpus-Positive Recall** (all crisis cases) | 100.0% | **100.0%** (32/32) | Passed |
+| **Exact Route Accuracy** (all 65 cases) | 100.0% | **100.0%** (65/65) | Passed |
 | **Benign Idiom False-Positive Rate** | 0.0% | **0.0%** (0/13) | Passed |
 | **Negation Leakage Rate** | 0.0% | **0.0%** (0/12) | Passed |
 | **Prompt Injection Bypass Rate** | 0.0% | **0.0%** (0/4) | Passed |
 | **Overall Precision** | $\ge 95\%$ | **100.0%** | Passed |
-| **Overall Recall** | 100.0% | **100.0%** | Passed |
 
 ### Accuracy by Script / Language
 - **English (`en-Latn`)**: 30 / 30 (**100.0%**)
@@ -88,10 +89,11 @@ Each record in `backend/tests/data/safety_corpus.json` adheres to a strict schem
 
 ## 4. Key Linguistic & Safety Engineering Discoveries
 
-1. **Devanagari Word Boundaries**: Standard ASCII word boundaries (`\b`) fail on Devanagari characters in Python regex (e.g. `\bआत्महत्या\b` fails). Calmspace uses `(?<!\w)` and `(?!\w)` lookarounds with Unicode `NFKC` normalization for robust multi-script tokenization.
-2. **Indo-Aryan (SOV) Post-Verbal Negation**: English negations occur before verbs (*"I do not want to die"*), whereas Hindi/Hinglish negations frequently occur after nominalized infinitives (*"marne ka man nahi hai"*). The evaluator analyzes both preceding and following clause tokens.
-3. **Clause-Level Isolation**: Punctuation (`.`, `,`, `!`, `?`, `;`, `\n`) and contrastive conjunctions (`but`, `however`, `yet`, `although`) strictly bound negation scope.
-4. **Persistent Support Pathway**: Regardless of automated risk scoring, the Calmspace UI provides persistent access to emergency contacts, university counseling, and Tele-MANAS (14416 / 1800-891-4416) on every page.
+1. **Devanagari Word Boundaries**: Standard ASCII word boundaries (`\b`) fail on Devanagari characters in Python regex (e.g. `\bआत्महत्या\b` fails due to Unicode combining marks and matras). Calmspace uses `(?<!\w)` and `(?!\w)` lookarounds with Unicode `NFKC` normalization for robust multi-script tokenization.
+2. **Indo-Aryan (SOV) Post-Verbal Negation Anchoring**: English negations occur before verbs (*"I do not want to die"*), whereas Hindi/Hinglish negations frequently occur after nominalized infinitives (*"marne ka man nahi hai"*). Crucially, post-verbal negation is strictly anchored (`^\s*`) to the immediate verb/particle phrase, preventing unrelated negations in coordinate clauses (e.g., *"I want to die and I am not happy"*) from falsely suppressing crisis expressions.
+3. **Sentence-Isolated Academic Quotations**: Academic context markers (*"philosophy class"*, *"professor asked"*, *"textbook"*) are restricted strictly to their own sentence boundaries. An earlier sentence discussing academic reading cannot suppress an acute crisis statement in a subsequent sentence (*"My professor asked about suicide in class. I want to kill myself."*). Furthermore, personal first-person intent (*"kill myself"*, *"want to die"*) is never exempted by academic markers.
+4. **Clause-Level Isolation**: Punctuation (`.`, `,`, `!`, `?`, `;`, `\n`) and conjunctions (`but`, `however`, `yet`, `although`, `and`, `aur`, `और`) strictly bound negation scope.
+5. **Persistent Support Pathway**: Regardless of automated risk scoring, the Calmspace UI provides persistent access to emergency contacts, university counseling, and Tele-MANAS (14416 / 1800-891-4416) on every page.
 
 ---
 

@@ -91,10 +91,12 @@ BROADER_DISTRESS_PATTERNS = [
     r"(सब\s+छोड़\s+कर|बहुत\s+परेशान|कोई\s+उम्मीद\s+नहीं|हिम्मत\s+टूट\s+गई)",
 ]
 
-# Common Negation Phrases & Clause Boundary Delimiters
-# Strictly enforces sentence & clause boundaries to prevent negation leakage
+# Sentence & Clause Boundary Delimiters
+# Strictly enforces sentence & clause boundaries to prevent negation or context leakage
+SENTENCE_DELIMITER_REGEX = re.compile(r"[.!?;\n]")
+
 CLAUSE_DELIMITER_REGEX = re.compile(
-    r"([,!?;\n]|\.|\b(but|however|yet|although|nevertheless|though)\b)",
+    r"([,!?;\n]|\.|\b(but|however|yet|although|nevertheless|though|and|aur|और)\b)",
     re.IGNORECASE,
 )
 
@@ -108,11 +110,46 @@ PRECEDING_NEGATION_REGEX = re.compile(
     re.IGNORECASE,
 )
 
-FOLLOWING_NEGATION_REGEX = re.compile(
-    r"(nahi\s+hai|nahin\s+hai|nahi\s+karunga|nahi\s+karungi|nahi\s+chahta|nahi\s+chahti|nahi\s+hoga|nahi|nahin|"
-    r"नहीं\s+है|नहीं\s+करना|नहीं\s+चाहता|नहीं\s+चाहती|नहीं|की\s+कोई\s+इच्छा\s+नहीं|कोई\s+इरादा\s+नहीं)",
+POST_VERBAL_NEGATION_REGEX = re.compile(
+    r"^\s*(to\s+|bhi\s+|bilkul\s+)?(nahi|nahin|na|नहीं|ना)"
+    r"(\s+(hai|hoga|tha|thi|karna|karunga|karungi|chahta|chahti|है|होगा|था|थी|करना|करूँगा|करूंगी|चाहता|चाहती))?(?!\w)|"
+    r"^\s*(ki\s+|का\s+|की\s+)?(koi\s+|कोई\s+)?(ichha|irada|khyal|मन|इच्छा|इरादा|ख्याल)\s+(nahi|nahin|नहीं)(?!\w)|"
+    r"^\s*(पहुँचाने|करने)\s+(का\s+)?(कोई\s+)?(इरादा|इच्छा)\s+(नहीं|ना)(?!\w)",
     re.IGNORECASE,
 )
+
+
+def is_in_academic_quote(text: str, match_start: int, match_end: int) -> bool:
+    """
+    Determines if an acute crisis phrase match is strictly contained within
+    an academic, clinical, or instructional inquiry without personal distress intent.
+    Ensures that an adjacent sentence containing academic context does NOT suppress
+    a real crisis statement in another sentence.
+    """
+    delims_before = [
+        m.end() for m in SENTENCE_DELIMITER_REGEX.finditer(text[:match_start])
+    ]
+    sentence_start = delims_before[-1] if delims_before else 0
+
+    delim_after = SENTENCE_DELIMITER_REGEX.search(text[match_end:])
+    sentence_end = match_end + delim_after.start() if delim_after else len(text)
+
+    sentence = text[sentence_start:sentence_end].strip()
+
+    # Must contain an academic context marker within the same sentence
+    if not re.search(
+        r"\b(philosophy\s+class|professor\s+asked|textbook|academic\s+study|reading\s+assignment)\b",
+        sentence,
+    ):
+        return False
+
+    # Must NOT express first-person crisis intent or distress
+    return not bool(
+        re.search(
+            r"\b(i\s+want\s+to|i\s+am\s+going\s+to|kill\s+myself|myself|hurt\s+myself|end\s+my\s+life|taking\s+my\s+own\s+life)\b",
+            sentence,
+        )
+    )
 
 
 def is_crisis_negated(text_before_match: str) -> bool:
@@ -157,12 +194,10 @@ def is_crisis_negated_following(text_after_match: str) -> bool:
     """
     Checks if an acute crisis phrase is negated by a succeeding negation in the same clause
     (critical in Indo-Aryan SOV syntax like Hindi/Hinglish: e.g., 'marne ka man nahi hai').
+    Strictly anchored at ^\\s* to prevent unrelated negations in coordinated clauses
+    (e.g., 'I want to die and I am not happy') from suppressing the crisis phrase.
     """
-    delim_match = CLAUSE_DELIMITER_REGEX.search(text_after_match)
-    active_after = (
-        text_after_match[: delim_match.start()] if delim_match else text_after_match
-    )
-    return bool(FOLLOWING_NEGATION_REGEX.search(active_after))
+    return bool(POST_VERBAL_NEGATION_REGEX.search(text_after_match))
 
 
 # ============================================================================
@@ -260,40 +295,33 @@ def evaluate(
     # -------------------------------------------------------------------------
     norm_text = unicodedata.normalize("NFKC", reflection).strip().lower()
     if norm_text:
-        # Check if text is purely an academic inquiry/quotation without personal distress
-        is_academic_quote = bool(
-            re.search(
-                r"\b(philosophy\s+class|professor\s+asked|textbook|academic\s+study)\b",
-                norm_text,
-            )
-        )
-
         has_crisis_keyword = False
-        if not is_academic_quote:
-            # Mask benign idioms first so colloquial hyperbole does not trigger crisis rules
-            masked_text = norm_text
-            for idiom in BENIGN_IDIOM_PATTERNS:
-                masked_text = re.sub(
-                    idiom, " [IDIOM] ", masked_text, flags=re.IGNORECASE
-                )
+        # Mask benign idioms first so colloquial hyperbole does not trigger crisis rules
+        masked_text = norm_text
+        for idiom in BENIGN_IDIOM_PATTERNS:
+            masked_text = re.sub(idiom, " [IDIOM] ", masked_text, flags=re.IGNORECASE)
 
-            # Check acute crisis indicators with sentence & clause boundary isolation
-            for pattern in ACUTE_CRISIS_PATTERNS:
-                for match in re.finditer(pattern, masked_text):
-                    # Check preceding negation in the current clause
-                    text_before = masked_text[: match.start()]
-                    if is_crisis_negated(text_before):
-                        continue
+        # Check acute crisis indicators with sentence & clause boundary isolation
+        for pattern in ACUTE_CRISIS_PATTERNS:
+            for match in re.finditer(pattern, masked_text):
+                # Isolate academic contexts to the specific quoted sentence
+                if is_in_academic_quote(masked_text, match.start(), match.end()):
+                    continue
 
-                    # Check following negation in the current clause (SOV Hindi/Hinglish syntax)
-                    text_after = masked_text[match.end() :]
-                    if is_crisis_negated_following(text_after):
-                        continue
+                # Check preceding negation in the current clause
+                text_before = masked_text[: match.start()]
+                if is_crisis_negated(text_before):
+                    continue
 
-                    has_crisis_keyword = True
-                    break
-                if has_crisis_keyword:
-                    break
+                # Check strict anchored post-verbal negation (Hindi/Hinglish SOV syntax)
+                text_after = masked_text[match.end() :]
+                if is_crisis_negated_following(text_after):
+                    continue
+
+                has_crisis_keyword = True
+                break
+            if has_crisis_keyword:
+                break
 
         if has_crisis_keyword:
             crisis_flag = True
