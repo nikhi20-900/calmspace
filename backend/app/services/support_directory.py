@@ -3,10 +3,10 @@ Central Verified Support Resource Directory
 Every contact contains verification source and last-verified date.
 Never invent campus contact details.
 """
-from typing import List
+
 from app.models.schemas import SupportContact
 
-VERIFIED_SUPPORT_RESOURCES: List[SupportContact] = [
+VERIFIED_SUPPORT_RESOURCES: list[SupportContact] = [
     SupportContact(
         id="tele-manas",
         name="Tele-MANAS (National Mental Health Helpline)",
@@ -18,7 +18,7 @@ VERIFIED_SUPPORT_RESOURCES: List[SupportContact] = [
         is_urgent=True,
         verification_source="Ministry of Health and Family Welfare (MoHFW), Govt of India (telemanas.mohfw.gov.in)",
         last_verified_date="2026-11-01",
-        badge_label="Free & 24/7 National Support"
+        badge_label="Free & 24/7 National Support",
     ),
     SupportContact(
         id="campus-counselling",
@@ -32,7 +32,7 @@ VERIFIED_SUPPORT_RESOURCES: List[SupportContact] = [
         is_urgent=False,
         verification_source="Dean of Student Affairs (DoSA) Official Directory",
         last_verified_date="2026-11-15",
-        badge_label="Campus Partner"
+        badge_label="Campus Partner",
     ),
     SupportContact(
         id="national-emergency",
@@ -45,7 +45,7 @@ VERIFIED_SUPPORT_RESOURCES: List[SupportContact] = [
         is_urgent=True,
         verification_source="Emergency Response Support System (ERSS), MHA India",
         last_verified_date="2026-11-01",
-        badge_label="Emergency Only"
+        badge_label="Emergency Only",
     ),
     SupportContact(
         id="vandrevala-foundation",
@@ -58,7 +58,7 @@ VERIFIED_SUPPORT_RESOURCES: List[SupportContact] = [
         is_urgent=False,
         verification_source="Vandrevala Foundation Mental Health Registry (vandrevalafoundation.com)",
         last_verified_date="2026-11-10",
-        badge_label="Trained Counsellors"
+        badge_label="Trained Counsellors",
     ),
     SupportContact(
         id="icall-tiss",
@@ -72,12 +72,18 @@ VERIFIED_SUPPORT_RESOURCES: List[SupportContact] = [
         is_urgent=False,
         verification_source="Tata Institute of Social Sciences (TISS) Project Directory",
         last_verified_date="2026-11-05",
-        badge_label="Academic Initiative"
-    )
+        badge_label="Academic Initiative",
+    ),
 ]
 
-def get_support_directory() -> List[SupportContact]:
+
+def get_support_directory() -> list[SupportContact]:
     return VERIFIED_SUPPORT_RESOURCES
 
-def get_urgent_contacts() -> List[SupportContact]:
-    return [c for c in VERIFIED_SUPPORT_RESOURCES if c.is_urgent or c.category in ("campus", "helpline")]
+
+def get_urgent_contacts() -> list[SupportContact]:
+    return [
+        c
+        for c in VERIFIED_SUPPORT_RESOURCES
+        if c.is_urgent or c.category in ("campus", "helpline")
+    ]

@@ -14,9 +14,11 @@ Principles & Acceptance Criteria:
    - Score <= 1 -> LOW
 6. NON-DIAGNOSTIC COPY: High is never described as a diagnosis; Low is never described as proof of safety.
 """
+
 import re
-from typing import List, Optional, Union, Dict, Any
-from app.models.schemas import RiskRoute, SafetyEvaluation, RuleTrigger, CheckInRequest
+from typing import Any
+
+from app.models.schemas import CheckInRequest, RiskRoute, RuleTrigger, SafetyEvaluation
 
 # ============================================================================
 # STABLE RULE IDENTIFIERS & METADATA
@@ -53,27 +55,45 @@ NEGATION_PREFIXES = r"\b(not|never|don't|dont|won't|wont|didn't|didnt|no longer|
 # INPUT VALIDATION
 # ============================================================================
 
+
 def validate_checkin_inputs(mood: Any, stress: Any, sleep_hours: Any) -> None:
     """
     Validates check-in inputs.
     Raises ValueError with descriptive context for out-of-bounds or invalid types.
     """
     if not isinstance(mood, int) or isinstance(mood, bool) or mood < 1 or mood > 5:
-        raise ValueError(f"Mood must be an integer between 1 and 5 (1=Very low, 5=Great). Received: {mood}")
+        raise ValueError(
+            f"Mood must be an integer between 1 and 5 (1=Very low, 5=Great). Received: {mood}"
+        )
 
-    if not isinstance(stress, int) or isinstance(stress, bool) or stress < 1 or stress > 5:
-        raise ValueError(f"Stress must be an integer between 1 and 5 (1=Very low, 5=Very high). Received: {stress}")
+    if (
+        not isinstance(stress, int)
+        or isinstance(stress, bool)
+        or stress < 1
+        or stress > 5
+    ):
+        raise ValueError(
+            f"Stress must be an integer between 1 and 5 (1=Very low, 5=Very high). Received: {stress}"
+        )
 
-    if not isinstance(sleep_hours, (int, float)) or isinstance(sleep_hours, bool) or sleep_hours < 0.0 or sleep_hours > 24.0:
-        raise ValueError(f"Sleep duration must be a number between 0.0 and 24.0 hours. Received: {sleep_hours}")
+    if (
+        not isinstance(sleep_hours, (int, float))
+        or isinstance(sleep_hours, bool)
+        or sleep_hours < 0.0
+        or sleep_hours > 24.0
+    ):
+        raise ValueError(
+            f"Sleep duration must be a number between 0.0 and 24.0 hours. Received: {sleep_hours}"
+        )
+
 
 # ============================================================================
 # PURE DETERMINISTIC EVALUATION ENGINE
 # ============================================================================
 
+
 def evaluate(
-    checkin: Union[dict, CheckInRequest],
-    history: Optional[List[Union[dict, Any]]] = None
+    checkin: dict | CheckInRequest, history: list[dict | Any] | None = None
 ) -> SafetyEvaluation:
     """
     Standard interface per Issue #2:
@@ -97,8 +117,8 @@ def evaluate(
     validate_checkin_inputs(mood, stress, sleep_hours)
     sleep_float = float(sleep_hours)
 
-    triggered_rules: List[RuleTrigger] = []
-    reasons: List[str] = []
+    triggered_rules: list[RuleTrigger] = []
+    reasons: list[str] = []
     crisis_flag = False
 
     # -------------------------------------------------------------------------
@@ -112,7 +132,7 @@ def evaluate(
             for match in re.finditer(pattern, norm_text):
                 # Check for preceding negation in the preceding 35 characters
                 start_pos = max(0, match.start() - 35)
-                preceding_text = norm_text[start_pos:match.start()]
+                preceding_text = norm_text[start_pos : match.start()]
                 if re.search(NEGATION_PREFIXES, preceding_text):
                     continue  # Negated: "not suicidal", "don't want to hurt myself"
                 has_crisis_keyword = True
@@ -127,10 +147,12 @@ def evaluate(
                     rule_id=RULE_CRISIS_OVERRIDE,
                     name="Acute Crisis Indicator Override",
                     points=10,
-                    rationale="Language indicative of acute self-harm or suicidal ideation identified in reflection."
+                    rationale="Language indicative of acute self-harm or suicidal ideation identified in reflection.",
                 )
             )
-            reasons.append("Crisis or acute distress indicators identified in check-in reflection.")
+            reasons.append(
+                "Crisis or acute distress indicators identified in check-in reflection."
+            )
         else:
             # Check broader distress language (non-crisis)
             for pattern in BROADER_DISTRESS_PATTERNS:
@@ -140,10 +162,12 @@ def evaluate(
                             rule_id=RULE_DISTRESS_KEYWORD,
                             name="Elevated Emotional Strain Language",
                             points=1,
-                            rationale="Reflection indicates notable emotional strain or feelings of overwhelm."
+                            rationale="Reflection indicates notable emotional strain or feelings of overwhelm.",
                         )
                     )
-                    reasons.append("Notable emotional strain expressed in check-in reflection.")
+                    reasons.append(
+                        "Notable emotional strain expressed in check-in reflection."
+                    )
                     break
 
     # -------------------------------------------------------------------------
@@ -157,7 +181,7 @@ def evaluate(
                 rule_id=RULE_MOOD_VERY_LOW,
                 name="Critical Low Mood Override",
                 points=3,
-                rationale="Reported lowest mood level (1/5), indicating severe emotional depletion."
+                rationale="Reported lowest mood level (1/5), indicating severe emotional depletion.",
             )
         )
         reasons.append("Reported very low mood (1/5).")
@@ -167,7 +191,7 @@ def evaluate(
                 rule_id=RULE_MOOD_LOW,
                 name="Low Mood Baseline",
                 points=2,
-                rationale="Reported lower mood level (2/5)."
+                rationale="Reported lower mood level (2/5).",
             )
         )
         reasons.append("Mood is feeling low (2/5).")
@@ -180,7 +204,7 @@ def evaluate(
                 rule_id=RULE_STRESS_VERY_HIGH,
                 name="Severe Overwhelming Stress Override",
                 points=3,
-                rationale="Reported maximum stress rating (5/5), indicating acute overwhelming pressure."
+                rationale="Reported maximum stress rating (5/5), indicating acute overwhelming pressure.",
             )
         )
         reasons.append("Reported highest stress level (5/5).")
@@ -190,7 +214,7 @@ def evaluate(
                 rule_id=RULE_STRESS_HIGH,
                 name="High Academic/Life Stress",
                 points=2,
-                rationale="Reported high stress rating (4/5)."
+                rationale="Reported high stress rating (4/5).",
             )
         )
         reasons.append("Elevated academic/life stress (4/5).")
@@ -200,7 +224,7 @@ def evaluate(
                 rule_id=RULE_STRESS_MODERATE,
                 name="Moderate Stress Level",
                 points=1,
-                rationale="Reported moderate stress rating (3/5)."
+                rationale="Reported moderate stress rating (3/5).",
             )
         )
         reasons.append("Moderate stress noted (3/5).")
@@ -212,17 +236,19 @@ def evaluate(
                 rule_id=RULE_SLEEP_CRITICAL,
                 name="Severe Sleep Deficit",
                 points=2,
-                rationale="Reported severe sleep deprivation (< 4.0 hours), impairing cognitive regulation."
+                rationale="Reported severe sleep deprivation (< 4.0 hours), impairing cognitive regulation.",
             )
         )
-        reasons.append(f"Critical sleep deprivation reported ({sleep_float:.1f} hours).")
+        reasons.append(
+            f"Critical sleep deprivation reported ({sleep_float:.1f} hours)."
+        )
     elif sleep_float < 6.0:
         triggered_rules.append(
             RuleTrigger(
                 rule_id=RULE_SLEEP_SHORT,
                 name="Suboptimal Sleep Duration",
                 points=1,
-                rationale="Reported suboptimal sleep duration (< 6.0 hours)."
+                rationale="Reported suboptimal sleep duration (< 6.0 hours).",
             )
         )
         reasons.append(f"Sleep duration was limited ({sleep_float:.1f} hrs).")
@@ -238,7 +264,7 @@ def evaluate(
             if isinstance(entry, dict):
                 recent_moods.append(entry.get("mood", 3))
             elif hasattr(entry, "mood"):
-                recent_moods.append(getattr(entry, "mood"))
+                recent_moods.append(entry.mood)
 
         if len(recent_moods) == 2 and all(m <= 2 for m in recent_moods):
             triggered_rules.append(
@@ -246,7 +272,7 @@ def evaluate(
                     rule_id=RULE_CONSECUTIVE_LOW_MOOD,
                     name="Persistent Consecutive Low Mood",
                     points=2,
-                    rationale="Observed 3 consecutive check-ins with low mood (<= 2)."
+                    rationale="Observed 3 consecutive check-ins with low mood (<= 2).",
                 )
             )
             reasons.append("Persistent low mood observed over consecutive check-ins.")
@@ -255,7 +281,9 @@ def evaluate(
     # 4. CUMULATIVE SCORE & PRECEDENCE RESOLUTION
     # -------------------------------------------------------------------------
     # Compute total score from non-override rules
-    cumulative_score = sum(r.points for r in triggered_rules if r.rule_id != RULE_CRISIS_OVERRIDE)
+    cumulative_score = sum(
+        r.points for r in triggered_rules if r.rule_id != RULE_CRISIS_OVERRIDE
+    )
 
     # Precedence Rule:
     # 1. Any crisis flag (crisis phrase, mood 1, or stress 5) overrides immediately to HIGH.
@@ -266,7 +294,9 @@ def evaluate(
     if crisis_flag or cumulative_score >= 5:
         route: RiskRoute = "HIGH"
         status_label = "Let's get you support"
-        status_summary = "You don't have to carry this alone. Immediate human care is ready for you."
+        status_summary = (
+            "You don't have to carry this alone. Immediate human care is ready for you."
+        )
         requires_human_escalation = True
         ai_eligible = False  # Strictly False: High routes bypass AI entirely
     elif cumulative_score >= 2:
@@ -282,7 +312,9 @@ def evaluate(
         requires_human_escalation = False
         ai_eligible = True
         if not reasons:
-            reasons.append("Healthy baseline mood, manageable stress, and sufficient rest.")
+            reasons.append(
+                "Healthy baseline mood, manageable stress, and sufficient rest."
+            )
 
     return SafetyEvaluation(
         route=route,
@@ -294,8 +326,9 @@ def evaluate(
         status_summary=status_summary,
         requires_human_escalation=requires_human_escalation,
         ai_eligible=ai_eligible,
-        reasons=reasons or ["Elevated stress and vulnerability detected."]
+        reasons=reasons or ["Elevated stress and vulnerability detected."],
     )
+
 
 # Backward-compatible convenience alias
 def evaluate_wellbeing_route(
@@ -303,7 +336,7 @@ def evaluate_wellbeing_route(
     stress: int,
     sleep_hours: float,
     reflection: str = "",
-    recent_history: Optional[List[dict]] = None
+    recent_history: list[dict] | None = None,
 ) -> SafetyEvaluation:
     """
     Convenience function preserving the existing signature for router compatibility.
