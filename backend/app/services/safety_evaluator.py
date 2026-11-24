@@ -49,8 +49,59 @@ BROADER_DISTRESS_PATTERNS = [
     r"\b(extremely overwhelmed|burned out|burnout|unbearable|drowning in work)\b",
 ]
 
-# Common Negation Phrases (Prevent false-positive crisis triggers)
-NEGATION_PREFIXES = r"\b(not|never|don't|dont|won't|wont|didn't|didnt|no longer|neither|without|stop thinking about)\s+(feeling\s+|thinking\s+|wanting\s+to\s+)?"
+# Common Negation Phrases & Clause Boundary Delimiters
+# Prevents false-positive crisis triggers while strictly enforcing sentence & clause boundaries
+CLAUSE_DELIMITER_REGEX = re.compile(
+    r"([.!?;\n]|\b(but|however|yet|although|nevertheless|though)\b)",
+    re.IGNORECASE,
+)
+
+NEGATION_PRECEDING_REGEX = re.compile(
+    r"\b(not|no|never|don't|dont|won't|wont|didn't|didnt|no longer|neither|without|stop thinking about|stop feeling|would never|will never)"
+    r"(\s+(really|at all|currently|even|ever|actually))?"
+    r"(\s+(feeling|thinking\s+(of|about)?|wanting\s+to|want\s+to|planning\s+to|plan\s+to|intending\s+to|intend\s+to|going\s+to|thoughts?\s+(of|about)?|desire\s+to|intention\s+to|have\s+thoughts\s+of|to))?"
+    r"\s*$",
+    re.IGNORECASE,
+)
+
+
+def is_crisis_negated(text_before_match: str) -> bool:
+    """
+    Determines if an acute crisis phrase match is genuinely negated.
+    Enforces:
+    1. Sentence boundaries (. ! ? ; \n) prevent negations in preceding sentences from
+       suppressing crisis expressions in subsequent sentences.
+    2. Contrastive conjunctions (but, however, yet, etc.) isolate preceding negations.
+    3. The negation prefix must directly modify the crisis target expression.
+    4. Coordinated disjunctions (e.g., 'would never hurt myself or self-harm') distribute
+       negation across 'or'/'nor' when connecting crisis expressions.
+    """
+    delimiters = list(CLAUSE_DELIMITER_REGEX.finditer(text_before_match))
+    if delimiters:
+        last_delim = delimiters[-1]
+        active_clause = text_before_match[last_delim.end() :]
+    else:
+        active_clause = text_before_match
+
+    # 1. Direct preceding negation in current clause
+    if NEGATION_PRECEDING_REGEX.search(active_clause):
+        return True
+
+    # 2. Coordinated negation across 'or' / 'nor' (e.g., 'would never hurt myself or self-harm')
+    neg_word_match = re.search(
+        r"\b(not|no|never|don't|dont|won't|wont|didn't|didnt|neither|without|would never|will never)\b",
+        active_clause,
+    )
+    if neg_word_match:
+        or_match = re.search(r"\s+(or|nor)\s*$", active_clause)
+        if or_match:
+            before_or = active_clause[: or_match.start()]
+            for pat in ACUTE_CRISIS_PATTERNS:
+                if re.search(pat, before_or):
+                    return True
+
+    return False
+
 
 # ============================================================================
 # INPUT VALIDATION
@@ -147,15 +198,13 @@ def evaluate(
     # -------------------------------------------------------------------------
     norm_text = reflection.strip().lower()
     if norm_text:
-        # Check acute crisis indicators
+        # Check acute crisis indicators with sentence & clause boundary isolation
         has_crisis_keyword = False
         for pattern in ACUTE_CRISIS_PATTERNS:
             for match in re.finditer(pattern, norm_text):
-                # Check for preceding negation in the preceding 35 characters
-                start_pos = max(0, match.start() - 35)
-                preceding_text = norm_text[start_pos : match.start()]
-                if re.search(NEGATION_PREFIXES, preceding_text):
-                    continue  # Negated: "not suicidal", "don't want to hurt myself"
+                text_before = norm_text[: match.start()]
+                if is_crisis_negated(text_before):
+                    continue  # Genuine negation in current clause: "not suicidal", "don't want to die"
                 has_crisis_keyword = True
                 break
             if has_crisis_keyword:

@@ -198,7 +198,63 @@ def test_negation_handling():
     )
     assert res_negated_3.crisis_flag is False
     assert res_negated_3.route != "HIGH"
+
+    res_negated_4 = evaluate(
+        {
+            "mood": 3,
+            "stress": 2,
+            "sleep_hours": 7.0,
+            "reflection": "I feel terrible today, but I am not suicidal.",
+        }
+    )
+    assert res_negated_4.crisis_flag is False
+    assert res_negated_4.route != "HIGH"
+
+    res_negated_5 = evaluate(
+        {
+            "mood": 3,
+            "stress": 2,
+            "sleep_hours": 7.0,
+            "reflection": "I have no thoughts of suicide.",
+        }
+    )
+    assert res_negated_5.crisis_flag is False
+    assert res_negated_5.route != "HIGH"
     print("✓ Negations ('not suicidal', 'don't want to die') correctly filtered")
+
+
+def test_negation_sentence_boundary_isolation():
+    print("Testing Sentence Boundary Isolation in Negations...")
+    # Negation in preceding sentence or clause must NEVER suppress a genuine crisis phrase in the next
+    critical_statements = [
+        "I am not hungry. I want to die.",
+        "I am not happy. I want to kill myself.",
+        "I am not doing well, but I want to end my life.",
+        "I am not okay and I want to die.",
+        "I don't know what to do anymore. I want to die.",
+        "I am not tired; I cannot go on anymore.",
+        "Not feeling great today.\nI want to end it all.",
+        "I have no reason to be sad, but I have no reason to live.",
+        "I'm not doing fine, I want to take my own life.",
+    ]
+
+    for stmt in critical_statements:
+        res = evaluate(
+            {
+                "mood": 3,
+                "stress": 2,
+                "sleep_hours": 7.0,
+                "reflection": stmt,
+            }
+        )
+        assert res.crisis_flag is True, f"Failed to detect crisis in: '{stmt}'"
+        assert res.route == "HIGH", f"Expected HIGH route for: '{stmt}'"
+        assert res.requires_human_escalation is True
+        assert res.ai_eligible is False
+        assert any(r.rule_id == RULE_CRISIS_OVERRIDE for r in res.triggered_rules)
+    print(
+        "✓ Sentence boundaries (. ! ? ; \\n) and contrastive conjunctions strictly isolate negations"
+    )
 
 
 def test_consecutive_low_mood_trend():
@@ -437,6 +493,7 @@ if __name__ == "__main__":
     test_cumulative_score_tiers()
     test_acute_crisis_override_precedence()
     test_negation_handling()
+    test_negation_sentence_boundary_isolation()
     test_consecutive_low_mood_trend()
     test_non_diagnostic_copy_and_ai_bypass()
     test_broader_distress_keyword()
