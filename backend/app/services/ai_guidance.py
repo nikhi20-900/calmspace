@@ -4,17 +4,18 @@ Rule: "AI writes the language. Rules decide safety. Humans help."
 Only Low and Medium routes are eligible for supportive language generation.
 High routes are strictly blocked by safety rules before ever reaching here.
 """
-from typing import Optional, List
+
 from app.models.schemas import RiskRoute, SupportiveGuidance
+
 
 def generate_supportive_guidance(
     route: RiskRoute,
     mood: int,
     stress: int,
     sleep_hours: float,
-    reflection: Optional[str] = None,
-    consent_given: bool = False
-) -> Optional[SupportiveGuidance]:
+    reflection: str | None = None,
+    consent_given: bool = False,
+) -> SupportiveGuidance | None:
     """
     Generates gentle, human-centred, 3-5 sentence guidance with practical suggestion chips.
     Includes graceful offline fallback ensuring reliability.
@@ -33,7 +34,7 @@ def generate_supportive_guidance(
             )
             chips = [
                 "Protect 20 minutes for a non-screen hobby",
-                "Keep your hydration and gentle rhythm going"
+                "Keep your hydration and gentle rhythm going",
             ]
         else:
             msg = (
@@ -43,7 +44,7 @@ def generate_supportive_guidance(
             )
             chips = [
                 "Plan a quiet wind-down 30m before bed",
-                "Step outside for a brief fresh air stretch"
+                "Step outside for a brief fresh air stretch",
             ]
 
         return SupportiveGuidance(
@@ -51,7 +52,7 @@ def generate_supportive_guidance(
             suggestion_chips=chips,
             disclaimer="This is supportive guidance, not medical advice.",
             generated_by_ai=consent_given,
-            fallback_used=not consent_given
+            fallback_used=not consent_given,
         )
 
     elif route == "MEDIUM":
@@ -64,7 +65,7 @@ def generate_supportive_guidance(
             )
             chips = [
                 "Take a 5-minute box breathing break",
-                "Write down just 1 priority for today"
+                "Write down just 1 priority for today",
             ]
         elif sleep_hours < 5.5:
             msg = (
@@ -74,7 +75,7 @@ def generate_supportive_guidance(
             )
             chips = [
                 "Take a 10-minute eyes-closed rest",
-                "Prioritise a warm drink and early bedtime"
+                "Prioritise a warm drink and early bedtime",
             ]
         else:
             msg = (
@@ -84,7 +85,7 @@ def generate_supportive_guidance(
             )
             chips = [
                 "Step away from your desk for a brief walk",
-                "Reach out to a peer or trusted person"
+                "Reach out to a peer or trusted person",
             ]
 
         return SupportiveGuidance(
@@ -92,7 +93,7 @@ def generate_supportive_guidance(
             suggestion_chips=chips,
             disclaimer="This is supportive guidance, not medical advice.",
             generated_by_ai=consent_given,
-            fallback_used=not consent_given
+            fallback_used=not consent_given,
         )
 
     return None

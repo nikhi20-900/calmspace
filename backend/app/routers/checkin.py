@@ -6,23 +6,25 @@ Enforces:
 3. AI guidance generated only for Low/Medium routes with explicit disclosure.
 4. Support contacts returned for all routes (highlighting urgent for High route).
 """
-from fastapi import APIRouter, Header, HTTPException
-from typing import Optional
+
+from fastapi import APIRouter, Header
+
 from app.models.schemas import CheckInRequest, CheckInResponse
-from app.services.safety_evaluator import evaluate_wellbeing_route
 from app.services.ai_guidance import generate_supportive_guidance
-from app.services.support_directory import get_support_directory, get_urgent_contacts
+from app.services.safety_evaluator import evaluate_wellbeing_route
 from app.services.storage import storage
+from app.services.support_directory import get_support_directory, get_urgent_contacts
 
 router = APIRouter(prefix="/api/checkin", tags=["Check-in"])
+
 
 @router.post("", response_model=CheckInResponse)
 async def submit_checkin(
     payload: CheckInRequest,
-    x_session_id: Optional[str] = Header("anonymous-default-session")
+    x_session_id: str | None = Header("anonymous-default-session"),
 ):
     session_id = x_session_id or "anonymous-default-session"
-    
+
     # 1. Fetch recent check-ins for trend-based safety checks
     recent_records = [
         {"mood": c.mood, "stress": c.stress, "sleep_hours": c.sleep_hours}
@@ -35,7 +37,7 @@ async def submit_checkin(
         stress=payload.stress,
         sleep_hours=payload.sleep_hours,
         reflection=payload.reflection or "",
-        recent_history=recent_records
+        recent_history=recent_records,
     )
 
     # 3. Persist numeric check-in metrics ONLY. Never save reflection text!
@@ -44,7 +46,7 @@ async def submit_checkin(
         mood=payload.mood,
         stress=payload.stress,
         sleep_hours=payload.sleep_hours,
-        route=safety.route
+        route=safety.route,
     )
 
     # 4. Generate AI supportive guidance ONLY if eligible (Low / Medium routes)
@@ -56,7 +58,7 @@ async def submit_checkin(
             stress=payload.stress,
             sleep_hours=payload.sleep_hours,
             reflection=payload.reflection if payload.consent_ai_processing else None,
-            consent_given=payload.consent_ai_processing
+            consent_given=payload.consent_ai_processing,
         )
 
     # 5. Fetch verified support directory
@@ -66,15 +68,13 @@ async def submit_checkin(
         contacts = get_support_directory()
 
     return CheckInResponse(
-        record=record,
-        safety=safety,
-        guidance=guidance,
-        support_contacts=contacts
+        record=record, safety=safety, guidance=guidance, support_contacts=contacts
     )
+
 
 @router.get("/history")
 async def get_checkin_history(
-    x_session_id: Optional[str] = Header("anonymous-default-session")
+    x_session_id: str | None = Header("anonymous-default-session"),
 ):
     session_id = x_session_id or "anonymous-default-session"
     return storage.get_checkins(session_id)

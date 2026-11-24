@@ -3,18 +3,20 @@ Insights API Router
 Computes weekly trends, averages, and plain-language summaries for Recharts.
 Never uses diagnostic language.
 """
-from fastapi import APIRouter, Header
-from typing import Optional
+
 from datetime import datetime
+
+from fastapi import APIRouter, Header
+
 from app.models.schemas import InsightSummary
 from app.services.storage import storage
 
 router = APIRouter(prefix="/api/insights", tags=["Insights"])
 
+
 @router.get("", response_model=InsightSummary)
 async def get_insights(
-    days: int = 7,
-    x_session_id: Optional[str] = Header("anonymous-default-session")
+    days: int = 7, x_session_id: str | None = Header("anonymous-default-session")
 ):
     session_id = x_session_id or "anonymous-default-session"
     all_checkins = storage.get_checkins(session_id)
@@ -29,7 +31,7 @@ async def get_insights(
             plain_summary="No check-ins yet. Take a moment to log your first one.",
             mood_trend=[],
             sleep_trend=[],
-            stress_trend=[]
+            stress_trend=[],
         )
 
     # Take the latest `days` records
@@ -47,7 +49,7 @@ async def get_insights(
         try:
             dt = datetime.fromisoformat(c.timestamp)
             label = dt.strftime("%a %d")
-        except Exception:
+        except (ValueError, TypeError):
             label = f"Entry {idx + 1}"
 
         mood_trend.append({"day": label, "mood": c.mood, "route": c.route})
@@ -55,9 +57,21 @@ async def get_insights(
         stress_trend.append({"day": label, "stress": c.stress})
 
     # Plain language accessible summary
-    mood_word = "very steady" if avg_mood >= 4 else "generally okay" if avg_mood >= 2.8 else "lower than usual"
-    stress_word = "well managed" if avg_stress <= 2.5 else "moderate" if avg_stress <= 3.8 else "higher"
-    
+    mood_word = (
+        "very steady"
+        if avg_mood >= 4
+        else "generally okay"
+        if avg_mood >= 2.8
+        else "lower than usual"
+    )
+    stress_word = (
+        "well managed"
+        if avg_stress <= 2.5
+        else "moderate"
+        if avg_stress <= 3.8
+        else "higher"
+    )
+
     plain_summary = (
         f"Over your last {len(records)} check-ins, your mood averaged {avg_mood:.1f}/5 ({mood_word}) "
         f"with {avg_sleep:.1f} hours average sleep and {stress_word} stress levels."
@@ -71,5 +85,5 @@ async def get_insights(
         plain_summary=plain_summary,
         mood_trend=mood_trend,
         sleep_trend=sleep_trend,
-        stress_trend=stress_trend
+        stress_trend=stress_trend,
     )

@@ -5,65 +5,73 @@ Key Principles:
 2. Reflection text is NEVER persisted in check-in records.
 3. Provides full data wipe on request ("Delete all my data").
 """
+
 import uuid
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from datetime import UTC, datetime
+
 from app.models.schemas import CheckInRecord, StudyTask, UserSettings
+
 
 class CalmspaceStorage:
     def __init__(self):
         # Maps session_id -> List[CheckInRecord]
-        self._checkins: Dict[str, List[CheckInRecord]] = {}
+        self._checkins: dict[str, list[CheckInRecord]] = {}
         # Maps session_id -> List[StudyTask]
-        self._tasks: Dict[str, List[StudyTask]] = {}
+        self._tasks: dict[str, list[StudyTask]] = {}
         # Maps session_id -> UserSettings
-        self._settings: Dict[str, UserSettings] = {}
+        self._settings: dict[str, UserSettings] = {}
 
     def get_settings(self, session_id: str) -> UserSettings:
         if session_id not in self._settings:
             self._settings[session_id] = UserSettings()
         return self._settings[session_id]
 
-    def update_settings(self, session_id: str, new_settings: UserSettings) -> UserSettings:
+    def update_settings(
+        self, session_id: str, new_settings: UserSettings
+    ) -> UserSettings:
         self._settings[session_id] = new_settings
         return self._settings[session_id]
 
-    def add_checkin(self, session_id: str, mood: int, stress: int, sleep_hours: float, route: str) -> CheckInRecord:
+    def add_checkin(
+        self, session_id: str, mood: int, stress: int, sleep_hours: float, route: str
+    ) -> CheckInRecord:
         record = CheckInRecord(
             id=str(uuid.uuid4()),
             session_id=session_id,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             mood=mood,
             stress=stress,
             sleep_hours=sleep_hours,
-            route=route
+            route=route,
         )
         if session_id not in self._checkins:
             self._checkins[session_id] = []
         self._checkins[session_id].append(record)
         return record
 
-    def get_checkins(self, session_id: str) -> List[CheckInRecord]:
+    def get_checkins(self, session_id: str) -> list[CheckInRecord]:
         return self._checkins.get(session_id, [])
 
-    def get_tasks(self, session_id: str) -> List[StudyTask]:
+    def get_tasks(self, session_id: str) -> list[StudyTask]:
         return self._tasks.get(session_id, [])
 
-    def add_task(self, session_id: str, title: str, estimated_minutes: int, category: str) -> StudyTask:
+    def add_task(
+        self, session_id: str, title: str, estimated_minutes: int, category: str
+    ) -> StudyTask:
         task = StudyTask(
             id=str(uuid.uuid4()),
             title=title,
             estimated_minutes=estimated_minutes,
             category=category,
             completed=False,
-            created_at=datetime.utcnow().isoformat()
+            created_at=datetime.now(UTC).isoformat(),
         )
         if session_id not in self._tasks:
             self._tasks[session_id] = []
         self._tasks[session_id].insert(0, task)
         return task
 
-    def toggle_task(self, session_id: str, task_id: str) -> Optional[StudyTask]:
+    def toggle_task(self, session_id: str, task_id: str) -> StudyTask | None:
         tasks = self._tasks.get(session_id, [])
         for t in tasks:
             if t.id == task_id:
@@ -83,6 +91,7 @@ class CalmspaceStorage:
         self._tasks.pop(session_id, None)
         self._settings.pop(session_id, None)
         return True
+
 
 # Singleton instance
 storage = CalmspaceStorage()
