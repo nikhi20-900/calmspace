@@ -28,8 +28,8 @@ export const SleepQuestion: React.FC<SleepQuestionProps> = ({ value, onChange })
         <Stepper
           value={value}
           onChange={onChange}
-          min={0}
-          max={16}
+          min={0.0}
+          max={24.0}
           step={0.5}
           unit="hours"
           label="Total sleep logged"

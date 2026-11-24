@@ -10,6 +10,7 @@ export interface SliderProps {
   labels?: Record<number, string>;
   labelDescriptions?: Record<number, string>;
   name?: string;
+  ariaLabel?: string;
 }
 
 export const Slider: React.FC<SliderProps> = ({
@@ -27,16 +28,38 @@ export const Slider: React.FC<SliderProps> = ({
     5: 'Great',
   },
   labelDescriptions,
+  ariaLabel = 'Rating scale from 1 to 5',
 }) => {
-  const steps = [];
+  const steps: number[] = [];
   for (let i = min; i <= max; i += step) {
     steps.push(i);
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (value < max) onChange(Math.min(max, value + step));
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (value > min) onChange(Math.max(min, value - step));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      onChange(min);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      onChange(max);
+    }
+  };
+
   return (
-    <div className="w-full space-y-4">
-      {/* Slider buttons row for clear, accessible touch targets (min 44px) */}
-      <div className="grid grid-cols-5 gap-2 sm:gap-3" role="radiogroup" aria-label="Rating scale">
+    <div className="w-full space-y-4" id={id}>
+      {/* Slider buttons row for clear, accessible touch targets (min 44px) with roving tabindex */}
+      <div
+        className="grid grid-cols-5 gap-1.5 sm:gap-3"
+        role="radiogroup"
+        aria-label={ariaLabel}
+        onKeyDown={handleKeyDown}
+      >
         {steps.map((num) => {
           const isSelected = value === num;
           return (
@@ -45,19 +68,22 @@ export const Slider: React.FC<SliderProps> = ({
               type="button"
               role="radio"
               aria-checked={isSelected}
+              tabIndex={isSelected ? 0 : -1}
               onClick={() => onChange(num)}
-              className={`flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-button border text-center transition-all duration-200 min-h-[56px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+              className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-button border text-center transition-all duration-200 min-h-[56px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
                 isSelected
-                  ? 'bg-[#5554B8] text-white border-[#5554B8] shadow-sm'
+                  ? 'bg-[#5554B8] text-white border-[#5554B8] shadow-sm font-semibold'
                   : 'bg-white text-[#25233B] border-[#E8E6F1] hover:border-[#D5D1E5] hover:bg-[#F7F6FB]'
               }`}
             >
-              <span className={`text-base font-semibold ${isSelected ? 'text-white' : 'text-[#25233B]'}`}>
+              <span className={`text-base font-bold ${isSelected ? 'text-white' : 'text-[#25233B]'}`}>
                 {num}
               </span>
-              <span className={`text-xs mt-0.5 font-medium truncate max-w-full ${
-                isSelected ? 'text-[#E9E7FB]' : 'text-[#625F78]'
-              }`}>
+              <span
+                className={`text-[10px] sm:text-xs mt-0.5 font-medium leading-tight max-w-full text-center break-words ${
+                  isSelected ? 'text-[#E9E7FB]' : 'text-[#625F78]'
+                }`}
+              >
                 {labels[num] || ''}
               </span>
             </button>
@@ -71,7 +97,7 @@ export const Slider: React.FC<SliderProps> = ({
           Selected: <span className="font-semibold text-[#5554B8]">{value} — {labels[value]}</span>
         </p>
         {labelDescriptions && labelDescriptions[value] && (
-          <p className="text-xs text-[#625F78] mt-1 max-w-md mx-auto">
+          <p className="text-xs text-[#625F78] mt-1 max-w-md mx-auto leading-relaxed">
             {labelDescriptions[value]}
           </p>
         )}
