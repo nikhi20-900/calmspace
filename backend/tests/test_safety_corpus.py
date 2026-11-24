@@ -210,6 +210,74 @@ def test_academic_context_personal_disclosure_regression():
         assert any(r.rule_id == RULE_CRISIS_OVERRIDE for r in res.triggered_rules)
 
 
+def test_targeted_academic_vs_peer_and_personal_disclosures():
+    """
+    Targeted test cases differentiating:
+    1. Pure academic/instructional questions (LOW route).
+    2. Quoted peer disclosures in classroom/academic contexts (HIGH route).
+    3. Personal disclosures co-occurring with academic discussions (HIGH route).
+    """
+    cases = [
+        # 1. Pure academic / intellectual inquiry without personal crisis (LOW)
+        (
+            'In philosophy class, the professor asked: "Why do some people choose to end their life?"',
+            "LOW",
+            False,
+        ),
+        (
+            "Our sociology textbook discusses why suicide rates vary between countries.",
+            "LOW",
+            False,
+        ),
+        # 2. Quoted peer disclosures in classroom/academic contexts (HIGH)
+        (
+            'In philosophy class, my friend said "I want to end my life," and I feel worried.',
+            "HIGH",
+            True,
+        ),
+        (
+            "During lecture, someone told me 'I am going to kill myself' and I don't know what to do.",
+            "HIGH",
+            True,
+        ),
+        (
+            'In class, a student said "I want to die" and then walked out.',
+            "HIGH",
+            True,
+        ),
+        # 3. Personal disclosures in classroom/academic contexts (HIGH)
+        (
+            "In our philosophy class, I am thinking about suicide.",
+            "HIGH",
+            True,
+        ),
+        (
+            "We discussed suicide in class, and it made me feel like hurting myself.",
+            "HIGH",
+            True,
+        ),
+        (
+            "Professor ne suicide ke baare mein poocha, par mujhe khud ko hurt karna hai.",
+            "HIGH",
+            True,
+        ),
+        (
+            "हमारी क्लास में आत्महत्या पर चर्चा हुई। मुझे खुद को नुकसान पहुँचाने का मन है।",
+            "HIGH",
+            True,
+        ),
+    ]
+
+    for stmt, exp_route, exp_crisis in cases:
+        res = evaluate({"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": stmt})
+        assert res.route == exp_route, (
+            f"Expected route '{exp_route}' for '{stmt}', got '{res.route}'"
+        )
+        assert res.crisis_flag == exp_crisis, (
+            f"Expected crisis_flag={exp_crisis} for '{stmt}', got {res.crisis_flag}"
+        )
+
+
 def test_post_verbal_unrelated_negation_does_not_suppress_crisis():
     """Verify that unrelated subsequent negations (e.g. 'and I am not happy') do not suppress earlier crisis."""
     unrelated_negations = [
@@ -306,6 +374,7 @@ if __name__ == "__main__":
     test_full_multilingual_corpus_benchmarks()
     test_academic_context_isolation_with_crisis()
     test_academic_context_personal_disclosure_regression()
+    test_targeted_academic_vs_peer_and_personal_disclosures()
     test_post_verbal_unrelated_negation_does_not_suppress_crisis()
     test_direct_crisis_hinglish_and_devanagari()
     test_benign_idiom_safety()

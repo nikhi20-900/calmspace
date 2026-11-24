@@ -99,5 +99,7 @@ Each record in `backend/tests/data/safety_corpus.json` adheres to a strict schem
 
 ## 5. Ongoing Limitations & Safety Recommendations
 
+- **Curated Benchmark vs. Real-World Detection**: A 100% recall metric on this 65-entry corpus demonstrates that all known regression scenarios and edge cases in the curated benchmark pass without failure. It does **not** imply 100% real-world crisis detection across unpredictable human communication.
+- **Quote-Span vs. Syntactic Speaker Attribution**: Automated pattern matching evaluates sentence and clause boundaries and first-person pronouns rather than deep syntactic tree parsing or recursive speaker-attribution resolution. For example, in compound reflections where a student quotes a peer (*"In philosophy class, my friend said 'I want to end my life,' and I feel worried"*), Calmspace intentionally errs on the side of safety by routing to `HIGH`, prioritizing urgent human contact over false-negative suppression.
 - **Dialectal Diversity**: Hindi and Hinglish expressions vary across states and youth subcultures. Native speaker reviews should periodically audit and expand the corpus.
-- **Limited Safety Signal**: Keyword and pattern analysis is an assist mechanism. No deterministic or ML model can achieve 100% crisis detection in real-world human communication.
+- **Assist Layer, Not a Clinical Diagnosis**: Automated keyword and score analysis is strictly a routing triage assist layer. The UI maintains unconditioned, persistent access to verified human crisis resources (Tele-MANAS 14416 / 1800-891-4416, Vandrevala Foundation, AASRA) regardless of automated scoring.
