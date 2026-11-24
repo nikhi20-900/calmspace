@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSupportModal }) => {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3.5 py-2.5 rounded-button text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-button text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
                   isActive
                     ? 'bg-[#E9E7FB] text-[#5554B8] font-semibold shadow-subtle'
                     : 'text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'

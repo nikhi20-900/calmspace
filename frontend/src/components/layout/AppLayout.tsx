@@ -9,17 +9,26 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F7F6FB] flex flex-col md:flex-row antialiased text-[#25233B]">
+      {/* Accessible Skip to Main Content Link */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2.5 focus:bg-[#5554B8] focus:text-white focus:font-semibold focus:text-sm focus:rounded-button focus:shadow-elevation focus:outline-none focus:ring-2 focus:ring-[#5554B8] focus:ring-offset-2"
+      >
+        Skip to main content
+      </a>
+
       {/* Desktop Sidebar */}
       <Sidebar onOpenSupportModal={() => setSupportModalOpen(true)} />
 
-      {/* Mobile Header Bar */}
+      {/* Main Viewport & Mobile Navigation */}
       <div className="flex-1 flex flex-col min-w-0">
         <MobileNavigation onOpenSupportModal={() => setSupportModalOpen(true)} />
 
         {/* Main Content Viewport */}
         <main
           id="main-content"
-          className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 lg:py-10"
+          tabIndex={-1}
+          className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 lg:py-10 pb-20 md:pb-10 focus:outline-none"
         >
           <Outlet />
         </main>
