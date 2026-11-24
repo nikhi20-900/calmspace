@@ -14,6 +14,7 @@ import logging
 
 import pytest
 
+from app.core import config as core_config
 from app.core.config import AIServiceConfig
 from app.services.ai_guidance import generate_supportive_guidance, rate_limiter
 from app.services.ai_providers.mock_provider import MockAIProvider
@@ -26,8 +27,10 @@ from app.services.ai_validation import (
 @pytest.fixture(autouse=True)
 def reset_rate_limiter():
     rate_limiter.reset()
+    core_config._cached_config = None
     yield
     rate_limiter.reset()
+    core_config._cached_config = None
 
 
 # 1. Zero-Call High-Route Guarantee
@@ -448,4 +451,154 @@ def test_privacy_no_secret_or_reflection_in_logs(caplog):
     assert secret_key not in log_text, "Secret key was leaked in logs!"
     assert "Secret personal student reflection" not in log_text, (
         "Student reflection was leaked in logs!"
+    )
+
+
+# 9. Provider Configuration & Fail-Closed Security Tests (PR #24 Review Findings)
+def test_invalid_provider_fails_closed(monkeypatch):
+    """Unsupported provider configuration raises ValueError and fails closed to safe fallback."""
+    monkeypatch.setenv("CALMSPACE_AI_PROVIDER", "unsupported_llm_vendor")
+
+    # 1. from_env() must strictly raise ValueError
+    with pytest.raises(ValueError, match="Invalid CALMSPACE_AI_PROVIDER"):
+        AIServiceConfig.from_env()
+
+    # 2. generate_supportive_guidance fails closed to safe deterministic fallback
+    res = generate_supportive_guidance(
+        route="LOW",
+        mood=4,
+        stress=2,
+        sleep_hours=8.0,
+        reflection="Studied today",
+        consent_given=True,
+    )
+    assert res is not None
+    assert res.generated_by_ai is False
+    assert res.fallback_used is True
+
+
+def test_gemini_missing_api_key_fails_closed(monkeypatch):
+    """Selecting Gemini without API credentials raises ValueError and fails closed (no silent Mock fallback)."""
+    monkeypatch.setenv("CALMSPACE_AI_PROVIDER", "gemini")
+    monkeypatch.delenv("CALMSPACE_AI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    # 1. from_env() raises ValueError rather than defaulting to mock
+    with pytest.raises(
+        ValueError,
+        match="neither CALMSPACE_AI_API_KEY nor GEMINI_API_KEY is configured",
+    ):
+        AIServiceConfig.from_env()
+
+    # 2. get_ai_provider() directly raises ValueError when credentials missing
+    from app.services.ai_providers import get_ai_provider
+
+    gemini_no_key_cfg = AIServiceConfig(provider="gemini", api_key=None)
+    with pytest.raises(
+        ValueError,
+        match="Gemini provider selected but CALMSPACE_AI_API_KEY / GEMINI_API_KEY is not configured",
+    ):
+        get_ai_provider(gemini_no_key_cfg)
+
+    # 3. generate_supportive_guidance fails closed to safe fallback
+    res = generate_supportive_guidance(
+        route="LOW",
+        mood=4,
+        stress=2,
+        sleep_hours=8.0,
+        reflection="Quiet study session",
+        consent_given=True,
+        config=gemini_no_key_cfg,
+    )
+    assert res is not None
+    assert res.generated_by_ai is False
+    assert res.fallback_used is True
+
+
+def test_gemini_provider_header_authentication_no_query_param(monkeypatch):
+    """Verifies Gemini API credentials are sent strictly in HTTP headers, never in URL query parameters."""
+    import httpx
+
+    from app.services.ai_providers.gemini_provider import GeminiAIProvider
+
+    captured_requests = []
+
+    def mock_post(client_self, url, *args, **kwargs):
+        captured_requests.append((url, kwargs.get("headers", {}), kwargs.get("params")))
+        # Return mock valid Gemini response
+        mock_resp_json = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": json.dumps(
+                                    {
+                                        "message": (
+                                            "You are doing steady work today. "
+                                            "Taking brief pauses will keep your momentum sustainable. "
+                                            "Trust your preparation and rest well."
+                                        ),
+                                        "suggestion_chips": [
+                                            "Take a fresh air walk",
+                                            "Hydrate",
+                                        ],
+                                    }
+                                )
+                            }
+                        ]
+                    }
+                }
+            ],
+            "usageMetadata": {"totalTokenCount": 42},
+        }
+        return httpx.Response(
+            status_code=200,
+            json=mock_resp_json,
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    secret_key = "test-secret-gemini-key-xyz"
+    provider = GeminiAIProvider(api_key=secret_key, model="gemini-1.5-flash")
+
+    result = provider.generate_support(
+        system_instruction="You are a peer support.",
+        user_prompt="Metrics: mood 4",
+        timeout_seconds=5.0,
+    )
+
+    assert result.model_name == "gemini-1.5-flash"
+    assert len(captured_requests) == 1
+
+    called_url, called_headers, called_params = captured_requests[0]
+    # 1. API key MUST be present in header
+    assert called_headers.get("x-goog-api-key") == secret_key
+    # 2. API key MUST NOT be present in query params or URL string
+    assert called_params is None or "key" not in called_params
+    assert secret_key not in str(called_url)
+
+
+def test_production_guard_blocks_process_local_limiter():
+    """In production mode with allow_process_local_rate_limiter=False, rate limiter fails closed."""
+    config = AIServiceConfig(
+        allow_process_local_rate_limiter=False,
+    )
+    provider = MockAIProvider()
+
+    res = generate_supportive_guidance(
+        route="LOW",
+        mood=4,
+        stress=2,
+        sleep_hours=8.0,
+        consent_given=True,
+        provider=provider,
+        config=config,
+    )
+    assert res is not None
+    assert res.generated_by_ai is False
+    assert res.fallback_used is True
+    assert provider.call_count == 0, (
+        "Provider called despite process-local limiter being blocked!"
     )

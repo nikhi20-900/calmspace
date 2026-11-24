@@ -1,6 +1,7 @@
 """
 Gemini AI Provider Adapter
 Uses httpx to invoke the Google Gemini REST API synchronously.
+Transmits API keys strictly via HTTP headers (x-goog-api-key), never in URL parameters.
 Does not log API keys, reflection text, or raw credentials.
 """
 
@@ -23,7 +24,7 @@ class GeminiAIProvider(BaseAIProvider):
         max_tokens: int = 350,
     ) -> ProviderRawResponse:
         self.call_count += 1
-        if not self.api_key:
+        if not self.api_key or not self.api_key.strip():
             raise ValueError("Gemini API key is not configured")
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
@@ -38,12 +39,18 @@ class GeminiAIProvider(BaseAIProvider):
             },
         }
 
+        # Header-based API key transport: prevents credential leakage in query strings,
+        # URL access logs, upstream reverse proxies, and observability spans.
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key.strip(),
+        }
+
         with httpx.Client(timeout=timeout_seconds) as client:
             resp = client.post(
                 url,
-                params={"key": self.api_key},
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
             )
             resp.raise_for_status()
             data = resp.json()

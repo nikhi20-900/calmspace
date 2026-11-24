@@ -45,6 +45,10 @@ class AIServiceConfig(BaseModel):
         ge=1,
         description="Max total AI calls allowed per day across all sessions",
     )
+    allow_process_local_rate_limiter: bool = Field(
+        default=True,
+        description="Allows in-memory rate limiting for single-process demo. Set False to block production until shared enforcement exists.",
+    )
     enabled: bool = Field(
         default=True,
         description="Master switch for AI guidance provider calls",
@@ -52,17 +56,31 @@ class AIServiceConfig(BaseModel):
 
     @classmethod
     def from_env(cls) -> "AIServiceConfig":
-        """Loads configuration from environment variables with safe defaults."""
+        """
+        Loads configuration from environment variables with strict validation.
+        Fails closed on invalid provider values or missing required credentials.
+        """
         raw_provider = os.getenv("CALMSPACE_AI_PROVIDER", "").strip().lower()
         api_key = os.getenv("CALMSPACE_AI_API_KEY") or os.getenv("GEMINI_API_KEY")
+        if api_key:
+            api_key = api_key.strip() or None
 
-        # If provider is not explicitly set, prefer gemini if API key is present, else mock
-        if not raw_provider:
-            provider = "gemini" if api_key else "mock"
-        elif raw_provider in ("gemini", "mock"):
+        # Fail closed on invalid provider values
+        if raw_provider:
+            if raw_provider not in ("gemini", "mock"):
+                raise ValueError(
+                    f"Invalid CALMSPACE_AI_PROVIDER '{raw_provider}'. Supported providers are 'mock' and 'gemini'."
+                )
             provider = raw_provider
         else:
+            # Documented default: 'mock' for safe local/offline execution
             provider = "mock"
+
+        # Fail closed if Gemini is chosen without credentials
+        if provider == "gemini" and not api_key:
+            raise ValueError(
+                "CALMSPACE_AI_PROVIDER is set to 'gemini' but neither CALMSPACE_AI_API_KEY nor GEMINI_API_KEY is configured."
+            )
 
         model = os.getenv("CALMSPACE_AI_MODEL", "gemini-1.5-flash").strip()
         timeout = float(os.getenv("CALMSPACE_AI_TIMEOUT_SECONDS", "5.0"))
@@ -72,14 +90,25 @@ class AIServiceConfig(BaseModel):
         enabled_val = os.getenv("CALMSPACE_AI_ENABLED", "true").strip().lower()
         enabled = enabled_val in ("1", "true", "yes", "on")
 
+        env_mode = os.getenv("CALMSPACE_ENV", "development").strip().lower()
+        allow_local_str = (
+            os.getenv("CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER", "").strip().lower()
+        )
+        if allow_local_str:
+            allow_local = allow_local_str in ("1", "true", "yes", "on")
+        else:
+            # Default allow local in dev/test; require explicit opt-in in production
+            allow_local = env_mode != "production"
+
         return cls(
             provider=provider,
             model=model,
-            api_key=api_key if api_key else None,
+            api_key=api_key,
             timeout_seconds=timeout,
             max_tokens=max_tokens,
             rate_limit_per_minute=rate_limit,
             daily_budget_limit=daily_budget,
+            allow_process_local_rate_limiter=allow_local,
             enabled=enabled,
         )
 

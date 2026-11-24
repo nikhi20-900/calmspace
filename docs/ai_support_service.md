@@ -18,6 +18,9 @@ This document defines Calmspace's backend AI support layer (Issue #5). The servi
    - The AI acts strictly as an empathetic university peer companion.
    - It is not a therapist, diagnostic engine, or source of clinical advice.
    - It must never provide clinical diagnoses, prescribe or suggest medications, or discourage human connection.
+4. **Fail-Closed Provider Resolution**:
+   - The system **never silently switches** providers when an invalid provider is configured or when Gemini credentials are missing.
+   - Missing credentials or invalid configuration fail closed directly to the approved deterministic non-AI fallback.
 
 ---
 
@@ -27,18 +30,27 @@ All AI provider and runtime configurations are environment-driven via `backend/a
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `CALMSPACE_AI_PROVIDER` | `string` | `"mock"` (or `"gemini"` if key present) | Active provider adapter: `"mock"` or `"gemini"`. |
+| `CALMSPACE_AI_PROVIDER` | `string` | `"mock"` | Active provider adapter: `"mock"` or `"gemini"`. Invalid values fail closed. |
 | `CALMSPACE_AI_MODEL` | `string` | `"gemini-1.5-flash"` | Target model identifier. |
-| `CALMSPACE_AI_API_KEY` | `string` | `None` | Authentication key (alias `GEMINI_API_KEY`). Never logged. |
+| `CALMSPACE_AI_API_KEY` | `string` | `None` | Authentication key (alias `GEMINI_API_KEY`). Transmitted via header only; never logged. |
 | `CALMSPACE_AI_TIMEOUT_SECONDS` | `float` | `5.0` | Bounded HTTP/generation timeout in seconds. |
 | `CALMSPACE_AI_MAX_TOKENS` | `int` | `350` | Maximum token budget for supportive generation. |
 | `CALMSPACE_AI_RATE_LIMIT_PER_MINUTE` | `int` | `5` | Sliding-window per-session request rate limit. |
 | `CALMSPACE_AI_DAILY_BUDGET_LIMIT` | `int` | `200` | Global daily call ceiling across all sessions. |
+| `CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER` | `bool` | `true` in dev, `false` in prod | Permitted for single-process operation. Must be explicitly set to `true` in multi-worker environments without distributed Redis. |
 | `CALMSPACE_AI_ENABLED` | `bool` | `true` | Master operational toggle. |
 
 ---
 
-## 3. Input Minimisation & Data Flow
+## 3. Credential Security & Transport
+
+- **Header-Based Transport**: `GeminiAIProvider` authenticates with the Google Gemini REST API using the official `x-goog-api-key: <KEY>` HTTP header.
+- **URL Cleanliness**: No API credentials, tokens, or keys are ever placed in URL query parameters (`?key=...`), preventing exposure in reverse-proxy logs, access logs, or observability spans.
+- **Sanitized Logging**: All exceptions caught during provider execution are logged with exception class names only; neither user reflections nor API keys are recorded.
+
+---
+
+## 4. Input Minimisation & Data Flow
 
 Calmspace enforces strict server-side data minimisation before constructing any prompt:
 
@@ -49,11 +61,11 @@ flowchart TD
     Safety -- "LOW / MEDIUM Route" --> ConsentCheck{"consent_ai_processing == true?"}
     ConsentCheck -- "No" --> DetFallback["Approved Deterministic Non-AI Fallback"]
     ConsentCheck -- "Yes" --> MinPayload["Minimise Payload: Mood, Stress, Sleep, Reflection"]
-    MinPayload --> RateCheck{"Rate Limits & Daily Budget OK?"}
-    RateCheck -- "Exceeded" --> DetFallback
+    MinPayload --> RateCheck{"Rate Limits & Scope OK?"}
+    RateCheck -- "Exceeded / Blocked" --> DetFallback
     RateCheck -- "OK" --> Prompt["Isolated Prompt Construction"]
     Prompt --> Provider["Configured Provider Adapter (Mock / Gemini)"]
-    Provider -- "Error / Timeout" --> DetFallback
+    Provider -- "Error / Timeout / Invalid Config" --> DetFallback
     Provider -- "Raw Output" --> Validator{"Output Schema & Safety Validator"}
     Validator -- "Unsafe / Malformed" --> DetFallback
     Validator -- "Valid & Safe" --> ReturnAI["SupportiveGuidance (generated_by_ai=true)"]
@@ -66,7 +78,15 @@ flowchart TD
 
 ---
 
-## 4. Prompt Isolation & Injection Defense
+## 5. Rate Limiting Scope & Multi-Worker Production Architecture
+
+- **Single-Process Scope**: `AIRateLimiter` maintains in-memory timestamps and a daily invocation counter for local execution, unit tests, and single-instance demonstrations.
+- **Multi-Worker Guard**: In multi-process production deployments (`CALMSPACE_ENV=production`), process-local rate limits would be multiplied by worker count and reset on worker restart. Therefore, `allow_process_local_rate_limiter` defaults to `False` in production unless explicitly opted into via `CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER=true`.
+- **Production Roadmap**: Production deployments operating across multiple pods/workers require connecting a shared atomic backend (e.g. Redis or database-backed counter) before enabling distributed rate limiting.
+
+---
+
+## 6. Prompt Isolation & Injection Defense
 
 User reflection text is treated as **untrusted data**, isolated in boundary tags, and shielded from overriding system policies:
 
@@ -91,7 +111,7 @@ Please provide a gentle, non-clinical supportive response matching the requested
 
 ---
 
-## 5. Output Schema & Safety Validator
+## 7. Output Schema & Safety Validator
 
 Every provider response must pass the `validate_ai_guidance_output` gate in `app/services/ai_validation.py` before reaching the student:
 
@@ -110,9 +130,9 @@ Every provider response must pass the `validate_ai_guidance_output` gate in `app
 
 ---
 
-## 6. Deterministic Safe Fallback
+## 8. Deterministic Safe Fallback
 
-Whenever AI generation is unconsented, disabled, timed out, rate-limited, throws a provider error, or fails output validation, Calmspace returns the approved, peer-reviewed deterministic guidance:
+Whenever AI generation is unconsented, disabled, timed out, rate-limited, misconfigured, or fails output validation, Calmspace returns the approved, peer-reviewed deterministic guidance:
 - `generated_by_ai = False`
 - `fallback_used = True`
 - `disclaimer = "This is supportive guidance, not medical advice."`

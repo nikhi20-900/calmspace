@@ -9,6 +9,7 @@ Guarantees:
 4. Prompt isolation: untrusted user reflection is contained and guarded against prompt injection.
 5. Strict output validation: non-clinical, 3-5 sentences, zero diagnosis or prescriptions.
 6. Safe deterministic fallback: returned on timeouts, errors, validation failures, or unconsented requests.
+7. Fail closed: invalid provider configurations or missing credentials return safe fallback without silent mock substitution.
 """
 
 import logging
@@ -28,7 +29,15 @@ logger = logging.getLogger("calmspace.ai_guidance")
 
 
 class AIRateLimiter:
-    """In-memory rate limiter tracking sliding per-minute windows and daily caps."""
+    """
+    Process-local rate limiter tracking sliding per-minute windows and daily caps.
+
+    GUARANTEE & SCOPE:
+    Single-process in-memory limiter for development, tests, and single-instance demo.
+    Multi-instance or multi-worker production deployments must configure a distributed
+    shared store (e.g. Redis). If allow_process_local_rate_limiter is False in production,
+    calls fail closed to the safe deterministic fallback.
+    """
 
     def __init__(self):
         self._session_timestamps: dict[str, list[float]] = {}
@@ -43,8 +52,18 @@ class AIRateLimiter:
             self._session_timestamps.clear()
 
     def is_allowed(
-        self, session_id: str, rate_limit_per_minute: int, daily_budget_limit: int
+        self,
+        session_id: str,
+        rate_limit_per_minute: int,
+        daily_budget_limit: int,
+        allow_local: bool = True,
     ) -> bool:
+        if not allow_local:
+            logger.warning(
+                "Process-local rate limiting is blocked for multi-worker production without shared store. Failing closed."
+            )
+            return False
+
         self._reset_daily_if_new_day()
 
         if self._daily_count >= daily_budget_limit:
@@ -84,7 +103,7 @@ def get_deterministic_fallback(
 ) -> SupportiveGuidance:
     """
     Returns approved, peer-reviewed, warm, non-clinical supportive guidance.
-    Used when AI is unconsented, disabled, timed out, rate-limited, or failed validation.
+    Used when AI is unconsented, disabled, timed out, rate-limited, misconfigured, or failed validation.
     """
     if route == "LOW":
         if sleep_hours >= 7.5:
@@ -172,7 +191,7 @@ def generate_supportive_guidance(
     Strictly follows safety constraints:
     1. HIGH route immediately returns None (zero AI calls).
     2. Non-consented check-in returns approved deterministic fallback without calling provider.
-    3. Failure paths (timeout, rate limit, schema/safety violation) return safe fallback.
+    3. Failure paths (timeout, rate limit, schema/safety violation, misconfiguration) return safe fallback.
     """
     # Safety Boundary 1: HIGH route / Crisis — ZERO AI CALL GUARANTEE
     if route == "HIGH":
@@ -191,22 +210,38 @@ def generate_supportive_guidance(
     if not consent_given:
         return fallback
 
-    # Configuration & Master switch
-    cfg = config or get_ai_config()
+    # Configuration & Master switch (fail closed on invalid configuration)
+    try:
+        cfg = config or get_ai_config()
+    except Exception as cfg_exc:  # noqa: BLE001
+        logger.warning(
+            "AI guidance configuration error (%s). Failing closed to safe fallback.",
+            cfg_exc,
+        )
+        return fallback
+
     if not cfg.enabled:
         return fallback
 
-    # Rate Limiting & Daily Usage Checks
+    # Rate Limiting & Daily Usage Checks (enforces local vs distributed policy)
     sid = session_id or "anonymous-default"
     if not rate_limiter.is_allowed(
         sid,
         rate_limit_per_minute=cfg.rate_limit_per_minute,
         daily_budget_limit=cfg.daily_budget_limit,
+        allow_local=cfg.allow_process_local_rate_limiter,
     ):
         return fallback
 
-    # Resolve active provider
-    active_provider = provider or get_ai_provider(cfg)
+    # Resolve active provider (fail closed if provider or credentials invalid)
+    try:
+        active_provider = provider or get_ai_provider(cfg)
+    except Exception as prov_exc:  # noqa: BLE001
+        logger.warning(
+            "AI guidance provider resolution error (%s). Failing closed to safe fallback.",
+            prov_exc,
+        )
+        return fallback
 
     # Build prompt with input minimization and untrusted content isolation
     user_prompt = build_user_prompt(
