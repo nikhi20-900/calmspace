@@ -15,8 +15,18 @@ class CheckInRequest(BaseModel):
     reflection: Optional[str] = Field(None, max_length=1500, description="Optional personal reflection")
     consent_ai_processing: bool = Field(False, description="Explicit consent if reflection is evaluated for guidance")
 
+class RuleTrigger(BaseModel):
+    rule_id: str
+    name: str
+    points: int
+    rationale: str
+
 class SafetyEvaluation(BaseModel):
     route: RiskRoute
+    level: Optional[RiskRoute] = None  # Alias for route per Issue #2
+    score: int = 0
+    crisis_flag: bool = False
+    triggered_rules: List[RuleTrigger] = []
     status_label: str
     status_summary: str
     requires_human_escalation: bool
