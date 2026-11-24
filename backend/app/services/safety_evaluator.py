@@ -17,6 +17,7 @@ Principles & Acceptance Criteria:
 
 import math
 import re
+import unicodedata
 from typing import Any
 
 from app.models.schemas import CheckInRequest, RiskRoute, RuleTrigger, SafetyEvaluation
@@ -37,39 +38,149 @@ RULE_CONSECUTIVE_LOW_MOOD = "RULE_CONSECUTIVE_LOW_MOOD"
 RULE_DISTRESS_KEYWORD = "RULE_DISTRESS_KEYWORD"
 
 # Verified Acute Crisis Patterns (Immediate Human Escalation Override)
+# Multilingual: English, Hinglish (hi-Latn), and Devanagari Hindi (hi-Deva)
 ACUTE_CRISIS_PATTERNS = [
-    r"\b(suicide|suicidal|suicidality|kill myself|end my life|end it all|want to die|take my own life)\b",
-    r"\b(self-?harm|cutting myself|hurt myself|overdose|slit my)\b",
-    r"\b(no reason to live|better off dead|cannot go on anymore|can't go on anymore)\b",
+    # English direct, colloquial, and misspelling/leetspeak variants
+    r"\b(suicide|suicidal|suicidality|suicde|sucidial|suecide)\b",
+    r"\b(kill\s+myself|k!ll\s+myself|k\*ll\s+myself)\b",
+    r"\b(end\s+my\s+(life|lyfe)|end\s+it\s+all|want\s+to\s+die|(take|taking)\s+my\s+own\s+life)\b",
+    r"\b(self-?harm|selfharm|cutting\s+myself|hurt\s+myself|overdose|slit\s+my)\b",
+    r"\b(no\s+reason\s+to\s+live|better\s+off\s+dead|cannot\s+go\s+on\s+anymore|can't\s+go\s+on\s+anymore)\b",
+    # Hinglish direct expressions & colloquial variations
+    r"\b(marne\s+ka\s+(man|mann)|mar\s+jana\s+chaht[ai])\b",
+    r"\b(ab\s+aur\s+nahi\s+jiya\s+jata|marne\s+ka\s+time\s+aa\s+gaya)\b",
+    r"\b(zindagi\s+se\s+thak\s+gay[ai].*mar)\b",
+    r"\b(apne\s+aap\s+ko\s+khatam|apne\s+aap\s+ko\s+khatam\s+kar\s+lunga|sab\s+khatam\s+kar\s+dunga|khud\s+ko\s+khatam)\b",
+    r"\b(apni\s+)?jaan\s+(de\s+(dunga|dungi|duga|dene|dena)|lene)\b",
+    r"\b(khud\s*kushi|aatm\s*hatya)\b",
+    r"\bkhud\s+ko\s+(hurt|harm)(\s+(karna|karne|karunga|karungi|kar\s+raha|kar\s+rahi))?\b",
+    r"\b(ab\s+)?jeene\s+ka\s+(man|mann)\s+nahi\b",
+    # Devanagari Hindi direct expressions
+    r"(?<!\w)(आत्महत्या|खुदकुशी)(?!\w)",
+    r"मरने\s+का\s+(मन|इच्छा|ख्याल)",
+    r"(अपनी\s+)?जान\s+(दे\s+(दूंगा|दूंगी|देना)|लेने)",
+    r"खुद\s+को\s+(नुकसान|चोट|खत्म)",
+    r"जीने\s+की\s+(कोई\s+)?इच्छा\s+नहीं",
+    r"सब\s+कुछ\s+खत्म\s+कर\s+लेना",
+    r"मेरे\s+मरने\s+से\s+सबका\s+भला",
+]
+
+# Benign idioms to protect from false-positive crisis escalation
+BENIGN_IDIOM_PATTERNS = [
+    r"\bdead\s+tired\b",
+    r"\bdying\s+of\s+laughter\b",
+    r"\bkilling\s+it\b",
+    r"\b(is|are|was|were)\s+killing\s+me\b",
+    r"\b(would\s+)?die\s+for\s+(a|an|some)\b",
+    r"\bkilled\s+me\s+with\s+laughter\b",
+    r"\bdrop\s+dead\s+gorgeous\b",
+    r"\bjaan\s+nikal\s+(gayi|rahi\s+hai)\b",
+    r"\bthak\s+ke\s+mar\s+gaya\b",
+    r"\bhas\s+has\s+ke\s+mar\s+gaya\b",
+    r"\bkill\s+kar\s+diya\b",
+    r"\bbhookh\s+ke\s+mare\b",
+    r"जान\s+निकल\s+गई",
+    r"हंस\s+हंस\s+कर",
 ]
 
 # Broader Emotional Distress Patterns (Contributes to cumulative score)
 BROADER_DISTRESS_PATTERNS = [
     r"\b(hopeless|worthless|nobody cares|can't take this anymore|cannot take this anymore|severe panic|terrified|hallucinat|breaking down|falling apart)\b",
-    r"\b(extremely overwhelmed|burned out|burnout|unbearable|drowning in work)\b",
+    r"\b(extremely overwhelmed|burned out|burnout|unbearable|drowning in work|drowning in|disappear forever|never wake up|nothing matters)\b",
+    r"\b(sab\s+kuch\s+chhod\s+kar|door\s+chale\s+jana|bohot\s+pareshan|koi\s+ummeed\s+nahi|thak\s+gaya\s+hoon)\b",
+    r"(सब\s+छोड़\s+कर|बहुत\s+परेशान|कोई\s+उम्मीद\s+नहीं|हिम्मत\s+टूट\s+गई)",
 ]
 
-# Common Negation Phrases & Clause Boundary Delimiters
-# Prevents false-positive crisis triggers while strictly enforcing sentence & clause boundaries
+# Sentence & Clause Boundary Delimiters
+# Strictly enforces sentence & clause boundaries to prevent negation or context leakage
+SENTENCE_DELIMITER_REGEX = re.compile(r"[.!?;\n।॥]")
+
 CLAUSE_DELIMITER_REGEX = re.compile(
-    r"([.!?;\n]|\b(but|however|yet|although|nevertheless|though)\b)",
+    r"([,!?;\n।॥]|\.|\b(but|however|yet|although|nevertheless|though|and|aur|par|lekin|magar)\b|"
+    r"(?<!\w)(और|पर|लेकिन|मगर)(?!\w))",
     re.IGNORECASE,
 )
 
-NEGATION_PRECEDING_REGEX = re.compile(
-    r"\b(not|no|never|don't|dont|won't|wont|didn't|didnt|no longer|neither|without|stop thinking about|stop feeling|would never|will never)"
+PRECEDING_NEGATION_REGEX = re.compile(
+    r"\b(not|no|never|don't|dont|won't|wont|didn't|didnt|no longer|neither|without|stop thinking about|stop feeling|would never|will never|used to be|"
+    r"nahi|nahin|kabhi\s+nahi|koi\s+irada\s+nahi|koi\s+ichha\s+nahi|"
+    r"नहीं|कभी\s+नहीं|कोई\s+इरादा\s+नहीं|कोई\s+इच्छा\s+नहीं)"
     r"(\s+(really|at all|currently|even|ever|actually))?"
     r"(\s+(feeling|thinking\s+(of|about)?|wanting\s+to|want\s+to|planning\s+to|plan\s+to|intending\s+to|intend\s+to|going\s+to|thoughts?\s+(of|about)?|desire\s+to|intention\s+to|have\s+thoughts\s+of|to))?"
     r"\s*$",
     re.IGNORECASE,
 )
 
+POST_VERBAL_NEGATION_REGEX = re.compile(
+    r"^\s*(to\s+|bhi\s+|bilkul\s+)?(nahi|nahin|na|नहीं|ना)"
+    r"(\s+(hai|hoga|tha|thi|karna|karunga|karungi|chahta|chahti|है|होगा|था|थी|करना|करूँगा|करूंगी|चाहता|चाहती))?(?!\w)|"
+    r"^\s*(ki\s+|का\s+|की\s+)?(koi\s+|कोई\s+)?(ichha|irada|khyal|मन|इच्छा|इरादा|ख्याल)\s+(nahi|nahin|नहीं)(?!\w)|"
+    r"^\s*(पहुँचाने|करने)\s+(का\s+)?(कोई\s+)?(इरादा|इच्छा)\s+(नहीं|ना)(?!\w)",
+    re.IGNORECASE,
+)
+
+ACADEMIC_CONTEXT_REGEX = re.compile(
+    r"\b(philosophy\s+class|professor\s+asked|textbook|academic\s+study|reading\s+assignment|"
+    r"class\s+mein|lecture\s+mein|textbook\s+mein|professor\s+ne)\b|"
+    r"(?<!\w)(क्लास\s+में|कक्षा\s+में|प्रोफेसर\s+ने|किताब\s+में|चर्चा\s+हुई|अध्ययन)(?!\w)",
+    re.IGNORECASE,
+)
+
+ACADEMIC_FRAMING_REGEX = re.compile(
+    r'["\'“”]'
+    r"|\b(asked|asks|poocha|pucha|discussed|discusses|discussing|charcha|lecture|topic|why\s+do|why\s+people|kyun)\b|"
+    r"(?<!\w)(पूछा|चर्चा|क्यों)(?!\w)",
+    re.IGNORECASE,
+)
+
+FIRST_PERSON_DISCLOSURE_REGEX = re.compile(
+    r"\b(i|i'm|im|i've|i'd|me|myself|mine)\b|"
+    r"\b(feel|feeling|thinking|thought|want|wanting|wish|wishing|planning|going\s+to)\b|"
+    r"\b(main|mujhe|mujhko|mera|meri|mere|khud|apne|apni)\b|"
+    r"\b(soch\s+raha|soch\s+rahi|man\s+hai|mann\s+hai|irada\s+hai|dil\s+kar\s+raha|lag\s+raha)\b|"
+    r"(?<!\w)(मैं|मुझे|मुझको|मेरा|मेरी|मेरे|खुद|अपने|अपनी)(?!\w)|"
+    r"(?<!\w)(सोच\s+रहा|सोच\s+रही|मन\s+है|इरादा\s+है|दिल\s+कर\s+रहा|नुकसान)(?!\w)",
+    re.IGNORECASE,
+)
+
+
+def is_in_academic_quote(text: str, match_start: int, match_end: int) -> bool:
+    """
+    Determines if an acute crisis phrase match is strictly contained within
+    an academic, clinical, or instructional inquiry without personal distress intent.
+    Enforces:
+    1. Sentence boundaries isolate academic context from adjacent crisis statements.
+    2. Any first-person disclosure (in English, Hinglish, or Devanagari Hindi) invalidates
+       the academic exemption so genuine personal crises in academic settings are escalated.
+    3. The match must be accompanied by both academic context and objective inquiry framing.
+    """
+    delims_before = [
+        m.end() for m in SENTENCE_DELIMITER_REGEX.finditer(text[:match_start])
+    ]
+    sentence_start = delims_before[-1] if delims_before else 0
+
+    delim_after = SENTENCE_DELIMITER_REGEX.search(text[match_end:])
+    sentence_end = match_end + delim_after.start() if delim_after else len(text)
+
+    sentence = text[sentence_start:sentence_end].strip()
+
+    # Must contain an academic context marker within the same sentence
+    if not ACADEMIC_CONTEXT_REGEX.search(sentence):
+        return False
+
+    # Personal first-person disclosure strictly invalidates academic exemption
+    if FIRST_PERSON_DISCLOSURE_REGEX.search(sentence):
+        return False
+
+    # Must be framed as an objective academic inquiry, discussion, or quotation
+    return bool(ACADEMIC_FRAMING_REGEX.search(sentence))
+
 
 def is_crisis_negated(text_before_match: str) -> bool:
     """
-    Determines if an acute crisis phrase match is genuinely negated.
+    Determines if an acute crisis phrase match is genuinely negated by preceding context.
     Enforces:
-    1. Sentence boundaries (. ! ? ; \n) prevent negations in preceding sentences from
+    1. Sentence boundaries (. , ! ? ; \n) prevent negations in preceding sentences from
        suppressing crisis expressions in subsequent sentences.
     2. Contrastive conjunctions (but, however, yet, etc.) isolate preceding negations.
     3. The negation prefix must directly modify the crisis target expression.
@@ -84,7 +195,7 @@ def is_crisis_negated(text_before_match: str) -> bool:
         active_clause = text_before_match
 
     # 1. Direct preceding negation in current clause
-    if NEGATION_PRECEDING_REGEX.search(active_clause):
+    if PRECEDING_NEGATION_REGEX.search(active_clause):
         return True
 
     # 2. Coordinated negation across 'or' / 'nor' (e.g., 'would never hurt myself or self-harm')
@@ -101,6 +212,16 @@ def is_crisis_negated(text_before_match: str) -> bool:
                     return True
 
     return False
+
+
+def is_crisis_negated_following(text_after_match: str) -> bool:
+    """
+    Checks if an acute crisis phrase is negated by a succeeding negation in the same clause
+    (critical in Indo-Aryan SOV syntax like Hindi/Hinglish: e.g., 'marne ka man nahi hai').
+    Strictly anchored at ^\\s* to prevent unrelated negations in coordinated clauses
+    (e.g., 'I want to die and I am not happy') from suppressing the crisis phrase.
+    """
+    return bool(POST_VERBAL_NEGATION_REGEX.search(text_after_match))
 
 
 # ============================================================================
@@ -196,15 +317,31 @@ def evaluate(
     # -------------------------------------------------------------------------
     # 1. CRISIS PHRASE & EMOTIONAL DISTRESS ANALYSIS WITH NEGATION HANDLING
     # -------------------------------------------------------------------------
-    norm_text = reflection.strip().lower()
+    norm_text = unicodedata.normalize("NFKC", reflection).strip().lower()
     if norm_text:
-        # Check acute crisis indicators with sentence & clause boundary isolation
         has_crisis_keyword = False
+        # Mask benign idioms first so colloquial hyperbole does not trigger crisis rules
+        masked_text = norm_text
+        for idiom in BENIGN_IDIOM_PATTERNS:
+            masked_text = re.sub(idiom, " [IDIOM] ", masked_text, flags=re.IGNORECASE)
+
+        # Check acute crisis indicators with sentence & clause boundary isolation
         for pattern in ACUTE_CRISIS_PATTERNS:
-            for match in re.finditer(pattern, norm_text):
-                text_before = norm_text[: match.start()]
+            for match in re.finditer(pattern, masked_text):
+                # Isolate academic contexts to the specific quoted sentence
+                if is_in_academic_quote(masked_text, match.start(), match.end()):
+                    continue
+
+                # Check preceding negation in the current clause
+                text_before = masked_text[: match.start()]
                 if is_crisis_negated(text_before):
-                    continue  # Genuine negation in current clause: "not suicidal", "don't want to die"
+                    continue
+
+                # Check strict anchored post-verbal negation (Hindi/Hinglish SOV syntax)
+                text_after = masked_text[match.end() :]
+                if is_crisis_negated_following(text_after):
+                    continue
+
                 has_crisis_keyword = True
                 break
             if has_crisis_keyword:
@@ -224,7 +361,7 @@ def evaluate(
                 "Crisis or acute distress indicators identified in check-in reflection."
             )
         else:
-            # Check broader distress language (non-crisis)
+            # Check broader distress language (non-crisis, contributes +1 to cumulative score)
             for pattern in BROADER_DISTRESS_PATTERNS:
                 if re.search(pattern, norm_text):
                     triggered_rules.append(
