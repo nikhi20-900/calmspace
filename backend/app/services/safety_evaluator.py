@@ -15,6 +15,7 @@ Principles & Acceptance Criteria:
 6. NON-DIAGNOSTIC COPY: High is never described as a diagnosis; Low is never described as proof of safety.
 """
 
+import math
 import re
 from typing import Any
 
@@ -59,7 +60,7 @@ NEGATION_PREFIXES = r"\b(not|never|don't|dont|won't|wont|didn't|didnt|no longer|
 def validate_checkin_inputs(mood: Any, stress: Any, sleep_hours: Any) -> None:
     """
     Validates check-in inputs.
-    Raises ValueError with descriptive context for out-of-bounds or invalid types.
+    Raises ValueError with descriptive context for out-of-bounds, non-finite, or invalid types.
     """
     if not isinstance(mood, int) or isinstance(mood, bool) or mood < 1 or mood > 5:
         raise ValueError(
@@ -79,12 +80,32 @@ def validate_checkin_inputs(mood: Any, stress: Any, sleep_hours: Any) -> None:
     if (
         not isinstance(sleep_hours, (int, float))
         or isinstance(sleep_hours, bool)
+        or not math.isfinite(sleep_hours)
         or sleep_hours < 0.0
         or sleep_hours > 24.0
     ):
         raise ValueError(
-            f"Sleep duration must be a number between 0.0 and 24.0 hours. Received: {sleep_hours}"
+            f"Sleep duration must be a finite number between 0.0 and 24.0 hours. Received: {sleep_hours}"
         )
+
+
+def extract_valid_mood(entry: Any) -> int | None:
+    """
+    Safely extracts a valid mood integer (1-5) from a history entry.
+    Handles dict, Pydantic/dataclass objects, or malformed/missing entries gracefully.
+    Returns None if the entry is missing or invalid.
+    """
+    if entry is None:
+        return None
+    val = None
+    if isinstance(entry, dict):
+        val = entry.get("mood")
+    elif hasattr(entry, "mood"):
+        val = getattr(entry, "mood", None)
+
+    if isinstance(val, int) and not isinstance(val, bool) and 1 <= val <= 5:
+        return val
+    return None
 
 
 # ============================================================================
@@ -257,16 +278,12 @@ def evaluate(
     # 3. CONSECUTIVE CHECK-IN HISTORY TREND
     # -------------------------------------------------------------------------
     # Precisely defined: 3 consecutive entries with mood <= 2
-    # Current entry must be <= 2, and the immediately preceding 2 entries in history must also be <= 2
+    # Current entry must be <= 2, and the immediately preceding 2 entries in history must also be valid mood <= 2
     if mood <= 2 and history and len(history) >= 2:
-        recent_moods = []
-        for entry in history[-2:]:
-            if isinstance(entry, dict):
-                recent_moods.append(entry.get("mood", 3))
-            elif hasattr(entry, "mood"):
-                recent_moods.append(entry.mood)
-
-        if len(recent_moods) == 2 and all(m <= 2 for m in recent_moods):
+        recent_moods = [extract_valid_mood(entry) for entry in history[-2:]]
+        if len(recent_moods) == 2 and all(
+            m is not None and m <= 2 for m in recent_moods
+        ):
             triggered_rules.append(
                 RuleTrigger(
                     rule_id=RULE_CONSECUTIVE_LOW_MOOD,
