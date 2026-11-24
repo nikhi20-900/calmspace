@@ -15,10 +15,15 @@ Covers:
 
 import os
 import sys
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
 
 # Add backend directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from app.main import app
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import (
     RULE_CONSECUTIVE_LOW_MOOD,
@@ -309,6 +314,123 @@ def test_convenience_alias_and_object_history():
     print("✓ evaluate_wellbeing_route works with CheckInRecord objects in history")
 
 
+# ============================================================================
+# ADDITIONAL REGRESSION & INTEGRATION TESTS
+# ============================================================================
+
+
+@pytest.mark.parametrize(
+    "sleep_hours",
+    [
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_sleep_rejects_non_finite_values(sleep_hours):
+    """Test A: Ensure sleep input rejects NaN, inf, and -inf explicitly."""
+    with pytest.raises(ValueError):
+        validate_checkin_inputs(
+            mood=3,
+            stress=2,
+            sleep_hours=sleep_hours,
+        )
+
+
+def test_fastapi_endpoint_ai_bypass_on_high():
+    """Test B: Test actual FastAPI checkin endpoint; verify AI guidance service is bypassed on HIGH."""
+    client = TestClient(app)
+    with patch("app.routers.checkin.generate_supportive_guidance") as mock_ai:
+        response = client.post(
+            "/api/checkin",
+            json={
+                "mood": 1,
+                "stress": 5,
+                "sleep_hours": 3.0,
+                "reflection": "I want to end my life",
+                "consent_ai_processing": True,
+            },
+            headers={"x-session-id": "test-session-bypass-high"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["safety"]["route"] == "HIGH"
+        assert data["safety"]["ai_eligible"] is False
+        assert data["guidance"] is None
+        mock_ai.assert_not_called()
+    print("✓ FastAPI endpoint guarantees zero AI calls on HIGH safety route")
+
+
+def test_fastapi_endpoint_ai_called_on_eligible_route():
+    """Verify AI guidance is called on LOW/MEDIUM when consented."""
+    client = TestClient(app)
+    with patch("app.routers.checkin.generate_supportive_guidance") as mock_ai:
+        mock_ai.return_value = {
+            "message": "Take it steady today.",
+            "suggestion_chips": ["Rest"],
+            "disclaimer": "This is supportive guidance, not medical advice.",
+            "generated_by_ai": False,
+            "fallback_used": True,
+        }
+        response = client.post(
+            "/api/checkin",
+            json={
+                "mood": 4,
+                "stress": 2,
+                "sleep_hours": 8.0,
+                "reflection": "Feeling steady.",
+                "consent_ai_processing": True,
+            },
+            headers={"x-session-id": "test-session-eligible-ai"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["safety"]["route"] == "LOW"
+        assert data["safety"]["ai_eligible"] is True
+        assert data["guidance"] is not None
+        mock_ai.assert_called_once()
+    print("✓ FastAPI endpoint invokes guidance service on eligible non-high route")
+
+
+def test_malformed_history_resilience():
+    """Test C: Ensure history parsing is resilient against missing, invalid, or malformed entries."""
+    # 1. Corrupted history ending with 2 valid low moods triggers consecutive low mood
+    malformed_history = [
+        None,
+        {"mood": "invalid"},
+        {"other": 123},
+        {"mood": float("nan")},
+        {"mood": 2},
+        {"mood": 1},
+    ]
+    res = evaluate(
+        {"mood": 2, "stress": 2, "sleep_hours": 7.0}, history=malformed_history
+    )
+    assert any(r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in res.triggered_rules)
+
+    # 2. Corrupted history in recent positions does NOT crash and does NOT trigger rule
+    corrupted_history = [None, {"mood": "bad"}]
+    res2 = evaluate(
+        {"mood": 2, "stress": 2, "sleep_hours": 7.0}, history=corrupted_history
+    )
+    assert not any(r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in res2.triggered_rules)
+
+    # 3. Missing mood in history
+    missing_mood_history = [{"stress": 4}, {"sleep_hours": 5.0}]
+    res3 = evaluate(
+        {"mood": 2, "stress": 2, "sleep_hours": 7.0}, history=missing_mood_history
+    )
+    assert not any(r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in res3.triggered_rules)
+
+    # 4. Invalid mood types (bool, nan, out of range)
+    invalid_type_history = [{"mood": True}, {"mood": float("nan")}, {"mood": 6}]
+    res4 = evaluate(
+        {"mood": 2, "stress": 2, "sleep_hours": 7.0}, history=invalid_type_history
+    )
+    assert not any(r.rule_id == RULE_CONSECUTIVE_LOW_MOOD for r in res4.triggered_rules)
+    print("✓ History evaluation handles malformed, NaN, and invalid entries gracefully")
+
+
 if __name__ == "__main__":
     test_input_validation()
     test_agreed_score_interaction_issue_2()
@@ -319,4 +441,9 @@ if __name__ == "__main__":
     test_non_diagnostic_copy_and_ai_bypass()
     test_broader_distress_keyword()
     test_convenience_alias_and_object_history()
+    for s in [float("nan"), float("inf"), float("-inf")]:
+        test_sleep_rejects_non_finite_values(s)
+    test_fastapi_endpoint_ai_bypass_on_high()
+    test_fastapi_endpoint_ai_called_on_eligible_route()
+    test_malformed_history_resilience()
     print("\nALL UNIT TESTS FOR ISSUE #2 PASSED SUCCESSFULLY!")
