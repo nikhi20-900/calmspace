@@ -3,6 +3,10 @@
 > **A quieter space to check in with yourself.**
 
 <p align="center">
+  <img src="docs/assets/calmspace_mascot.jpg" alt="Calmspace 3D Mascot — You are doing your best" width="480" style="border-radius: 20px;" />
+</p>
+
+<p align="center">
   <strong>A student wellbeing companion built around thoughtful design, deterministic safety, and human support.</strong>
 </p>
 
