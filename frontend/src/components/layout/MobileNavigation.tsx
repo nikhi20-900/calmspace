@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Menu,
@@ -19,25 +19,72 @@ export interface MobileNavigationProps {
 
 export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSupportModal }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const prevIsOpen = useRef(isOpen);
 
-  // Close drawer on Escape key and lock body scrolling
+  // Accessible focus trapping, restoration, Escape key dismissal, and scroll lock
   useEffect(() => {
-    if (!isOpen) return;
+    if (isOpen) {
+      // 1. Lock body scrolling while modal drawer is open
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
+      // 2. Move focus into first focusable element in drawer
+      const focusTimer = setTimeout(() => {
+        if (drawerRef.current) {
+          const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            focusable[0].focus();
+          }
+        }
+      }, 50);
 
-    document.addEventListener('keydown', handleKeyDown);
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+      // 3. Trap keyboard focus and handle Escape
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsOpen(false);
+          return;
+        }
 
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = originalOverflow;
-    };
+        if (e.key === 'Tab' && drawerRef.current) {
+          const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length === 0) return;
+
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+
+          if (e.shiftKey) {
+            if (document.activeElement === first) {
+              e.preventDefault();
+              last.focus();
+            }
+          } else {
+            if (document.activeElement === last) {
+              e.preventDefault();
+              first.focus();
+            }
+          }
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        clearTimeout(focusTimer);
+        document.removeEventListener('keydown', handleKeyDown);
+        document.body.style.overflow = originalOverflow;
+      };
+    } else if (prevIsOpen.current) {
+      // 4. Restore focus to menu trigger button when drawer closes
+      triggerRef.current?.focus();
+    }
+    prevIsOpen.current = isOpen;
   }, [isOpen]);
 
   const navItems = [
@@ -94,6 +141,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
           </button>
 
           <button
+            ref={triggerRef}
             type="button"
             onClick={() => setIsOpen(!isOpen)}
             aria-expanded={isOpen}
@@ -111,36 +159,53 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
             id="mobile-navigation-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label="Mobile Navigation Drawer"
+            aria-label="Mobile Navigation Menu"
             className="fixed inset-0 top-[57px] bg-[#25233B]/40 backdrop-blur-xs z-40 animate-fade-in"
             onClick={() => setIsOpen(false)}
           >
             <div
+              ref={drawerRef}
               className="w-4/5 max-w-xs bg-white h-full border-r border-[#E8E6F1] p-5 shadow-elevation animate-fade-up flex flex-col justify-between overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <nav className="space-y-1.5" aria-label="Mobile Drawer Navigation">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setIsOpen(false)}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 px-3.5 py-3 rounded-button text-sm font-medium transition-colors min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
-                          isActive
-                            ? 'bg-[#E9E7FB] text-[#5554B8] font-semibold'
-                            : 'text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'
-                        }`
-                      }
-                    >
-                      <Icon className="w-5 h-5 shrink-0" />
-                      <span>{item.label}</span>
-                    </NavLink>
-                  );
-                })}
-              </nav>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-[#F0EFF7]">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#625F78]">
+                    Navigation
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    aria-label="Close menu drawer"
+                    className="p-1 rounded text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <nav className="space-y-1.5" aria-label="Mobile Drawer Navigation">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setIsOpen(false)}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 px-3.5 py-3 rounded-button text-sm font-medium transition-colors min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                            isActive
+                              ? 'bg-[#E9E7FB] text-[#5554B8] font-semibold'
+                              : 'text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'
+                          }`
+                        }
+                      >
+                        <Icon className="w-5 h-5 shrink-0" />
+                        <span>{item.label}</span>
+                      </NavLink>
+                    );
+                  })}
+                </nav>
+              </div>
 
               <div className="pt-4 border-t border-[#E8E6F1] space-y-3 pb-6">
                 <div className="p-3 rounded-card bg-[#F7F6FB] border border-[#E8E6F1]">

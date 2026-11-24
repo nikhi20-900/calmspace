@@ -70,8 +70,8 @@ export const OverviewPage: React.FC = () => {
         if (!hasSuccess && (histRes.status === 'rejected' || insRes.status === 'rejected')) {
           setLoadError(true);
         }
-      } catch (e) {
-        console.error('Overview load error', e);
+      } catch {
+        // Suppress detailed error objects from client logs to protect session and network privacy
         setLoadError(true);
       } finally {
         setLoading(false);
@@ -109,7 +109,7 @@ export const OverviewPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-[#7A4D05]" />
             <span>
-              Unable to sync latest cloud data. Your offline support contacts and local tools remain fully active.
+              Unable to reach the server. Verified helpline contacts remain accessible below.
             </span>
           </div>
           <Link
@@ -133,7 +133,7 @@ export const OverviewPage: React.FC = () => {
               {getGreeting()}, {settings.nickname || 'Student'}.
             </h1>
             <p className="text-sm sm:text-base text-[#625F78] leading-relaxed-wellness">
-              Take a breath. No deadlines or performance metrics live here. Just a safe, confidential corner to check in with how you are feeling.
+              Take a breath. No deadlines or performance metrics live here. Just a safe, anonymous corner to check in with how you are feeling.
             </p>
           </div>
 
@@ -166,7 +166,7 @@ export const OverviewPage: React.FC = () => {
               </Link>
             )}
             <span className="text-xs text-[#625F78]">
-              Takes ~60 seconds • Completely confidential
+              Takes ~60 seconds • Anonymous by design
             </span>
           </div>
         </div>

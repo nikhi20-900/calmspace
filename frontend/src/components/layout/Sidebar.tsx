@@ -55,7 +55,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSupportModal }) => {
             <NavLink
               key={item.to}
               to={item.to}
-              aria-current={item.to === window.location.pathname ? 'page' : undefined}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3.5 py-2.5 rounded-button text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
                   isActive
