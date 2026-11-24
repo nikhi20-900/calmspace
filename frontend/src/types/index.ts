@@ -46,8 +46,11 @@ export interface SupportContact {
   hours: string;
   is_urgent: boolean;
   verification_source: string;
+  official_source_url?: string;
   last_verified_date: string;
   badge_label: string;
+  is_demo_placeholder?: boolean;
+  placeholder_note?: string;
 }
 
 export interface CheckInResponse {

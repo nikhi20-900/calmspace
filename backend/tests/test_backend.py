@@ -90,9 +90,33 @@ def test_privacy_storage():
 
 
 def test_support_resources():
-    print("Testing Verified Support Directory...")
+    print("Testing Verified Support Directory & High-Risk Escalation Contracts...")
     resources = get_support_directory()
-    assert len(resources) >= 4
+    assert len(resources) >= 5
+
+    # 1. Tele-MANAS verified contract
+    tele_manas = next(r for r in resources if r.id == "tele-manas")
+    assert tele_manas.official_source_url == "https://telemanas.mohfw.gov.in"
+    assert tele_manas.contact_number == "14416"
+    assert tele_manas.is_urgent is True
+    assert tele_manas.is_demo_placeholder is False
+    assert "mohfw" in tele_manas.verification_source.lower()
+
+    # 2. National Emergency 112 verified contract
+    emergency = next(r for r in resources if r.id == "national-emergency")
+    assert emergency.official_source_url == "https://erss.in"
+    assert emergency.contact_number == "112"
+    assert emergency.is_urgent is True
+    assert emergency.is_demo_placeholder is False
+
+    # 3. Campus Demo Placeholder contract
+    campus = next(r for r in resources if r.id == "campus-counselling")
+    assert campus.is_demo_placeholder is True
+    assert "demo" in campus.badge_label.lower()
+    assert campus.placeholder_note is not None
+    assert "demo" in campus.verification_source.lower()
+
+    # 4. All resources must have non-empty source and verified dates
     for r in resources:
         assert r.verification_source, f"Missing verification source on {r.name}"
         assert r.last_verified_date, f"Missing last verified date on {r.name}"
