@@ -169,13 +169,45 @@ def test_academic_context_isolation_with_crisis():
         assert res.route == "HIGH", f"Expected HIGH route for: '{stmt}'"
         assert any(r.rule_id == RULE_CRISIS_OVERRIDE for r in res.triggered_rules)
 
-    # Pure academic quotation inquiry without personal intent remains non-crisis
-    academic_quote = 'In our philosophy class, the professor asked: "Why do people choose to end their life?"'
-    res_pure = evaluate(
-        {"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": academic_quote}
-    )
-    assert res_pure.crisis_flag is False
-    assert res_pure.route == "LOW"
+    # Pure academic quotation inquiries without personal intent remain non-crisis (LOW route)
+    pure_academic_quotes = [
+        'In our philosophy class, the professor asked: "Why do people choose to end their life?"',
+        "Philosophy class mein professor ne poocha: 'log suicide kyun karte hain?'",
+        "हमारी क्लास में आत्महत्या पर चर्चा हुई और प्रोफेसर ने पूछा: 'लोग ऐसा कदम क्यों उठाते हैं?'",
+    ]
+    for academic_quote in pure_academic_quotes:
+        res_pure = evaluate(
+            {"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": academic_quote}
+        )
+        assert res_pure.crisis_flag is False, (
+            f"Pure academic inquiry falsely marked crisis: '{academic_quote}'"
+        )
+        assert res_pure.route == "LOW", (
+            f"Expected LOW route for pure academic inquiry: '{academic_quote}', got {res_pure.route}"
+        )
+
+
+def test_academic_context_personal_disclosure_regression():
+    """
+    Verify that first-person personal disclosures co-occurring with academic context
+    (across English, Hinglish, and Devanagari Hindi) are strictly NEVER exempted as
+    academic quotes and always trigger the HIGH route.
+    """
+    disclosure_cases = [
+        "In our philosophy class, I am thinking about suicide.",
+        "Professor ne suicide ke baare mein poocha, par mujhe khud ko hurt karna hai.",
+        "हमारी क्लास में आत्महत्या पर चर्चा हुई। मुझे खुद को नुकसान पहुँचाने का मन है।",
+        "हमारी क्लास में आत्महत्या पर चर्चा हुई, पर मुझे खुद को नुकसान पहुँचाने का मन है।",
+        "We read about self-harm in class today and I want to hurt myself tonight.",
+        "Textbook mein suicide ke statistics the, aur mera bhi marne ka man kar raha hai.",
+    ]
+    for stmt in disclosure_cases:
+        res = evaluate({"mood": 3, "stress": 2, "sleep_hours": 7.0, "reflection": stmt})
+        assert res.crisis_flag is True, (
+            f"Personal disclosure falsely exempted by academic context: '{stmt}'"
+        )
+        assert res.route == "HIGH", f"Expected HIGH route for disclosure: '{stmt}'"
+        assert any(r.rule_id == RULE_CRISIS_OVERRIDE for r in res.triggered_rules)
 
 
 def test_post_verbal_unrelated_negation_does_not_suppress_crisis():
@@ -273,6 +305,7 @@ def test_prompt_injection_immunity():
 if __name__ == "__main__":
     test_full_multilingual_corpus_benchmarks()
     test_academic_context_isolation_with_crisis()
+    test_academic_context_personal_disclosure_regression()
     test_post_verbal_unrelated_negation_does_not_suppress_crisis()
     test_direct_crisis_hinglish_and_devanagari()
     test_benign_idiom_safety()

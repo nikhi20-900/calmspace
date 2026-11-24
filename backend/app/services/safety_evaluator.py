@@ -47,13 +47,13 @@ ACUTE_CRISIS_PATTERNS = [
     r"\b(self-?harm|selfharm|cutting\s+myself|hurt\s+myself|overdose|slit\s+my)\b",
     r"\b(no\s+reason\s+to\s+live|better\s+off\s+dead|cannot\s+go\s+on\s+anymore|can't\s+go\s+on\s+anymore)\b",
     # Hinglish direct expressions & colloquial variations
-    r"\b(marne\s+ka\s+(man|mann)|mar\s+jana\s+chahta)\b",
+    r"\b(marne\s+ka\s+(man|mann)|mar\s+jana\s+chaht[ai])\b",
     r"\b(ab\s+aur\s+nahi\s+jiya\s+jata|marne\s+ka\s+time\s+aa\s+gaya)\b",
-    r"\b(zindagi\s+se\s+thak\s+gaya.*mar)\b",
+    r"\b(zindagi\s+se\s+thak\s+gay[ai].*mar)\b",
     r"\b(apne\s+aap\s+ko\s+khatam|apne\s+aap\s+ko\s+khatam\s+kar\s+lunga|sab\s+khatam\s+kar\s+dunga|khud\s+ko\s+khatam)\b",
     r"\b(apni\s+)?jaan\s+(de\s+(dunga|dungi|duga|dene|dena)|lene)\b",
     r"\b(khud\s*kushi|aatm\s*hatya)\b",
-    r"\bkhud\s+ko\s+(hurt|harm)\s+karne\b",
+    r"\bkhud\s+ko\s+(hurt|harm)(\s+(karna|karne|karunga|karungi|kar\s+raha|kar\s+rahi))?\b",
     r"\b(ab\s+)?jeene\s+ka\s+(man|mann)\s+nahi\b",
     # Devanagari Hindi direct expressions
     r"(?<!\w)(आत्महत्या|खुदकुशी)(?!\w)",
@@ -93,10 +93,11 @@ BROADER_DISTRESS_PATTERNS = [
 
 # Sentence & Clause Boundary Delimiters
 # Strictly enforces sentence & clause boundaries to prevent negation or context leakage
-SENTENCE_DELIMITER_REGEX = re.compile(r"[.!?;\n]")
+SENTENCE_DELIMITER_REGEX = re.compile(r"[.!?;\n।॥]")
 
 CLAUSE_DELIMITER_REGEX = re.compile(
-    r"([,!?;\n]|\.|\b(but|however|yet|although|nevertheless|though|and|aur|और)\b)",
+    r"([,!?;\n।॥]|\.|\b(but|however|yet|although|nevertheless|though|and|aur|par|lekin|magar)\b|"
+    r"(?<!\w)(और|पर|लेकिन|मगर)(?!\w))",
     re.IGNORECASE,
 )
 
@@ -118,13 +119,40 @@ POST_VERBAL_NEGATION_REGEX = re.compile(
     re.IGNORECASE,
 )
 
+ACADEMIC_CONTEXT_REGEX = re.compile(
+    r"\b(philosophy\s+class|professor\s+asked|textbook|academic\s+study|reading\s+assignment|"
+    r"class\s+mein|lecture\s+mein|textbook\s+mein|professor\s+ne)\b|"
+    r"(?<!\w)(क्लास\s+में|कक्षा\s+में|प्रोफेसर\s+ने|किताब\s+में|चर्चा\s+हुई|अध्ययन)(?!\w)",
+    re.IGNORECASE,
+)
+
+ACADEMIC_FRAMING_REGEX = re.compile(
+    r'["\'“”]'
+    r"|\b(asked|asks|poocha|pucha|discussed|discusses|discussing|charcha|lecture|topic|why\s+do|why\s+people|kyun)\b|"
+    r"(?<!\w)(पूछा|चर्चा|क्यों)(?!\w)",
+    re.IGNORECASE,
+)
+
+FIRST_PERSON_DISCLOSURE_REGEX = re.compile(
+    r"\b(i|i'm|im|i've|i'd|me|myself|mine)\b|"
+    r"\b(feel|feeling|thinking|thought|want|wanting|wish|wishing|planning|going\s+to)\b|"
+    r"\b(main|mujhe|mujhko|mera|meri|mere|khud|apne|apni)\b|"
+    r"\b(soch\s+raha|soch\s+rahi|man\s+hai|mann\s+hai|irada\s+hai|dil\s+kar\s+raha|lag\s+raha)\b|"
+    r"(?<!\w)(मैं|मुझे|मुझको|मेरा|मेरी|मेरे|खुद|अपने|अपनी)(?!\w)|"
+    r"(?<!\w)(सोच\s+रहा|सोच\s+रही|मन\s+है|इरादा\s+है|दिल\s+कर\s+रहा|नुकसान)(?!\w)",
+    re.IGNORECASE,
+)
+
 
 def is_in_academic_quote(text: str, match_start: int, match_end: int) -> bool:
     """
     Determines if an acute crisis phrase match is strictly contained within
     an academic, clinical, or instructional inquiry without personal distress intent.
-    Ensures that an adjacent sentence containing academic context does NOT suppress
-    a real crisis statement in another sentence.
+    Enforces:
+    1. Sentence boundaries isolate academic context from adjacent crisis statements.
+    2. Any first-person disclosure (in English, Hinglish, or Devanagari Hindi) invalidates
+       the academic exemption so genuine personal crises in academic settings are escalated.
+    3. The match must be accompanied by both academic context and objective inquiry framing.
     """
     delims_before = [
         m.end() for m in SENTENCE_DELIMITER_REGEX.finditer(text[:match_start])
@@ -137,19 +165,15 @@ def is_in_academic_quote(text: str, match_start: int, match_end: int) -> bool:
     sentence = text[sentence_start:sentence_end].strip()
 
     # Must contain an academic context marker within the same sentence
-    if not re.search(
-        r"\b(philosophy\s+class|professor\s+asked|textbook|academic\s+study|reading\s+assignment)\b",
-        sentence,
-    ):
+    if not ACADEMIC_CONTEXT_REGEX.search(sentence):
         return False
 
-    # Must NOT express first-person crisis intent or distress
-    return not bool(
-        re.search(
-            r"\b(i\s+want\s+to|i\s+am\s+going\s+to|kill\s+myself|myself|hurt\s+myself|end\s+my\s+life|taking\s+my\s+own\s+life)\b",
-            sentence,
-        )
-    )
+    # Personal first-person disclosure strictly invalidates academic exemption
+    if FIRST_PERSON_DISCLOSURE_REGEX.search(sentence):
+        return False
+
+    # Must be framed as an objective academic inquiry, discussion, or quotation
+    return bool(ACADEMIC_FRAMING_REGEX.search(sentence))
 
 
 def is_crisis_negated(text_before_match: str) -> bool:
