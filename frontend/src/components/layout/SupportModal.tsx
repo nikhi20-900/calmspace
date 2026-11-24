@@ -18,7 +18,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
         isOpen={isOpen}
         onClose={onClose}
         title="You don't have to carry this alone."
-        description="Connect directly with verified human support, national helplines, or campus resources. All services are confidential."
+        description="Connect directly with official national helplines and emergency dispatch services. Campus counseling entries represent template placeholders requiring institutional setup."
         maxWidth="lg"
       >
         <div className="space-y-3.5 mt-3">

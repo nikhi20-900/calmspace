@@ -48,7 +48,7 @@ export const SupportNetworkPage: React.FC = () => {
       <PageHeader
         tag="Human Support Network"
         title="Verified care, whenever you need it"
-        description="Every contact in this directory is verified with official health ministries and emergency response registries. Always confidential."
+        description="National helplines and emergency dispatch numbers are officially verified against Government of India registries. Campus counselling services are demonstration templates requiring institutional configuration."
       />
 
       {/* 1. National Mental Health Helplines */}
@@ -200,7 +200,7 @@ export const SupportNetworkPage: React.FC = () => {
                       <Clock className="w-3.5 h-3.5 text-[#5554B8]" />
                       {contact.hours}
                     </span>
-                    {contact.email && (
+                    {!contact.is_demo_placeholder && contact.email && (
                       <span className="flex items-center gap-1">
                         <Mail className="w-3.5 h-3.5 text-[#5554B8]" />
                         {contact.email}

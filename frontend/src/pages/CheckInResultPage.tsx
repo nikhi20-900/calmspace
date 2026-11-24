@@ -27,6 +27,14 @@ export const CheckInResultPage: React.FC = () => {
   const [demoNoticeOpen, setDemoNoticeOpen] = useState(false);
 
   useEffect(() => {
+    // If user has explicitly executed a safe-exit, do not restore state even if router location.state lingers
+    const wasExited = sessionStorage.getItem('calmspace_high_risk_exited') === 'true';
+    if (wasExited) {
+      window.history.replaceState({}, '');
+      navigate('/', { replace: true });
+      return;
+    }
+
     // Read from location state or sessionStorage
     const stateResult = (location.state as any)?.result;
     if (stateResult) {
@@ -58,11 +66,13 @@ export const CheckInResultPage: React.FC = () => {
    * Enforces that exiting from a HIGH-route evaluation cleans up transient
    * check-in session state and returns to the overview without triggering,
    * prompting, or resuming any AI dialogue or conversation.
+   * Wipes window.history state so browser "Back" cannot reload the exited result.
    */
   const handleSafeExit = () => {
     sessionStorage.removeItem('calmspace_latest_checkin');
     sessionStorage.setItem('calmspace_high_risk_exited', 'true');
-    navigate('/', { replace: true });
+    window.history.replaceState({}, '');
+    navigate('/', { replace: true, state: {} });
   };
 
   // =========================================================================
@@ -86,8 +96,8 @@ export const CheckInResultPage: React.FC = () => {
             You don't have to handle this alone.
           </h1>
           <p className="text-base text-[#625F78] mt-2 max-w-lg mx-auto leading-relaxed">
-            Your wellbeing is what matters most right now. We've connected you with verified,
-            confidential human support ready to listen and assist immediately.
+            Your wellbeing is what matters most right now. We've surfaced verified national crisis
+            helplines ready to listen immediately, alongside campus integration options.
           </p>
         </div>
 
@@ -285,7 +295,9 @@ export const CheckInResultPage: React.FC = () => {
           </div>
 
           <div className="mt-4 pt-3 border-t border-[#F0EFF7] flex items-center justify-between text-[11px] text-[#8E8AA7]">
-            <span>AI generation is strictly disabled for high-risk evaluations.</span>
+            <span>
+              AI generation is strictly disabled for high-risk evaluations. National helplines are verified against official government registries; campus entries are configurable demo placeholders.
+            </span>
             <Link
               to="/support"
               className="font-medium text-[#5554B8] hover:underline"
