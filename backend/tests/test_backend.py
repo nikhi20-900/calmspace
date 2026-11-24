@@ -3,6 +3,12 @@ Calmspace Safety & Backend Tests
 Verifies core safety rules, privacy retention, and routing.
 """
 
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from app.main import app
+from app.models.schemas import CheckInRequest
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import evaluate_wellbeing_route
 from app.services.storage import storage
@@ -208,12 +214,6 @@ def test_support_resources():
 
 
 def test_reflection_length_and_consent_contracts():
-    import pytest
-    from app.main import app
-    from app.models.schemas import CheckInRequest
-    from fastapi.testclient import TestClient
-    from pydantic import ValidationError
-
     client = TestClient(app)
 
     # 1. 2000 characters is valid in CheckInRequest schema
