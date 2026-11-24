@@ -15,6 +15,9 @@ import {
   Sparkles,
   ShieldCheck,
   Calendar,
+  Phone,
+  AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,6 +32,7 @@ import { InsightSummary, CheckInRecord, UserSettings } from '../types';
 
 export const OverviewPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [history, setHistory] = useState<CheckInRecord[]>([]);
   const [insights, setInsights] = useState<InsightSummary | null>(null);
   const [settings, setSettings] = useState<UserSettings>({
@@ -49,17 +53,39 @@ export const OverviewPage: React.FC = () => {
           api.getSettings(),
         ]);
 
-        if (histRes.status === 'fulfilled') setHistory(histRes.value);
-        if (insRes.status === 'fulfilled') setInsights(insRes.value);
-        if (setRes.status === 'fulfilled') setSettings(setRes.value);
+        let hasSuccess = false;
+        if (histRes.status === 'fulfilled') {
+          setHistory(histRes.value);
+          hasSuccess = true;
+        }
+        if (insRes.status === 'fulfilled') {
+          setInsights(insRes.value);
+          hasSuccess = true;
+        }
+        if (setRes.status === 'fulfilled') {
+          setSettings(setRes.value);
+          hasSuccess = true;
+        }
+
+        if (!hasSuccess && (histRes.status === 'rejected' || insRes.status === 'rejected')) {
+          setLoadError(true);
+        }
       } catch (e) {
         console.error('Overview load error', e);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     }
     loadData();
   }, []);
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
 
   if (loading) {
     return <LoadingState message="Welcoming you to Calmspace..." />;
@@ -74,6 +100,27 @@ export const OverviewPage: React.FC = () => {
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in">
+      {/* Offline / Connection Resilience Banner */}
+      {loadError && (
+        <div
+          role="status"
+          className="p-3.5 rounded-card bg-[#FDF8F0] border border-[#E8CEA5] text-[#7A4D05] flex items-center justify-between gap-3 text-xs"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-[#7A4D05]" />
+            <span>
+              Unable to sync latest cloud data. Your offline support contacts and local tools remain fully active.
+            </span>
+          </div>
+          <Link
+            to="/support"
+            className="font-semibold underline hover:text-[#5554B8] shrink-0"
+          >
+            Support directory
+          </Link>
+        </div>
+      )}
+
       {/* Editorial Welcome Header */}
       <section className="bg-gradient-to-r from-[#F0EFFC] via-[#F7F6FB] to-[#F4DCCB]/20 p-6 sm:p-8 rounded-card border border-[#E8E6F1] shadow-soft">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -83,19 +130,28 @@ export const OverviewPage: React.FC = () => {
               <span>Quiet Room for Reflection</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#25233B] tracking-tight">
-              Good day, {settings.nickname}.
+              {getGreeting()}, {settings.nickname || 'Student'}.
             </h1>
             <p className="text-sm sm:text-base text-[#625F78] leading-relaxed-wellness">
-              Take a breath. No deadlines or performance metrics live here. Just a safe corner to check in with how you are feeling.
+              Take a breath. No deadlines or performance metrics live here. Just a safe, confidential corner to check in with how you are feeling.
             </p>
           </div>
 
           {/* Today's Check-in Status Action */}
           <div className="shrink-0 flex flex-col items-start md:items-end gap-2">
             {isCheckedInToday ? (
-              <div className="flex items-center gap-2 bg-[#DCE9DF] text-[#245532] px-4 py-2 rounded-full text-xs font-medium border border-[#BCD4C3]">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Today's check-in complete</span>
+              <div className="flex flex-col items-start md:items-end gap-1.5">
+                <div className="flex items-center gap-2 bg-[#DCE9DF] text-[#245532] px-4 py-2 rounded-full text-xs font-semibold border border-[#BCD4C3]">
+                  <ShieldCheck className="w-4 h-4 text-[#245532]" />
+                  <span>Today's check-in complete</span>
+                </div>
+                <Link
+                  to="/checkin/result"
+                  className="text-xs font-medium text-[#5554B8] hover:text-[#4645A7] flex items-center gap-1"
+                >
+                  <span>View today's summary</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             ) : (
               <Link to="/checkin">
@@ -116,10 +172,46 @@ export const OverviewPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Quick Human Support Bar */}
+      <section
+        aria-label="Immediate Crisis & Support Contacts"
+        className="p-4 rounded-card bg-white border border-[#E8E6F1] shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-[#E9E7FB] text-[#5554B8] flex items-center justify-center shrink-0">
+            <Phone className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-[#25233B] block">
+              Immediate Human Support Ready 24/7
+            </span>
+            <span className="text-[11px] text-[#625F78]">
+              Tele-MANAS: <strong className="text-[#25233B]">14416</strong> • Emergency: <strong className="text-[#25233B]">112</strong> • Free & confidential
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href="tel:14416"
+            className="text-xs font-semibold px-3 py-1.5 rounded-button bg-[#E9E7FB] text-[#5554B8] hover:bg-[#DCD8F7] transition-colors"
+          >
+            Call 14416
+          </a>
+          <Link
+            to="/support"
+            className="text-xs font-semibold px-3 py-1.5 rounded-button bg-white border border-[#E8E6F1] text-[#25233B] hover:bg-[#F7F6FB] transition-colors flex items-center gap-1"
+          >
+            <span>Full directory</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      </section>
+
       {/* FIRST-TIME STUDENT EMPTY STATE */}
       {hasNoCheckins ? (
         <Card padding="lg" className="text-center py-12 space-y-4">
-          <div className="w-12 h-12 rounded-full bg-[#E9E7FB] text-[#5554B8] flex items-center justify-center mx-auto">
+          <div className="w-12 h-12 rounded-full bg-[#E9E7FB] text-[#5554B8] flex items-center justify-center mx-auto shadow-subtle">
             <HeartPulse className="w-6 h-6" />
           </div>
           <div className="max-w-md mx-auto space-y-1">
@@ -127,7 +219,7 @@ export const OverviewPage: React.FC = () => {
               No check-ins yet.
             </h2>
             <p className="text-sm text-[#625F78] leading-relaxed">
-              Your first one takes about a minute. We'll help you track your sleep, stress, and mood patterns gently over time.
+              Your first one takes about a minute. We'll help you track your sleep, stress, and mood patterns gently over time without clinical diagnoses.
             </p>
           </div>
           <div className="pt-2">
@@ -221,7 +313,7 @@ export const OverviewPage: React.FC = () => {
                 </Link>
               </div>
 
-              {insights && insights.mood_trend.length > 0 ? (
+              {insights && insights.mood_trend.length >= 2 ? (
                 <div className="h-48 w-full pt-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={insights.mood_trend}>
@@ -259,13 +351,16 @@ export const OverviewPage: React.FC = () => {
                       />
                     </LineChart>
                   </ResponsiveContainer>
-                  <p className="text-xs text-[#625F78] text-center mt-2 italic">
-                    "{insights.plain_summary}"
-                  </p>
+                  {insights.plain_summary && (
+                    <p className="text-xs text-[#625F78] text-center mt-2 italic">
+                      "{insights.plain_summary}"
+                    </p>
+                  )}
                 </div>
               ) : (
-                <div className="h-40 flex items-center justify-center text-xs text-[#625F78]">
-                  Complete 2 or more check-ins to view your personal trend graph.
+                <div className="h-40 flex flex-col items-center justify-center text-xs text-[#625F78] text-center p-4 bg-[#F7F6FB] rounded-button border border-[#E8E6F1]/50">
+                  <Calendar className="w-5 h-5 text-[#8E8AA7] mb-1.5" />
+                  <span>Complete 2 or more daily check-ins to view your personal trend graph.</span>
                 </div>
               )}
             </Card>
@@ -281,7 +376,7 @@ export const OverviewPage: React.FC = () => {
                   Next mindful breather
                 </h2>
                 <p className="text-xs text-[#625F78] mt-1 leading-relaxed">
-                  Stepping away from computer screens every 45 minutes protects your focus from mental fatigue.
+                  Stepping away from computer screens every {settings.reminder_interval_minutes || 45} minutes protects your focus from mental fatigue.
                 </p>
               </div>
 
@@ -300,11 +395,11 @@ export const OverviewPage: React.FC = () => {
               </div>
 
               <div className="pt-2 border-t border-[#F0EFF7] flex items-center justify-between text-xs text-[#625F78]">
-                <Link to="/planner" className="hover:text-[#5554B8] flex items-center gap-1">
+                <Link to="/planner" className="hover:text-[#5554B8] flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#5554B8] rounded">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>Open study planner</span>
                 </Link>
-                <Link to="/support" className="hover:text-[#5554B8] flex items-center gap-1">
+                <Link to="/support" className="hover:text-[#5554B8] flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#5554B8] rounded">
                   <HelpCircle className="w-3.5 h-3.5" />
                   <span>Get human help</span>
                 </Link>
