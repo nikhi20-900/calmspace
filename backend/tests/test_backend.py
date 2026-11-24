@@ -89,10 +89,117 @@ def test_privacy_storage():
     print("✓ Privacy data retention and full purge verified")
 
 
+def test_high_risk_data_retention_and_safe_exit_purge():
+    """
+    Issue #4 Data-Retention & Safe-Exit Verification:
+    1. High-risk check-in records must never store free-text reflection.
+    2. High-risk check-in must return zero AI guidance (ai_eligible=False).
+    3. Urgent human support contacts must be returned with verified national sources.
+    4. Safe exit data deletion must completely and permanently purge all stored high-risk entries.
+    """
+    print("Testing High-Risk Escalation Data Retention & Safe-Exit Purge...")
+    session_id = "test-session-high-risk-safe-exit"
+
+    # Clean initial state
+    storage.delete_all_data(session_id)
+
+    # 1. High-risk evaluation
+    eval_res = evaluate_wellbeing_route(
+        mood=1,
+        stress=5,
+        sleep_hours=3.0,
+        reflection="I want to end my life right now",
+    )
+    assert eval_res.route == "HIGH"
+    assert eval_res.ai_eligible is False
+    assert eval_res.requires_human_escalation is True
+
+    # 2. Add to storage
+    record = storage.add_checkin(
+        session_id=session_id,
+        mood=1,
+        stress=5,
+        sleep_hours=3.0,
+        route=eval_res.route,
+    )
+    # Verify reflection text is never stored in persistence layer
+    assert not hasattr(record, "reflection"), (
+        "Reflection must never exist in CheckInRecord"
+    )
+    assert record.route == "HIGH"
+
+    # 3. AI bypass verification
+    guidance = generate_supportive_guidance(
+        route=eval_res.route, mood=1, stress=5, sleep_hours=3.0
+    )
+    assert guidance is None, "AI guidance must strictly return None on HIGH route"
+
+    # 4. Verified urgent contacts contract
+    from app.services.support_directory import get_urgent_contacts
+
+    urgent = get_urgent_contacts()
+    tele_manas = next(c for c in urgent if c.id == "tele-manas")
+    assert tele_manas.contact_number == "14416"
+    assert tele_manas.official_source_url == "https://telemanas.mohfw.gov.in"
+    assert tele_manas.is_demo_placeholder is False
+
+    campus = next(c for c in urgent if c.id == "campus-counselling")
+    assert campus.is_demo_placeholder is True
+    assert campus.email is None, (
+        "Campus demo placeholder must not provide an active email"
+    )
+
+    # 5. Verify records stored
+    stored = storage.get_checkins(session_id)
+    assert len(stored) == 1
+    assert stored[0].route == "HIGH"
+
+    # 6. Execute safe exit data purge
+    storage.delete_all_data(session_id)
+    assert len(storage.get_checkins(session_id)) == 0, (
+        "Safe exit data purge must delete all records"
+    )
+    print("✓ High-risk data retention and safe-exit purge verified")
+
+
 def test_support_resources():
-    print("Testing Verified Support Directory...")
+    print("Testing Verified Support Directory & High-Risk Escalation Contracts...")
     resources = get_support_directory()
-    assert len(resources) >= 4
+    assert len(resources) >= 5
+
+    # 1. Tele-MANAS verified contract
+    tele_manas = next(r for r in resources if r.id == "tele-manas")
+    assert tele_manas.official_source_url == "https://telemanas.mohfw.gov.in"
+    assert tele_manas.contact_number == "14416"
+    assert tele_manas.is_urgent is True
+    assert tele_manas.is_demo_placeholder is False
+    assert "mohfw" in tele_manas.verification_source.lower()
+
+    # 2. National Emergency 112 verified contract
+    emergency = next(r for r in resources if r.id == "national-emergency")
+    assert emergency.official_source_url == "https://erss.in"
+    assert emergency.contact_number == "112"
+    assert emergency.is_urgent is True
+    assert emergency.is_demo_placeholder is False
+
+    # 3. iCALL (TISS) official hours and source alignment
+    icall = next(r for r in resources if r.id == "icall-tiss")
+    assert icall.contact_number == "02225521111"
+    assert icall.official_source_url == "https://icallhelpline.org"
+    assert "08:00 – 21:00" in icall.hours
+    assert icall.is_demo_placeholder is False
+
+    # 4. Campus Demo Placeholder contract
+    campus = next(r for r in resources if r.id == "campus-counselling")
+    assert campus.is_demo_placeholder is True
+    assert "demo" in campus.badge_label.lower()
+    assert campus.placeholder_note is not None
+    assert campus.email is None, (
+        "Campus demo placeholder must not provide an active email"
+    )
+    assert "demo" in campus.verification_source.lower()
+
+    # 5. All resources must have non-empty source and verified dates
     for r in resources:
         assert r.verification_source, f"Missing verification source on {r.name}"
         assert r.last_verified_date, f"Missing last verified date on {r.name}"
@@ -104,5 +211,6 @@ if __name__ == "__main__":
     test_safety_rules()
     test_ai_guidance_bypass()
     test_privacy_storage()
+    test_high_risk_data_retention_and_safe_exit_purge()
     test_support_resources()
     print("\nALL BACKEND SAFETY & PRIVACY TESTS PASSED!")

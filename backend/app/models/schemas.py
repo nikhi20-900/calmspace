@@ -70,8 +70,11 @@ class SupportContact(BaseModel):
     hours: str
     is_urgent: bool = False
     verification_source: str
+    official_source_url: str | None = None
     last_verified_date: str
     badge_label: str
+    is_demo_placeholder: bool = False
+    placeholder_note: str | None = None
 
 
 class CheckInRecord(BaseModel):

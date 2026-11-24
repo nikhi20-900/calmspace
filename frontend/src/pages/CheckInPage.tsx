@@ -59,6 +59,9 @@ export const CheckInPage: React.FC = () => {
         consent_ai_processing: consentAi,
       });
 
+      // Clear any prior safe-exit flag for this fresh check-in submission
+      sessionStorage.removeItem('calmspace_high_risk_exited');
+
       // Save latest check-in response in sessionStorage for reload resilience
       sessionStorage.setItem('calmspace_latest_checkin', JSON.stringify(response));
 
@@ -66,6 +69,9 @@ export const CheckInPage: React.FC = () => {
       navigate('/checkin/result', { state: { result: response } });
     } catch (err: any) {
       console.error('Checkin submission error:', err);
+      // Clear any prior safe-exit flag for fallback submission
+      sessionStorage.removeItem('calmspace_high_risk_exited');
+
       // Fallback for safety offline simulation if backend isn't running
       const fallbackResult = {
         record: {
