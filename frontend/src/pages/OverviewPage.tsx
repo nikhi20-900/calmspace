@@ -133,7 +133,7 @@ export const OverviewPage: React.FC = () => {
               {getGreeting()}, {settings.nickname || 'Student'}.
             </h1>
             <p className="text-sm sm:text-base text-[#625F78] leading-relaxed-wellness">
-              Take a breath. No deadlines or performance metrics live here. Just a safe, anonymous corner to check in with how you are feeling.
+              Take a breath. No deadlines or performance metrics live here. A private space to reflect on how you're feeling.
             </p>
           </div>
 
@@ -166,7 +166,7 @@ export const OverviewPage: React.FC = () => {
               </Link>
             )}
             <span className="text-xs text-[#625F78]">
-              Takes ~60 seconds • Anonymous by design
+              Takes ~60 seconds • Your wellbeing check-in starts here
             </span>
           </div>
         </div>

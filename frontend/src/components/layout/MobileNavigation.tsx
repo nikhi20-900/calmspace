@@ -30,19 +30,24 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
 
+      const getFocusable = () => {
+        if (!drawerRef.current) return [];
+        return Array.from(
+          drawerRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+      };
+
       // 2. Move focus into first focusable element in drawer
       const focusTimer = setTimeout(() => {
-        if (drawerRef.current) {
-          const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
-            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-          );
-          if (focusable.length > 0) {
-            focusable[0].focus();
-          }
+        const focusable = getFocusable();
+        if (focusable.length > 0) {
+          focusable[0].focus();
         }
       }, 50);
 
-      // 3. Trap keyboard focus and handle Escape
+      // 3. Trap keyboard focus (Tab / Shift+Tab) and handle Escape
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -51,13 +56,22 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
         }
 
         if (e.key === 'Tab' && drawerRef.current) {
-          const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
-            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-          );
+          const focusable = getFocusable();
           if (focusable.length === 0) return;
 
           const first = focusable[0];
           const last = focusable[focusable.length - 1];
+
+          // If focus is currently outside the drawer, pull it back in
+          if (!drawerRef.current.contains(document.activeElement)) {
+            e.preventDefault();
+            if (e.shiftKey) {
+              last.focus();
+            } else {
+              first.focus();
+            }
+            return;
+          }
 
           if (e.shiftKey) {
             if (document.activeElement === first) {
@@ -73,15 +87,27 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
         }
       };
 
+      // 4. Handle focus entering from or escaping to outside the drawer
+      const handleFocusIn = (e: FocusEvent) => {
+        if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+          const focusable = getFocusable();
+          if (focusable.length > 0) {
+            focusable[0].focus();
+          }
+        }
+      };
+
       document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('focusin', handleFocusIn);
 
       return () => {
         clearTimeout(focusTimer);
         document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('focusin', handleFocusIn);
         document.body.style.overflow = originalOverflow;
       };
     } else if (prevIsOpen.current) {
-      // 4. Restore focus to menu trigger button when drawer closes
+      // 5. Restore focus to menu trigger button when drawer closes
       triggerRef.current?.focus();
     }
     prevIsOpen.current = isOpen;
@@ -112,6 +138,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
         {/* Brand */}
         <NavLink
           to="/app"
+          tabIndex={isOpen ? -1 : undefined}
           className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] rounded py-1"
           onClick={() => setIsOpen(false)}
         >
@@ -132,6 +159,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
         <div className="flex items-center gap-2">
           <button
             type="button"
+            tabIndex={isOpen ? -1 : undefined}
             onClick={onOpenSupportModal}
             className="text-xs font-semibold px-2.5 py-1.5 rounded-button bg-[#E9E7FB] text-[#5554B8] hover:bg-[#DCD8F7] active:scale-95 transition-all flex items-center gap-1.5 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
             aria-label="Get immediate human support"
@@ -163,6 +191,21 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
             className="fixed inset-0 top-[57px] bg-[#25233B]/40 backdrop-blur-xs z-40 animate-fade-in"
             onClick={() => setIsOpen(false)}
           >
+            {/* Top focus sentinel to capture reverse Tab cycling */}
+            <div
+              tabIndex={0}
+              aria-hidden="true"
+              className="sr-only"
+              onFocus={() => {
+                const focusable = drawerRef.current?.querySelectorAll<HTMLElement>(
+                  'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                );
+                if (focusable && focusable.length > 0) {
+                  focusable[focusable.length - 1].focus();
+                }
+              }}
+            />
+
             <div
               ref={drawerRef}
               className="w-4/5 max-w-xs bg-white h-full border-r border-[#E8E6F1] p-5 shadow-elevation animate-fade-up flex flex-col justify-between overflow-y-auto"
@@ -226,6 +269,21 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
                 </div>
               </div>
             </div>
+
+            {/* Bottom focus sentinel to capture forward Tab cycling */}
+            <div
+              tabIndex={0}
+              aria-hidden="true"
+              className="sr-only"
+              onFocus={() => {
+                const focusable = drawerRef.current?.querySelectorAll<HTMLElement>(
+                  'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                );
+                if (focusable && focusable.length > 0) {
+                  focusable[0].focus();
+                }
+              }}
+            />
           </div>
         )}
       </header>
