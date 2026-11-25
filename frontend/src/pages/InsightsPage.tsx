@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -18,7 +18,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { api } from '../services/api';
-import { InsightSummary } from '../types';
+import { InsightSummary, RiskRoute } from '../types';
 import {
   Smile,
   Moon,
@@ -107,6 +107,69 @@ export const InsightsPage: React.FC = () => {
 
   const hasData = Boolean(insights && insights.check_in_count > 0);
   const isSmallSample = Boolean(insights && insights.check_in_count > 0 && insights.check_in_count < 3);
+
+  // Join disparate series into stable date-keyed rows rather than assuming matching array indexes
+  const tableRows = useMemo(() => {
+    if (!insights) return [];
+
+    const dayMap = new Map<
+      string,
+      {
+        day: string;
+        mood: number | null;
+        sleep: number | null;
+        stress: number | null;
+        route?: RiskRoute;
+      }
+    >();
+
+    // 1. Ingest mood records
+    (insights.mood_trend || []).forEach((m) => {
+      if (!dayMap.has(m.day)) {
+        dayMap.set(m.day, {
+          day: m.day,
+          mood: m.mood ?? null,
+          sleep: null,
+          stress: null,
+          route: m.route,
+        });
+      } else {
+        const row = dayMap.get(m.day)!;
+        row.mood = m.mood ?? null;
+        if (m.route) row.route = m.route;
+      }
+    });
+
+    // 2. Ingest sleep records by day key
+    (insights.sleep_trend || []).forEach((s) => {
+      if (!dayMap.has(s.day)) {
+        dayMap.set(s.day, {
+          day: s.day,
+          mood: null,
+          sleep: s.sleep ?? null,
+          stress: null,
+        });
+      } else {
+        dayMap.get(s.day)!.sleep = s.sleep ?? null;
+      }
+    });
+
+    // 3. Ingest stress records by day key
+    (insights.stress_trend || []).forEach((st) => {
+      if (!dayMap.has(st.day)) {
+        dayMap.set(st.day, {
+          day: st.day,
+          mood: null,
+          sleep: null,
+          stress: st.stress ?? null,
+        });
+      } else {
+        dayMap.get(st.day)!.stress = st.stress ?? null;
+      }
+    });
+
+    return Array.from(dayMap.values());
+  }, [insights]);
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in pb-12">
@@ -352,7 +415,7 @@ export const InsightsPage: React.FC = () => {
 
               {/* Accompanying plain text summary */}
               <p className="text-xs text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-                <strong>Sleep Summary:</strong> You logged an average of {insights?.average_sleep} hours of sleep nightly. Healthy student baseline is ~7–8 hours.
+                <strong>Sleep Summary:</strong> You logged an average of {insights?.average_sleep} hours of sleep nightly across this tracking window (7h reference line provided for visual orientation).
               </p>
 
               <div className="h-52 w-full pt-2">
@@ -379,7 +442,7 @@ export const InsightsPage: React.FC = () => {
                       stroke="#BCD4C3"
                       strokeDasharray="4 4"
                       label={{
-                        value: '7h Target',
+                        value: '7h Reference',
                         position: 'insideTopRight',
                         fill: '#245532',
                         fontSize: 10,
@@ -522,31 +585,25 @@ export const InsightsPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F0EFF7]">
-                    {insights?.mood_trend.map((item, idx) => {
-                      const sleepVal = insights.sleep_trend[idx]?.sleep;
-                      const stressVal = insights.stress_trend[idx]?.stress;
-                      const routeVal = item.route;
-
-                      return (
-                        <tr key={idx} className="hover:bg-[#F7F6FB]/60 transition-colors">
-                          <th scope="row" className="py-2.5 px-3 font-medium text-[#25233B]">
-                            {item.day}
-                          </th>
-                          <td className="py-2.5 px-3">
-                            {item.mood != null ? `${item.mood} / 5` : 'Not recorded'}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            {sleepVal != null ? `${sleepVal} hrs` : 'Not recorded'}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            {stressVal != null ? `${stressVal} / 5` : 'Not recorded'}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            {routeVal ? <Badge route={routeVal} /> : <span className="text-[#8E8AA7]">—</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {tableRows.map((row) => (
+                      <tr key={row.day} className="hover:bg-[#F7F6FB]/60 transition-colors">
+                        <th scope="row" className="py-2.5 px-3 font-medium text-[#25233B]">
+                          {row.day}
+                        </th>
+                        <td className="py-2.5 px-3">
+                          {row.mood != null ? `${row.mood} / 5` : 'Not recorded'}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {row.sleep != null ? `${row.sleep} hrs` : 'Not recorded'}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {row.stress != null ? `${row.stress} / 5` : 'Not recorded'}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {row.route ? <Badge route={row.route} /> : <span className="text-[#8E8AA7]">—</span>}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
