@@ -6,11 +6,10 @@ import os
 import tempfile
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.services.analytics import compute_session_insights
 from app.services.storage import CalmspaceStorage
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture

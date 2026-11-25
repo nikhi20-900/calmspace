@@ -6,7 +6,7 @@ In-app only MVP.
 
 from fastapi import APIRouter, Header, HTTPException
 
-from app.models.schemas import StudyTask, StudyTaskCreate
+from app.models.schemas import StudyTask, StudyTaskCreate, StudyTaskUpdate
 from app.services.storage import storage
 
 router = APIRouter(prefix="/api/planner", tags=["Study Planner"])
@@ -48,6 +48,25 @@ async def toggle_task(
 ):
     session_id = x_session_id or "anonymous-default-session"
     updated = storage.toggle_task(session_id, task_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return updated
+
+
+@router.patch("/tasks/{task_id}", response_model=StudyTask)
+async def update_task(
+    task_id: str,
+    payload: StudyTaskUpdate,
+    x_session_id: str | None = Header("anonymous-default-session"),
+):
+    session_id = x_session_id or "anonymous-default-session"
+    updated = storage.update_task(
+        session_id=session_id,
+        task_id=task_id,
+        title=payload.title,
+        estimated_minutes=payload.estimated_minutes,
+        category=payload.category,
+    )
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
     return updated

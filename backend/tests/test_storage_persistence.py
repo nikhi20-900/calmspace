@@ -12,7 +12,6 @@ import sqlite3
 import tempfile
 
 import pytest
-
 from app.models.schemas import UserSettings
 from app.services.storage import CalmspaceStorage
 
@@ -143,3 +142,65 @@ def test_delete_all_data_permanently_purges(temp_storage):
     assert len(temp_storage.get_checkins(session_b)) == 1
     assert len(temp_storage.get_tasks(session_b)) == 1
     assert temp_storage.get_tasks(session_b)[0].title == "Keep me"
+
+
+def test_task_update_persistence_and_session_isolation(temp_storage):
+    """Task update must strictly isolate sessions and persist across simulated restart."""
+    session_alice = "student-alice-edit"
+    session_bob = "student-bob-intruder"
+
+    # Alice creates a task
+    alice_task = temp_storage.add_task(
+        session_id=session_alice,
+        title="Original Math Practice",
+        estimated_minutes=25,
+        category="Study",
+    )
+    original_id = alice_task.id
+    original_created_at = alice_task.created_at
+
+    # Bob tries to update Alice's task -> must return None and remain unchanged
+    bob_attempt = temp_storage.update_task(
+        session_id=session_bob,
+        task_id=original_id,
+        title="Hacked Task",
+        estimated_minutes=100,
+        category="Revision",
+    )
+    assert bob_attempt is None
+
+    # Verify Alice's task was untouched
+    alice_tasks = temp_storage.get_tasks(session_alice)
+    assert alice_tasks[0].title == "Original Math Practice"
+    assert alice_tasks[0].estimated_minutes == 25
+
+    # Alice updates her task
+    updated = temp_storage.update_task(
+        session_id=session_alice,
+        task_id=original_id,
+        title="Refined Calculus Review",
+        estimated_minutes=40,
+        category="Revision",
+    )
+    assert updated is not None
+    assert updated.id == original_id
+    assert updated.title == "Refined Calculus Review"
+    assert updated.estimated_minutes == 40
+    assert updated.category == "Revision"
+    assert updated.completed is False
+    assert updated.created_at == original_created_at
+
+    # Simulate restart and verify updated task persists
+    db_file = temp_storage.db_path
+    temp_storage.close()
+
+    restarted = CalmspaceStorage(db_path=db_file)
+    try:
+        tasks = restarted.get_tasks(session_alice)
+        assert len(tasks) == 1
+        assert tasks[0].id == original_id
+        assert tasks[0].title == "Refined Calculus Review"
+        assert tasks[0].estimated_minutes == 40
+        assert tasks[0].category == "Revision"
+    finally:
+        restarted.close()

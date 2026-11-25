@@ -170,6 +170,9 @@ All endpoints exchange JSON data unless otherwise specified.
 - **Create Task**: `POST /api/planner/tasks`
   - Request: `{"title": "Review lecture slides", "estimated_minutes": 25, "category": "Revision"}`
   - Response: `StudyTask` (`201 Created` or `200 OK`)
+- **Update Task**: `PATCH /api/planner/tasks/{task_id}`
+  - Request: `{"title": "Updated Title", "estimated_minutes": 30, "category": "Study"}`
+  - Response: `StudyTask` (`200 OK`)
 - **Toggle Task Completion**: `PATCH /api/planner/tasks/{task_id}/toggle`
   - Response: `StudyTask`
 - **Delete Task**: `DELETE /api/planner/tasks/{task_id}`
