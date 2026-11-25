@@ -182,8 +182,12 @@ All endpoints exchange JSON data unless otherwise specified.
 
 ### 2.6 Verified Support Resources
 - **Endpoint**: `GET /api/support/resources`
-- **Description**: Returns verified campus, national helpline, and emergency resources with verification source and date.
+- **Description**: Returns verified campus, national helpline, and emergency resources with verification authority, official source URL, and last-verified date. Disabled resources (`is_active: false`) are strictly omitted.
 - **Response**: `200 OK` — `list[SupportContact]`
+- **Provenance & Integrity Rules**:
+  - Official Helplines & Emergency: Must include verifiable `official_source_url` and `last_verified_date`.
+  - Campus Placeholders: Strictly labeled `is_demo_placeholder: true` with `official_source_url: null` to prevent presenting unverified institutional contacts as live services.
+  - Non-Clinical Guarantee: Copy must not promise response times, 100% continuous availability, or guaranteed outcomes.
 
 ---
 

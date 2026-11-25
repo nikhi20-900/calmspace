@@ -23,6 +23,7 @@ export const CANONICAL_SUPPORT_RESOURCES: SupportContact[] = [
     last_verified_date: '2026-11-20',
     badge_label: 'Official 24/7 National Helpline',
     is_demo_placeholder: false,
+    is_active: true,
   },
   {
     id: 'national-emergency',
@@ -39,6 +40,7 @@ export const CANONICAL_SUPPORT_RESOURCES: SupportContact[] = [
     last_verified_date: '2026-11-20',
     badge_label: 'Immediate Emergency Dispatch',
     is_demo_placeholder: false,
+    is_active: true,
   },
   {
     id: 'vandrevala-foundation',
@@ -55,6 +57,7 @@ export const CANONICAL_SUPPORT_RESOURCES: SupportContact[] = [
     last_verified_date: '2026-11-20',
     badge_label: 'Trained Counsellors',
     is_demo_placeholder: false,
+    is_active: true,
   },
   {
     id: 'icall-tiss',
@@ -73,6 +76,7 @@ export const CANONICAL_SUPPORT_RESOURCES: SupportContact[] = [
     last_verified_date: '2026-11-20',
     badge_label: 'Academic Initiative',
     is_demo_placeholder: false,
+    is_active: true,
   },
   {
     id: 'campus-counselling',
@@ -93,5 +97,6 @@ export const CANONICAL_SUPPORT_RESOURCES: SupportContact[] = [
     is_demo_placeholder: true,
     placeholder_note:
       'This is a template placeholder. In production, configure with your institution\'s verified student welfare directory and live booking portal.',
+    is_active: true,
   },
 ];

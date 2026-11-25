@@ -51,6 +51,7 @@ export interface SupportContact {
   badge_label: string;
   is_demo_placeholder?: boolean;
   placeholder_note?: string;
+  is_active?: boolean;
 }
 
 export interface CheckInResponse {

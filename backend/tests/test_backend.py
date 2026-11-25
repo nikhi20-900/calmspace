@@ -170,6 +170,13 @@ def test_high_risk_data_retention_and_safe_exit_purge():
 
 def test_support_resources():
     print("Testing Verified Support Directory & High-Risk Escalation Contracts...")
+    from app.services.support_directory import (
+        disable_resource,
+        enable_resource,
+        reset_support_directory,
+    )
+
+    client = TestClient(app)
     resources = get_support_directory()
     assert len(resources) >= 5
 
@@ -179,6 +186,7 @@ def test_support_resources():
     assert tele_manas.contact_number == "14416"
     assert tele_manas.is_urgent is True
     assert tele_manas.is_demo_placeholder is False
+    assert tele_manas.is_active is True
     assert "mohfw" in tele_manas.verification_source.lower()
 
     # 2. National Emergency 112 verified contract
@@ -187,6 +195,7 @@ def test_support_resources():
     assert emergency.contact_number == "112"
     assert emergency.is_urgent is True
     assert emergency.is_demo_placeholder is False
+    assert emergency.is_active is True
 
     # 3. iCALL (TISS) official hours and source alignment
     icall = next(r for r in resources if r.id == "icall-tiss")
@@ -194,10 +203,14 @@ def test_support_resources():
     assert icall.official_source_url == "https://icallhelpline.org"
     assert "08:00 – 21:00" in icall.hours
     assert icall.is_demo_placeholder is False
+    assert icall.is_active is True
 
-    # 4. Campus Demo Placeholder contract
+    # 4. Campus Demo Placeholder contract (Strictly never presented as verified)
     campus = next(r for r in resources if r.id == "campus-counselling")
     assert campus.is_demo_placeholder is True
+    assert campus.official_source_url is None, (
+        "Campus demo placeholder must not claim an official verified URL"
+    )
     assert "demo" in campus.badge_label.lower()
     assert campus.placeholder_note is not None
     assert campus.email is None, (
@@ -205,12 +218,43 @@ def test_support_resources():
     )
     assert "demo" in campus.verification_source.lower()
 
-    # 5. All resources must have non-empty source and verified dates
+    # 5. Provenance guarantees across all resources
     for r in resources:
         assert r.verification_source, f"Missing verification source on {r.name}"
         assert r.last_verified_date, f"Missing last verified date on {r.name}"
         assert r.contact_number, f"Missing contact number on {r.name}"
-    print("✓ Support directory verification verified")
+        assert r.is_active is True, f"Resource {r.name} must be active by default"
+        if not r.is_demo_placeholder:
+            assert r.official_source_url and r.official_source_url.startswith("https://"), (
+                f"Verified contact {r.name} must have a secure official source URL"
+            )
+
+    # 6. Active/disabled filtering via API
+    try:
+        # Initially, all 5 resources returned via HTTP
+        api_res = client.get("/api/support/resources")
+        assert api_res.status_code == 200
+        initial_ids = [c["id"] for c in api_res.json()]
+        assert "vandrevala-foundation" in initial_ids
+
+        # Disable a resource without changing frontend code
+        assert disable_resource("vandrevala-foundation") is True
+
+        # API must now omit the disabled resource
+        filtered_res = client.get("/api/support/resources")
+        assert filtered_res.status_code == 200
+        filtered_ids = [c["id"] for c in filtered_res.json()]
+        assert "vandrevala-foundation" not in filtered_ids
+        assert len(filtered_ids) == len(initial_ids) - 1
+
+        # Re-enable resource
+        assert enable_resource("vandrevala-foundation") is True
+        restored_res = client.get("/api/support/resources")
+        assert "vandrevala-foundation" in [c["id"] for c in restored_res.json()]
+    finally:
+        reset_support_directory()
+
+    print("✓ Support directory verification and active/disabled filtering verified")
 
 
 def test_reflection_length_and_consent_contracts():

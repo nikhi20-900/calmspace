@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Phone, Shield, ExternalLink, Clock, HeartHandshake, AlertTriangle, Info } from 'lucide-react';
 import { Dialog } from '../ui/Dialog';
 import { Button } from '../ui/Button';
@@ -10,7 +11,12 @@ export interface SupportModalProps {
 }
 
 export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const [demoNoticeOpen, setDemoNoticeOpen] = useState(false);
+
+  const activeResources = CANONICAL_SUPPORT_RESOURCES.filter(
+    (c) => c.is_active !== false
+  );
 
   return (
     <>
@@ -22,7 +28,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
         maxWidth="lg"
       >
         <div className="space-y-3.5 mt-3">
-          {CANONICAL_SUPPORT_RESOURCES.map((contact) => {
+          {activeResources.map((contact) => {
             const isDemo = Boolean(contact.is_demo_placeholder);
 
             return (
@@ -114,18 +120,37 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
           })}
         </div>
 
-        <div className="mt-6 pt-4 border-t border-[#E8E6F1] flex items-center justify-between text-xs text-[#625F78]">
+        <div className="mt-5 p-3 rounded-card bg-[#F7F6FB] border border-[#E8E6F1] text-[11px] text-[#625F78] leading-relaxed">
+          <p>
+            <strong>Availability Note:</strong> Calmspace provides verified directory access and triage routing. Helplines and dispatch services are managed by external agencies; availability and outcomes are not guaranteed.
+          </p>
+        </div>
+
+        <div className="mt-5 pt-3.5 border-t border-[#E8E6F1] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#625F78]">
           <span className="flex items-center gap-1.5">
             <HeartHandshake className="w-4 h-4 text-[#5554B8]" />
             <span>Rules decide safety. AI writes language. Humans help.</span>
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-xs font-medium text-[#25233B] hover:underline"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                navigate('/support');
+              }}
+              className="font-semibold text-[#5554B8] hover:underline inline-flex items-center gap-1"
+            >
+              <span>Full Support Directory</span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="font-medium text-[#25233B] hover:underline"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </Dialog>
 

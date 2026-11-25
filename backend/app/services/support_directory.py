@@ -21,6 +21,7 @@ VERIFIED_SUPPORT_RESOURCES: list[SupportContact] = [
         last_verified_date="2026-11-20",
         badge_label="Official 24/7 National Helpline",
         is_demo_placeholder=False,
+        is_active=True,
     ),
     SupportContact(
         id="national-emergency",
@@ -36,6 +37,7 @@ VERIFIED_SUPPORT_RESOURCES: list[SupportContact] = [
         last_verified_date="2026-11-20",
         badge_label="Immediate Emergency Dispatch",
         is_demo_placeholder=False,
+        is_active=True,
     ),
     SupportContact(
         id="vandrevala-foundation",
@@ -51,6 +53,7 @@ VERIFIED_SUPPORT_RESOURCES: list[SupportContact] = [
         last_verified_date="2026-11-20",
         badge_label="Trained Counsellors",
         is_demo_placeholder=False,
+        is_active=True,
     ),
     SupportContact(
         id="icall-tiss",
@@ -67,6 +70,7 @@ VERIFIED_SUPPORT_RESOURCES: list[SupportContact] = [
         last_verified_date="2026-11-20",
         badge_label="Academic Initiative",
         is_demo_placeholder=False,
+        is_active=True,
     ),
     SupportContact(
         id="campus-counselling",
@@ -84,18 +88,47 @@ VERIFIED_SUPPORT_RESOURCES: list[SupportContact] = [
         badge_label="Demo Placeholder",
         is_demo_placeholder=True,
         placeholder_note="This is a template placeholder. In production, configure with your institution's verified student welfare directory and live booking portal.",
+        is_active=True,
     ),
 ]
 
 
-def get_support_directory() -> list[SupportContact]:
-    return VERIFIED_SUPPORT_RESOURCES
+def get_support_directory(active_only: bool = True) -> list[SupportContact]:
+    """Returns verified human support directory. Inactive/disabled contacts are filtered out by default."""
+    if active_only:
+        return [c for c in VERIFIED_SUPPORT_RESOURCES if c.is_active]
+    return list(VERIFIED_SUPPORT_RESOURCES)
 
 
-def get_urgent_contacts() -> list[SupportContact]:
+def get_urgent_contacts(active_only: bool = True) -> list[SupportContact]:
     """Returns prioritized contacts for high-risk escalation: verified national helplines first, then campus demo."""
     return [
         c
         for c in VERIFIED_SUPPORT_RESOURCES
-        if c.is_urgent or c.category in ("campus", "helpline")
+        if (not active_only or c.is_active)
+        and (c.is_urgent or c.category in ("campus", "helpline"))
     ]
+
+
+def disable_resource(contact_id: str) -> bool:
+    """Disables a resource without requiring UI code changes."""
+    for contact in VERIFIED_SUPPORT_RESOURCES:
+        if contact.id == contact_id:
+            contact.is_active = False
+            return True
+    return False
+
+
+def enable_resource(contact_id: str) -> bool:
+    """Re-enables a resource."""
+    for contact in VERIFIED_SUPPORT_RESOURCES:
+        if contact.id == contact_id:
+            contact.is_active = True
+            return True
+    return False
+
+
+def reset_support_directory() -> None:
+    """Resets all resources to active (useful in testing suites)."""
+    for contact in VERIFIED_SUPPORT_RESOURCES:
+        contact.is_active = True

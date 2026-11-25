@@ -75,6 +75,7 @@ class SupportContact(BaseModel):
     badge_label: str
     is_demo_placeholder: bool = False
     placeholder_note: str | None = None
+    is_active: bool = True
 
 
 class CheckInRecord(BaseModel):

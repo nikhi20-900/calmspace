@@ -15,7 +15,7 @@ settings_router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
 @support_router.get("/resources", response_model=list[SupportContact])
 async def list_support_resources():
-    return get_support_directory()
+    return get_support_directory(active_only=True)
 
 
 @settings_router.get("", response_model=UserSettings)
