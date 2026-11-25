@@ -121,6 +121,12 @@ class StudyTaskCreate(BaseModel):
     category: str = "Study"
 
 
+class StudyTaskUpdate(BaseModel):
+    title: str | None = Field(None, min_length=2, max_length=120)
+    estimated_minutes: int | None = Field(None, ge=5, le=240)
+    category: str | None = None
+
+
 class UserSettings(BaseModel):
     nickname: str = "Student"
     break_reminders_enabled: bool = True

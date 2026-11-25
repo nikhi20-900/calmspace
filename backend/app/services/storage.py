@@ -308,6 +308,62 @@ class CalmspaceStorage:
             created_at=row["created_at"],
         )
 
+    def update_task(
+        self,
+        session_id: str,
+        task_id: str,
+        title: str | None = None,
+        estimated_minutes: int | None = None,
+        category: str | None = None,
+    ) -> StudyTask | None:
+        conn = self._get_connection()
+        fields = []
+        values = []
+        if title is not None:
+            fields.append("title = ?")
+            values.append(title)
+        if estimated_minutes is not None:
+            fields.append("estimated_minutes = ?")
+            values.append(estimated_minutes)
+        if category is not None:
+            fields.append("category = ?")
+            values.append(category)
+
+        if fields:
+            values.extend([task_id, session_id])
+            with conn:
+                cursor = conn.execute(
+                    f"""
+                    UPDATE tasks
+                    SET {", ".join(fields)}
+                    WHERE id = ? AND session_id = ?;
+                    """,
+                    tuple(values),
+                )
+                if cursor.rowcount == 0:
+                    return None
+
+        row = conn.execute(
+            """
+            SELECT id, title, estimated_minutes, category, completed, created_at
+            FROM tasks
+            WHERE id = ? AND session_id = ?;
+            """,
+            (task_id, session_id),
+        ).fetchone()
+
+        if not row:
+            return None
+
+        return StudyTask(
+            id=row["id"],
+            title=row["title"],
+            estimated_minutes=row["estimated_minutes"],
+            category=row["category"],
+            completed=bool(row["completed"]),
+            created_at=row["created_at"],
+        )
+
     def delete_task(self, session_id: str, task_id: str) -> bool:
         conn = self._get_connection()
         with conn:

@@ -335,6 +335,109 @@ def test_insights_endpoint_contracts():
     assert res_purged.json()["check_in_count"] == 0
 
 
+def test_planner_task_lifecycle_and_session_isolation():
+    """Validates full study planner lifecycle, persistent task editing, and session isolation."""
+    client = TestClient(app)
+    session_1 = "test-session-planner-alice"
+    session_2 = "test-session-planner-bob"
+
+    # Start with clean sessions
+    storage.delete_all_data(session_1)
+    storage.delete_all_data(session_2)
+
+    # 1. Session 1 creates a study task
+    create_res = client.post(
+        "/api/planner/tasks",
+        headers={"X-Session-ID": session_1},
+        json={
+            "title": "Organic Chemistry Revision",
+            "estimated_minutes": 45,
+            "category": "Revision",
+        },
+    )
+    assert create_res.status_code == 200
+    task_data = create_res.json()
+    task_id = task_data["id"]
+    assert task_data["title"] == "Organic Chemistry Revision"
+    assert task_data["estimated_minutes"] == 45
+    assert task_data["category"] == "Revision"
+    assert task_data["completed"] is False
+
+    # 2. Session 2 cannot view Session 1's newly created task
+    list_res_2 = client.get(
+        "/api/planner/tasks",
+        headers={"X-Session-ID": session_2},
+    )
+    assert list_res_2.status_code == 200
+    session_2_task_ids = [t["id"] for t in list_res_2.json()]
+    assert task_id not in session_2_task_ids
+
+    # 3. Session 2 cannot update Session 1's task (strict 404 isolation)
+    intruder_patch = client.patch(
+        f"/api/planner/tasks/{task_id}",
+        headers={"X-Session-ID": session_2},
+        json={"title": "Hacked Title"},
+    )
+    assert intruder_patch.status_code == 404
+
+    # 4. Session 1 successfully updates the task (PATCH /api/planner/tasks/{id})
+    update_res = client.patch(
+        f"/api/planner/tasks/{task_id}",
+        headers={"X-Session-ID": session_1},
+        json={
+            "title": "Advanced Organic Chemistry",
+            "estimated_minutes": 60,
+            "category": "Study",
+        },
+    )
+    assert update_res.status_code == 200
+    updated_task = update_res.json()
+    assert updated_task["id"] == task_id
+    assert updated_task["title"] == "Advanced Organic Chemistry"
+    assert updated_task["estimated_minutes"] == 60
+    assert updated_task["category"] == "Study"
+    assert updated_task["completed"] is False
+
+    # 5. Verify persistence across refresh (GET /api/planner/tasks)
+    list_res_1 = client.get(
+        "/api/planner/tasks",
+        headers={"X-Session-ID": session_1},
+    )
+    assert list_res_1.status_code == 200
+    tasks_1 = list_res_1.json()
+    persisted_task = next(t for t in tasks_1 if t["id"] == task_id)
+    assert persisted_task["title"] == "Advanced Organic Chemistry"
+    assert persisted_task["estimated_minutes"] == 60
+    assert persisted_task["category"] == "Study"
+    assert persisted_task["completed"] is False
+
+    # 6. Toggle completion
+    toggle_res = client.patch(
+        f"/api/planner/tasks/{task_id}/toggle",
+        headers={"X-Session-ID": session_1},
+    )
+    assert toggle_res.status_code == 200
+    assert toggle_res.json()["completed"] is True
+
+    # 7. Delete task
+    del_res = client.delete(
+        f"/api/planner/tasks/{task_id}",
+        headers={"X-Session-ID": session_1},
+    )
+    assert del_res.status_code == 200
+
+    # Verify task is deleted
+    list_after_del = client.get(
+        "/api/planner/tasks",
+        headers={"X-Session-ID": session_1},
+    )
+    assert task_id not in [t["id"] for t in list_after_del.json()]
+
+    # Clean up
+    storage.delete_all_data(session_1)
+    storage.delete_all_data(session_2)
+
+
 if __name__ == "__main__":
     test_safety_rules()
     test_ai_guidance_bypass()
@@ -343,4 +446,5 @@ if __name__ == "__main__":
     test_support_resources()
     test_reflection_length_and_consent_contracts()
     test_insights_endpoint_contracts()
+    test_planner_task_lifecycle_and_session_isolation()
     print("\nALL BACKEND SAFETY & PRIVACY TESTS PASSED!")
