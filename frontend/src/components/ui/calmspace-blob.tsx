@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Wind, Smile, Moon } from 'lucide-react';
 import { BlobScene, BlobExpression } from '../mascot/BlobScene';
 
@@ -33,6 +33,20 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
   const [internalBreathing, setInternalBreathing] = useState(false);
   const [internalReaction, setInternalReaction] = useState('Pleased to meet you');
 
+  // One revert timer, cleared on re-trigger and on unmount (no stacked timeouts, no
+  // state updates after unmount).
+  const revertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRevert = () => {
+    if (revertTimer.current) clearTimeout(revertTimer.current);
+    revertTimer.current = setTimeout(() => setInternalExpression('idle'), 2600);
+  };
+  useEffect(
+    () => () => {
+      if (revertTimer.current) clearTimeout(revertTimer.current);
+    },
+    []
+  );
+
   const activeExpression = propExpression ?? internalExpression;
   const isBreathing = propBreathingActive ?? internalBreathing;
   const reactionMessage =
@@ -52,9 +66,7 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
         'Soft and steady',
       ];
       setInternalReaction(messages[Math.floor(Math.random() * messages.length)]);
-      setTimeout(() => {
-        setInternalExpression('idle');
-      }, 2600);
+      scheduleRevert();
     }
   };
 
@@ -73,7 +85,7 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
     } else {
       setInternalExpression(expr);
       setInternalReaction(message);
-      setTimeout(() => setInternalExpression('idle'), 2600);
+      scheduleRevert();
     }
   };
 

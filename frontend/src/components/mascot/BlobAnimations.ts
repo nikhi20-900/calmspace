@@ -2,9 +2,11 @@ import * as THREE from 'three';
 
 /**
  * Calmspace Blob Animation System
- * 
- * Manages delta-time-based state transitions, respiratory rhythms,
- * natural blinking, gaze tracking interpolation, and expressive body postures.
+ *
+ * Delta-time driven (frame-rate independent). Expressions are *targets* that the
+ * pose eases toward, so no state change ever snaps. Eyes lead and the head follows,
+ * blinks use a fast-close / slow-open curve and can be triggered by big gaze shifts,
+ * and breathing is phase-aware (guided breathing always starts on an inhale).
  */
 
 export type BlobAnimationState =
@@ -18,200 +20,348 @@ export type BlobAnimationState =
 
 export interface AnimationPose {
   floatElevation: number;
+  /** 0 = fully exhaled, 1 = fully inhaled (smoothed). */
+  breath: number;
+  /** 1 ± amplitude, kept for scale-based breathing. */
   breatheScale: number;
   lookTiltX: number;
   lookTiltY: number;
   bodyRoll: number;
-  eyeScaleY: number; // For blinking: 1.18 open, 0.04 closed
-  eyeAngleZ: number; // Angle tilt for expressions
-  eyeSizeScale: number; // Overall eye size
+  /** Lid-open scale of the eye group (1.18 = relaxed oblong open), blink excluded. */
+  eyeOpen: number;
+  /** 0 open → 1 closed. */
+  blink: number;
+  eyeAngleZ: number;
+  eyeSizeScale: number;
   mouthScaleX: number;
   mouthScaleY: number;
   blushOpacity: number;
+  /** Fast-following eye gaze, -1..1 (up is positive). */
+  pupilX: number;
+  pupilY: number;
+}
+
+const EYE_OPEN = 1.18;
+const EYE_CLOSED_FRACTION = 0.03;
+const GUIDED_BREATH_PERIOD = 8; // 4s in, 4s out
+
+const smooth = (current: number, target: number, rate: number, dt: number) =>
+  current + (target - current) * (1 - Math.exp(-rate * dt));
+
+const smoothstep01 = (x: number) => {
+  const t = Math.min(Math.max(x, 0), 1);
+  return t * t * (3 - 2 * t);
+};
+
+/** Fast close, brief hold, slower open — how real lids move. */
+function blinkCurve(u: number): number {
+  if (u <= 0 || u >= 1) return 0;
+  if (u < 0.34) return smoothstep01(u / 0.34);
+  if (u < 0.42) return 1;
+  return 1 - smoothstep01((u - 0.42) / 0.58);
+}
+
+/** Natural idle breath: inhale ~40% of the cycle, longer relaxed exhale. */
+function asymmetricBreath(phase01: number): number {
+  const inhale = 0.4;
+  return phase01 < inhale
+    ? 0.5 - 0.5 * Math.cos((Math.PI * phase01) / inhale)
+    : 0.5 + 0.5 * Math.cos((Math.PI * (phase01 - inhale)) / (1 - inhale));
 }
 
 export class BlobAnimationController {
   currentState: BlobAnimationState = 'idle';
-  targetState: BlobAnimationState = 'idle';
 
-  // Blinking system
-  blinkTimer = 0;
-  nextBlinkTime = 3.2;
-  isBlinking = false;
-  blinkProgress = 0; // 0 open -> 1 closed
-  blinkDuration = 0.16;
-  blinkElapsed = 0;
-  isDoubleBlink = false;
-
-  // Gaze tracking
-  currentGazeX = 0;
-  currentGazeY = 0;
+  // Gaze
   targetGazeX = 0;
   targetGazeY = 0;
+  private hasPointer = false;
+  private prevTargetX = 0;
+  private prevTargetY = 0;
+  private wanderX = 0;
+  private wanderY = 0;
+  private wanderTimer = 1.5;
+  private pointerIdleTime = 99;
+  private eyeGazeX = 0;
+  private eyeGazeY = 0;
+  private headGazeX = 0;
+  private headGazeY = 0;
 
-  // Expression transition lerp
-  transitionProgress = 1.0;
-  transitionDuration = 0.35;
+  // Blink
+  private blinkTimer = 0;
+  private nextBlinkTime = 2.6;
+  private blinkElapsed = -1; // -1 = not blinking
+  private blinkDuration = 0.2;
+  private queuedBlinks = 0;
+  private blinkGap = 0;
+  private sinceBlink = 0;
+  private blinkValue = 0;
+
+  // Breath
+  private breathClock = 0;
+  private breathValue = 0;
+
+  // Reactions
+  private delight = 0;
+  private stateTime = 0;
+
+  private pose: AnimationPose = {
+    floatElevation: 0,
+    breath: 0,
+    breatheScale: 1,
+    lookTiltX: 0,
+    lookTiltY: 0,
+    bodyRoll: 0,
+    eyeOpen: EYE_OPEN,
+    blink: 0,
+    eyeAngleZ: 0,
+    eyeSizeScale: 1,
+    mouthScaleX: 1,
+    mouthScaleY: 1,
+    blushOpacity: 0.52,
+    pupilX: 0,
+    pupilY: 0,
+  };
 
   setState(state: BlobAnimationState) {
-    if (this.targetState !== state) {
-      this.targetState = state;
-      this.currentState = state;
-    }
+    if (this.currentState === state) return;
+    this.currentState = state;
+    this.stateTime = 0;
+    // Guided breathing must start at the bottom of an inhale so "in for 4s" is true.
+    if (state === 'breathing') this.breathClock = 0;
   }
 
-  setTargetGaze(x: number, y: number) {
+  /** `active` = a real pointer/CTA target exists; otherwise the eyes wander on their own. */
+  setTargetGaze(x: number, y: number, active = true) {
     this.targetGazeX = THREE.MathUtils.clamp(x, -1, 1);
     this.targetGazeY = THREE.MathUtils.clamp(y, -1, 1);
+    this.hasPointer = active;
+    if (active) this.pointerIdleTime = 0;
   }
 
-  update(
-    dt: number,
-    totalTime: number,
-    isReducedMotion = false
-  ): AnimationPose {
+  /** A happy bump (tap / release): brightens the face briefly. */
+  pulse(strength = 1) {
+    this.delight = Math.max(this.delight, strength);
+  }
+
+  /** Reflex blink (impact, big gaze jump). */
+  blinkNow(double = false) {
+    if (this.blinkElapsed >= 0) return;
+    this.startBlink(double);
+  }
+
+  private startBlink(double: boolean) {
+    this.blinkElapsed = 0;
+    this.blinkDuration = 0.17 + Math.random() * 0.06;
+    this.queuedBlinks = double ? 1 : 0;
+    this.blinkGap = 0;
+  }
+
+  update(dt: number, totalTime: number, isReducedMotion = false): AnimationPose {
     const sec = totalTime;
+    const calm = isReducedMotion;
+    this.stateTime += dt;
+    this.pointerIdleTime += dt;
+    this.sinceBlink += dt;
 
-    // 1. Gaze Interpolation (Restrained expressive boundary)
-    const gazeLerpRate = 1 - Math.exp(-12 * dt);
-    this.currentGazeX = THREE.MathUtils.lerp(this.currentGazeX, this.targetGazeX, gazeLerpRate);
-    this.currentGazeY = THREE.MathUtils.lerp(this.currentGazeY, this.targetGazeY, gazeLerpRate);
+    /* 1. Gaze: eyes lead, head follows ------------------------------------------------ */
+    let gx = this.targetGazeX;
+    let gy = this.targetGazeY;
 
-    // 2. Natural Eyelid Blinking
-    let eyeScaleY = 1.18; // Default open oblong scale
+    if (calm) {
+      gx *= 0.6;
+      gy *= 0.6;
+    } else if (!this.hasPointer && this.pointerIdleTime > 2.5) {
+      // Nobody is looking: let the eyes drift between small, relaxed targets.
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = 1.6 + Math.random() * 2.8;
+        this.wanderX = (Math.random() - 0.5) * 0.7;
+        this.wanderY = (Math.random() - 0.5) * 0.4;
+      }
+      gx = this.wanderX;
+      gy = this.wanderY;
+    }
 
-    if (this.currentState === 'resting') {
-      // In resting mode, eyes are gently closed
-      eyeScaleY = 0.05;
-      this.isBlinking = false;
-    } else if (isReducedMotion) {
-      eyeScaleY = 1.18;
-      this.isBlinking = false;
+    // A large jump in gaze target usually comes with a blink.
+    const jump = Math.hypot(gx - this.prevTargetX, gy - this.prevTargetY);
+    if (jump > 0.55 && this.sinceBlink > 0.9 && !calm && this.currentState !== 'resting') {
+      this.startBlink(false);
+    }
+    this.prevTargetX = gx;
+    this.prevTargetY = gy;
+
+    this.eyeGazeX = smooth(this.eyeGazeX, gx, 16, dt);
+    this.eyeGazeY = smooth(this.eyeGazeY, gy, 16, dt);
+    this.headGazeX = smooth(this.headGazeX, gx, 3.6, dt);
+    this.headGazeY = smooth(this.headGazeY, gy, 3.6, dt);
+
+    /* 2. Blinking -------------------------------------------------------------------- */
+    const resting = this.currentState === 'resting';
+    if (resting || calm) {
+      this.blinkElapsed = -1;
+      this.blinkTimer = 0;
+      this.blinkValue = smooth(this.blinkValue, 0, 12, dt);
     } else {
       this.blinkTimer += dt;
-      if (!this.isBlinking && this.blinkTimer >= this.nextBlinkTime) {
-        this.isBlinking = true;
-        this.blinkElapsed = 0;
-        this.isDoubleBlink = Math.random() < 0.25; // 25% chance of quick double-blink
+      if (this.blinkElapsed < 0 && this.blinkTimer >= this.nextBlinkTime) {
+        this.startBlink(Math.random() < 0.2);
       }
-
-      if (this.isBlinking) {
-        this.blinkElapsed += dt;
-        const totalDuration = this.isDoubleBlink ? this.blinkDuration * 1.8 : this.blinkDuration;
-        const progress = Math.min(this.blinkElapsed / totalDuration, 1.0);
-
-        let blinkVal = 0;
-        if (!this.isDoubleBlink) {
-          // Single blink: close then open
-          if (progress < 0.5) {
-            blinkVal = progress * 2;
-          } else {
-            blinkVal = 1 - (progress - 0.5) * 2;
+      if (this.blinkElapsed >= 0) {
+        if (this.blinkGap > 0) {
+          this.blinkGap -= dt;
+          this.blinkValue = 0;
+          if (this.blinkGap <= 0) {
+            this.blinkElapsed = 0;
+            this.blinkGap = 0;
           }
         } else {
-          // Double blink: dip twice
-          const cycle = progress * 2 * Math.PI;
-          blinkVal = Math.max(0, Math.sin(cycle));
+          this.blinkElapsed += dt;
+          const u = this.blinkElapsed / this.blinkDuration;
+          this.blinkValue = blinkCurve(u);
+          if (u >= 1) {
+            if (this.queuedBlinks > 0) {
+              this.queuedBlinks--;
+              this.blinkGap = 0.07;
+            } else {
+              this.blinkElapsed = -1;
+              this.blinkTimer = 0;
+              this.sinceBlink = 0;
+              this.nextBlinkTime = 2.6 + Math.random() * 3.4;
+              this.blinkValue = 0;
+            }
+          }
         }
-
-        eyeScaleY = THREE.MathUtils.lerp(1.18, 0.04, blinkVal);
-
-        if (progress >= 1.0) {
-          this.isBlinking = false;
-          this.blinkTimer = 0;
-          this.nextBlinkTime = 2.8 + Math.random() * 3.6;
-        }
+      } else {
+        this.blinkValue = 0;
       }
     }
 
-    // 3. Floating Elevation & Respiratory Cycles
+    /* 3. Breathing + float ------------------------------------------------------------ */
+    this.breathClock += dt;
+    let breathTarget: number;
+    let breathAmp: number;
     let floatElevation = 0;
-    let breatheScale = 1.0;
 
-    if (!isReducedMotion) {
-      // Idle float cycle: gentle harmonic levitation
-      floatElevation = Math.sin(sec * 1.05) * 0.035;
+    switch (this.currentState) {
+      case 'breathing':
+        breathTarget = 0.5 - 0.5 * Math.cos((2 * Math.PI * this.breathClock) / GUIDED_BREATH_PERIOD);
+        breathAmp = 0.042;
+        break;
+      case 'resting':
+        breathTarget = 0.5 - 0.5 * Math.cos((2 * Math.PI * this.breathClock) / 7.2);
+        breathAmp = 0.038;
+        break;
+      default:
+        breathTarget = asymmetricBreath((this.breathClock % 4.6) / 4.6);
+        breathAmp = calm ? 0 : 0.014;
     }
+    // Smoothing hides any phase discontinuity when the breathing mode changes.
+    this.breathValue = smooth(this.breathValue, breathTarget, 9, dt);
+    const breathSigned = this.breathValue * 2 - 1;
 
-    if (this.currentState === 'breathing') {
-      // Guided breathing mode: 4 seconds inhale, 4 seconds exhale (T = 8.0s)
-      // omega = 2 * PI / 8.0 = 0.7854
-      const breathPhase = Math.sin(sec * 0.7854);
-      breatheScale = 1.0 + breathPhase * 0.042;
-      floatElevation += breathPhase * 0.025;
-    } else if (this.currentState === 'resting') {
-      // Meditative resting breath: slower and deeper (T ~ 7.2s)
-      breatheScale = 1.0 + Math.sin(sec * 0.87) * 0.038;
-      floatElevation -= 0.06; // Rests slightly closer to the floor
-    } else if (!isReducedMotion) {
-      // Subtle organic idle breathing (T ~ 4.3s)
-      breatheScale = 1.0 + Math.sin(sec * 1.2) * 0.014;
+    if (!calm) {
+      floatElevation =
+        Math.sin(sec * 1.05) * 0.032 + Math.sin(sec * 0.43 + 1.3) * 0.012;
     }
+    if (this.currentState === 'breathing') floatElevation += breathSigned * 0.025;
 
-    // 4. Expression Postures
-    let lookTiltX = THREE.MathUtils.clamp(-this.currentGazeY * 0.18, -0.18, 0.18);
-    let lookTiltY = THREE.MathUtils.clamp(this.currentGazeX * 0.24, -0.26, 0.26);
-    let bodyRoll = 0;
+    /* 4. Expression targets ----------------------------------------------------------- */
+    let eyeOpen = EYE_OPEN;
     let eyeAngleZ = 0;
-    let eyeSizeScale = 1.0;
-    let mouthScaleX = 1.0;
-    let mouthScaleY = 1.0;
+    let eyeSizeScale = 1;
+    let mouthScaleX = 1;
+    let mouthScaleY = 1;
     let blushOpacity = 0.52;
+    let bodyRoll = 0;
+    let tiltBoostY = 0;
+    let lookDamp = 1;
 
     switch (this.currentState) {
       case 'welcoming':
         floatElevation += 0.09;
-        eyeAngleZ = 0.07; // Cheerful upward eye slant
+        eyeOpen = 1.02; // cheerful smiling squint
+        eyeAngleZ = 0.07;
         mouthScaleX = 1.25;
-        mouthScaleY = 1.35; // Broad soft smile
+        mouthScaleY = 1.35;
         blushOpacity = 0.68;
         break;
-
       case 'curious':
-        lookTiltY += this.currentGazeX * 0.12;
-        bodyRoll = 0.06 * Math.sign(this.currentGazeX || 1); // Curious head cock
+        tiltBoostY = this.headGazeX * 0.12;
+        bodyRoll = 0.07 * Math.tanh(this.headGazeX * 3);
+        eyeOpen = 1.26;
         eyeAngleZ = 0.08;
-        eyeSizeScale = 1.08; // Widened curious eyes
+        eyeSizeScale = 1.08;
         mouthScaleX = 0.88;
         mouthScaleY = 0.82;
         break;
-
       case 'resting':
-        lookTiltX = -0.05; // Gentle downward restful gaze
-        lookTiltY = 0;
+        floatElevation -= 0.06;
+        eyeOpen = 0.05;
         mouthScaleX = 0.92;
-        mouthScaleY = 0.6; // Peaceful resting line
+        mouthScaleY = 0.6;
         blushOpacity = 0.44;
+        lookDamp = 0;
         break;
-
       case 'interacting':
+        eyeOpen = 0.95;
+        eyeAngleZ = 0.08;
         mouthScaleX = 1.2;
         mouthScaleY = 1.25;
         blushOpacity = 0.72;
-        eyeAngleZ = 0.08;
         break;
-
+      case 'breathing':
+        eyeOpen = 0.9; // soft, calm lids
+        mouthScaleX = 0.9 - breathSigned * 0.06;
+        mouthScaleY = 0.85 + breathSigned * 0.1;
+        blushOpacity = 0.6;
+        lookDamp = 0.35;
+        break;
       case 'idle':
+      case 'reducedMotion':
       default:
-        // Subtle natural body roll oscillation
-        if (!isReducedMotion) {
-          bodyRoll = Math.sin(sec * 0.65) * 0.022;
-        }
+        if (!calm) bodyRoll = Math.sin(sec * 0.65) * 0.022;
         break;
     }
 
-    return {
-      floatElevation,
-      breatheScale,
-      lookTiltX,
-      lookTiltY,
-      bodyRoll,
-      eyeScaleY,
-      eyeAngleZ,
-      eyeSizeScale,
-      mouthScaleX,
-      mouthScaleY,
-      blushOpacity,
-    };
+    // Delight bump from taps/releases (already a smooth decaying envelope).
+    this.delight *= Math.exp(-2.2 * dt);
+    if (this.delight < 0.002) this.delight = 0;
+    const d = this.delight;
+    eyeOpen -= 0.14 * d;
+    blushOpacity += 0.2 * d;
+    mouthScaleX += 0.16 * d;
+    mouthScaleY += 0.2 * d;
+    floatElevation += 0.03 * d;
+
+    /* 5. Ease the pose toward its targets --------------------------------------------- */
+    const p = this.pose;
+    const lidRate = eyeOpen < p.eyeOpen ? 7 : 11; // drowsy close, quicker open
+    p.eyeOpen = smooth(p.eyeOpen, eyeOpen, lidRate, dt);
+    p.eyeAngleZ = smooth(p.eyeAngleZ, eyeAngleZ, 7, dt);
+    p.eyeSizeScale = smooth(p.eyeSizeScale, eyeSizeScale, 7, dt);
+    p.mouthScaleX = smooth(p.mouthScaleX, mouthScaleX, 8, dt);
+    p.mouthScaleY = smooth(p.mouthScaleY, mouthScaleY, 8, dt);
+    p.blushOpacity = smooth(p.blushOpacity, blushOpacity, 6, dt);
+    p.bodyRoll = smooth(p.bodyRoll, bodyRoll, 5, dt);
+    p.floatElevation = smooth(p.floatElevation, floatElevation, 8, dt);
+
+    const tiltX = THREE.MathUtils.clamp(-this.headGazeY * 0.12, -0.12, 0.12) * lookDamp;
+    const tiltY = THREE.MathUtils.clamp(this.headGazeX * 0.24 + tiltBoostY, -0.26, 0.26) * lookDamp;
+    p.lookTiltX = smooth(p.lookTiltX, resting ? -0.05 : tiltX, 6, dt);
+    p.lookTiltY = smooth(p.lookTiltY, tiltY, 6, dt);
+
+    p.pupilX = this.eyeGazeX * lookDamp;
+    p.pupilY = this.eyeGazeY * lookDamp;
+    p.blink = this.blinkValue;
+    p.breath = this.breathValue;
+    p.breatheScale = 1 + breathSigned * breathAmp;
+
+    return p;
+  }
+
+  /** Final eye-group Y scale: lid openness with the blink applied. */
+  static eyeScaleY(pose: AnimationPose): number {
+    return pose.eyeOpen * (1 - (1 - EYE_CLOSED_FRACTION) * pose.blink);
   }
 }

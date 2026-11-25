@@ -9,7 +9,9 @@ import * as THREE from 'three';
  * - Flattened seated base via smooth maximum (smax)
  * - Analytical surface normals computed from central differences gradient of the SDF
  * - Subdivision mesh projection with exact topology preservation
- * - Dynamic volume-preserving squash/stretch and harmonic surface jiggle
+ *
+ * The projected base mesh is built once per quality tier and cached. All runtime
+ * deformation (breathing, jelly, poke) happens on the GPU in the body material.
  */
 
 // Smooth polynomial minimum for organic lobe blending
@@ -159,117 +161,86 @@ export function findSurfaceAlongRay(
 
 export interface BlobGeometryData {
   geometry: THREE.BufferGeometry;
-  basePositions: Float32Array;
-  baseNormals: Float32Array;
+  /** Lowest point of the base mesh; the squash pivot and shadow height derive from it. */
+  minY: number;
+}
+
+interface BlobBaseMesh {
+  positions: Float32Array;
+  normals: Float32Array;
+  index: Uint16Array | Uint32Array;
+  minY: number;
+}
+
+const baseMeshCache = new Map<string, BlobBaseMesh>();
+
+/**
+ * Projects a UV sphere onto the SDF zero surface (ray from origin + bisection) and
+ * stores analytic SDF-gradient normals. Result is cached per segment count, so
+ * remounts, StrictMode double-mounts and HMR never pay the CPU cost twice.
+ */
+function getBlobBaseMesh(widthSegments: number, heightSegments: number): BlobBaseMesh {
+  const key = `${widthSegments}x${heightSegments}`;
+  const cached = baseMeshCache.get(key);
+  if (cached) return cached;
+
+  const sphere = new THREE.SphereGeometry(1.0, widthSegments, heightSegments);
+  const src = sphere.attributes.position as THREE.BufferAttribute;
+  const count = src.count;
+
+  const positions = new Float32Array(count * 3);
+  const normals = new Float32Array(count * 3);
+  const n = new THREE.Vector3();
+  let minY = Infinity;
+
+  for (let i = 0; i < count; i++) {
+    const vx = src.getX(i);
+    const vy = src.getY(i);
+    const vz = src.getZ(i);
+    const len = Math.hypot(vx, vy, vz) || 1;
+    const dx = vx / len;
+    const dy = vy / len;
+    const dz = vz / len;
+
+    const t = findSurfaceAlongRay(dx, dy, dz);
+    const px = dx * t;
+    const py = dy * t;
+    const pz = dz * t;
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+    if (py < minY) minY = py;
+
+    getSDFNormal(px, py, pz, n);
+    normals[i * 3] = n.x;
+    normals[i * 3 + 1] = n.y;
+    normals[i * 3 + 2] = n.z;
+  }
+
+  const srcIndex = sphere.index!.array;
+  const index = count > 65535 ? new Uint32Array(srcIndex) : new Uint16Array(srcIndex);
+  sphere.dispose();
+
+  const base: BlobBaseMesh = { positions, normals, index, minY };
+  baseMeshCache.set(key, base);
+  return base;
 }
 
 /**
- * Creates high-fidelity volumetric 3D body geometry by projecting sphere vertices
- * onto the procedural SDF surface and populating exact analytical normals.
+ * Creates the body geometry. Attribute arrays are shared (read-only) between
+ * instances, so disposing one geometry only frees its own GPU buffers.
  */
-export function createBlobBodyGeometry(
-  widthSegments = 88,
-  heightSegments = 88
-): BlobGeometryData {
-  const sphereGeom = new THREE.SphereGeometry(1.0, widthSegments, heightSegments);
-  const posAttr = sphereGeom.attributes.position as THREE.BufferAttribute;
-  const normAttr = sphereGeom.attributes.normal as THREE.BufferAttribute;
-  const count = posAttr.count;
-
-  const basePositions = new Float32Array(count * 3);
-  const baseNormals = new Float32Array(count * 3);
-
-  const tempNormal = new THREE.Vector3();
-
-  for (let i = 0; i < count; i++) {
-    const vx = posAttr.getX(i);
-    const vy = posAttr.getY(i);
-    const vz = posAttr.getZ(i);
-
-    // Normalize direction from origin
-    const len = Math.hypot(vx, vy, vz);
-    const dx = len > 0 ? vx / len : 0;
-    const dy = len > 0 ? vy / len : 1;
-    const dz = len > 0 ? vz / len : 0;
-
-    // Raycast onto SDF zero surface
-    const surfaceT = findSurfaceAlongRay(dx, dy, dz);
-
-    const px = dx * surfaceT;
-    const py = dy * surfaceT;
-    const pz = dz * surfaceT;
-
-    posAttr.setXYZ(i, px, py, pz);
-    basePositions[i * 3] = px;
-    basePositions[i * 3 + 1] = py;
-    basePositions[i * 3 + 2] = pz;
-
-    // Analytical SDF gradient normal
-    getSDFNormal(px, py, pz, tempNormal);
-    normAttr.setXYZ(i, tempNormal.x, tempNormal.y, tempNormal.z);
-    baseNormals[i * 3] = tempNormal.x;
-    baseNormals[i * 3 + 1] = tempNormal.y;
-    baseNormals[i * 3 + 2] = tempNormal.z;
-  }
-
-  posAttr.needsUpdate = true;
-  normAttr.needsUpdate = true;
-
-  return {
-    geometry: sphereGeom,
-    basePositions,
-    baseNormals,
-  };
-}
-
-/**
- * Deforms geometry vertices in real-time for breathing, squash/stretch,
- * and secondary jelly wave jiggle, recalculating smooth normals when needed.
- */
-export function deformBlobGeometry(
-  geometry: THREE.BufferGeometry,
-  basePositions: Float32Array,
-  baseNormals: Float32Array,
-  time: number,
-  breathScale: number,
-  jiggleAmount: number
-): void {
-  const posAttr = geometry.attributes.position as THREE.BufferAttribute;
-  const count = posAttr.count;
-  const positions = posAttr.array as Float32Array;
-
-  const normalAttr = geometry.attributes.normal as THREE.BufferAttribute;
-  const hasJiggle = Math.abs(jiggleAmount) > 0.001;
-
-  if (!hasJiggle) {
-    for (let i = 0; i < count; i++) {
-      positions[i * 3] = basePositions[i * 3];
-      positions[i * 3 + 1] = basePositions[i * 3 + 1];
-      positions[i * 3 + 2] = basePositions[i * 3 + 2];
-      normalAttr.setXYZ(i, baseNormals[i * 3], baseNormals[i * 3 + 1], baseNormals[i * 3 + 2]);
-    }
-    posAttr.needsUpdate = true;
-    normalAttr.needsUpdate = true;
-    return;
-  }
-
-  for (let i = 0; i < count; i++) {
-    const ox = basePositions[i * 3];
-    const oy = basePositions[i * 3 + 1];
-    const oz = basePositions[i * 3 + 2];
-
-    // A tiny traveling pulse follows the sculpted surface normal, like soft clay settling.
-    const nx = baseNormals[i * 3];
-    const ny = baseNormals[i * 3 + 1];
-    const nz = baseNormals[i * 3 + 2];
-    const wave = Math.sin(oy * 2.2 - time * 4.2 + ox * 0.55) * jiggleAmount * 0.025;
-    positions[i * 3] = ox + nx * wave;
-    positions[i * 3 + 1] = oy + ny * wave;
-    positions[i * 3 + 2] = oz + nz * wave;
-  }
-
-  posAttr.needsUpdate = true;
-  geometry.computeVertexNormals();
+export function createBlobBodyGeometry(widthSegments = 96, heightSegments = 96): BlobGeometryData {
+  const base = getBlobBaseMesh(widthSegments, heightSegments);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(base.positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(base.normals, 3));
+  geometry.setIndex(new THREE.BufferAttribute(base.index, 1));
+  // Shader displacement can leave the static bounds; the mesh is also marked
+  // frustumCulled = false, this keeps picking/bounds sane.
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 2.4);
+  geometry.boundingBox = new THREE.Box3(new THREE.Vector3(-2, -2, -2), new THREE.Vector3(2, 2, 2));
+  return { geometry, minY: base.minY };
 }
 
 /**
@@ -321,15 +292,8 @@ export function createMouthGeometry(isSmiling = true): THREE.BufferGeometry {
 }
 
 /**
- * Generates soft blush cheek disc geometry.
- */
-export function createBlushGeometry(): THREE.BufferGeometry {
-  return new THREE.CircleGeometry(0.15, 32);
-}
-
-/**
  * Generates contact shadow plane geometry.
  */
 export function createShadowGeometry(): THREE.BufferGeometry {
-  return new THREE.PlaneGeometry(2.8, 2.8);
+  return new THREE.PlaneGeometry(1, 1);
 }
