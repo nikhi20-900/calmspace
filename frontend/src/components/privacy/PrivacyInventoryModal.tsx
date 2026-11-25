@@ -184,7 +184,7 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
       onClose={onClose}
       title="Calmspace Privacy & Data Inventory"
       description="Field-by-field disclosure of all data collected, ephemeral processing lifecycles, and cryptographic isolation."
-      maxWidth="xl"
+      maxWidth="lg"
     >
       <div className="space-y-4">
         {/* Guiding Principle Banner */}
