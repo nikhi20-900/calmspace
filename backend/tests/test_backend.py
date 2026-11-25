@@ -279,6 +279,62 @@ def test_reflection_length_and_consent_contracts():
     assert data_benign["guidance"]["fallback_used"] is True
 
 
+def test_insights_endpoint_contracts():
+    """
+    Issue #8 Insights API Verification:
+    1. Fresh session receives clean empty state structure with check_in_count = 0.
+    2. Check-ins are strictly scoped to the requesting session ID (no cross-session leaks).
+    3. Trends and averages correctly calculated without clinical diagnostic labels.
+    4. Purging session data instantly clears insights.
+    """
+    client = TestClient(app)
+    session_a = "test-session-insights-a"
+    session_b = "test-session-insights-b"
+
+    # 1. Fresh session empty state
+    res_empty = client.get("/api/insights?days=7", headers={"X-Session-ID": session_a})
+    assert res_empty.status_code == 200
+    empty_data = res_empty.json()
+    assert empty_data["check_in_count"] == 0
+    assert empty_data["average_mood"] == 0.0
+    assert empty_data["mood_trend"] == []
+    assert empty_data["sleep_trend"] == []
+    assert empty_data["stress_trend"] == []
+    assert "No check-ins yet" in empty_data["plain_summary"]
+
+    # 2. Add check-ins to session A
+    storage.add_checkin(session_a, mood=4, stress=2, sleep_hours=8.0, route="LOW")
+    storage.add_checkin(session_a, mood=3, stress=3, sleep_hours=6.5, route="MEDIUM")
+
+    res_a = client.get("/api/insights?days=7", headers={"X-Session-ID": session_a})
+    assert res_a.status_code == 200
+    data_a = res_a.json()
+    assert data_a["check_in_count"] == 2
+    assert data_a["average_mood"] == 3.5
+    assert data_a["average_stress"] == 2.5
+    assert data_a["average_sleep"] == 7.2
+    assert len(data_a["mood_trend"]) == 2
+    assert len(data_a["sleep_trend"]) == 2
+    assert len(data_a["stress_trend"]) == 2
+
+    # Check non-diagnostic tone (never clinical diagnosis)
+    for forbidden in ["diagnos", "disorder", "clinical", "depress", "patholog"]:
+        assert forbidden not in data_a["plain_summary"].lower()
+
+    # 3. Verify session B is strictly isolated (zero cross-exposure)
+    res_b = client.get("/api/insights?days=7", headers={"X-Session-ID": session_b})
+    assert res_b.status_code == 200
+    data_b = res_b.json()
+    assert data_b["check_in_count"] == 0
+    assert data_b["mood_trend"] == []
+
+    # Clean up test data
+    storage.delete_all_data(session_a)
+    storage.delete_all_data(session_b)
+    res_purged = client.get("/api/insights?days=7", headers={"X-Session-ID": session_a})
+    assert res_purged.json()["check_in_count"] == 0
+
+
 if __name__ == "__main__":
     test_safety_rules()
     test_ai_guidance_bypass()
@@ -286,4 +342,5 @@ if __name__ == "__main__":
     test_high_risk_data_retention_and_safe_exit_purge()
     test_support_resources()
     test_reflection_length_and_consent_contracts()
+    test_insights_endpoint_contracts()
     print("\nALL BACKEND SAFETY & PRIVACY TESTS PASSED!")
