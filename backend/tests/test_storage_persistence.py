@@ -12,6 +12,7 @@ import sqlite3
 import tempfile
 
 import pytest
+
 from app.models.schemas import UserSettings
 from app.services.storage import CalmspaceStorage
 
