@@ -4,16 +4,21 @@ Rule-based safety routing, verified human-support escalation, and supportive lan
 """
 
 import os
+import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.core.config import load_local_env
 from app.routers.checkin import router as checkin_router
 from app.routers.insights import router as insights_router
 from app.routers.planner import router as planner_router
 from app.routers.support_and_settings import settings_router, support_router
+
+if "pytest" not in sys.modules:
+    load_local_env()
 
 app = FastAPI(
     title="Calmspace API",

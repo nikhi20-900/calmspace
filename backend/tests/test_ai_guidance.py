@@ -602,3 +602,82 @@ def test_production_guard_blocks_process_local_limiter():
     assert provider.call_count == 0, (
         "Provider called despite process-local limiter being blocked!"
     )
+
+
+def test_load_local_env_populates_gemini_config(tmp_path, monkeypatch):
+    """Verifies local .env loading configures Gemini via GEMINI_API_KEY without overriding explicit env."""
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "# Local config\n"
+        "CALMSPACE_AI_PROVIDER=gemini\n"
+        "CALMSPACE_AI_ENABLED=true\n"
+        "CALMSPACE_AI_MODEL=gemini-1.5-flash\n"
+        'GEMINI_API_KEY="ephemeral-test-value"\n',
+        encoding="utf-8",
+    )
+
+    for var in (
+        "CALMSPACE_AI_PROVIDER",
+        "CALMSPACE_AI_ENABLED",
+        "CALMSPACE_AI_MODEL",
+        "CALMSPACE_AI_API_KEY",
+        "GEMINI_API_KEY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    assert core_config.load_local_env(env_file) is True
+    cfg = AIServiceConfig.from_env()
+    assert cfg.provider == "gemini"
+    assert cfg.enabled is True
+    assert cfg.model == "gemini-1.5-flash"
+    assert cfg.api_key == "ephemeral-test-value"
+
+    # Explicit environment variable takes precedence when override=False
+    monkeypatch.setenv("CALMSPACE_AI_MODEL", "gemini-2.0-flash")
+    core_config.load_local_env(env_file, override=False)
+    assert AIServiceConfig.from_env().model == "gemini-2.0-flash"
+
+
+def test_gemini_invalid_credentials_return_safe_fallback(monkeypatch, caplog):
+    """Invalid Gemini API credentials fail safely to deterministic fallback without leaking key."""
+    import httpx
+
+    from app.services.ai_providers.gemini_provider import GeminiAIProvider
+
+    fake_invalid_key = "invalid-gemini-credential-xyz"
+
+    def mock_post(client_self, url, *args, **kwargs):
+        req = httpx.Request("POST", url)
+        return httpx.Response(
+            status_code=401,
+            json={"error": {"message": f"Invalid key {fake_invalid_key}"}},
+            request=req,
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post)
+
+    cfg = AIServiceConfig(
+        provider="gemini",
+        model="gemini-1.5-flash",
+        api_key=fake_invalid_key,
+        enabled=True,
+    )
+    provider = GeminiAIProvider(api_key=fake_invalid_key, model="gemini-1.5-flash")
+
+    with caplog.at_level(logging.WARNING):
+        res = generate_supportive_guidance(
+            route="LOW",
+            mood=4,
+            stress=2,
+            sleep_hours=8.0,
+            reflection="Private reflection text",
+            consent_given=True,
+            provider=provider,
+            config=cfg,
+        )
+
+    assert res is not None
+    assert res.generated_by_ai is False
+    assert res.fallback_used is True
+    assert fake_invalid_key not in caplog.text
+    assert "Private reflection text" not in caplog.text

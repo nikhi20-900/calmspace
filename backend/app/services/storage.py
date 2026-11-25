@@ -14,7 +14,7 @@ import os
 import sqlite3
 import threading
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.models.schemas import CheckInRecord, StudyTask, UserSettings
 
@@ -109,6 +109,14 @@ class CalmspaceStorage:
                 """
             )
 
+            # Defensive migration: Ensure data_retention_days column exists in user_settings if created by older schema
+            cursor = conn.execute("PRAGMA table_info(user_settings);")
+            columns = [row[1] for row in cursor.fetchall()]
+            if columns and "data_retention_days" not in columns:
+                conn.execute(
+                    "ALTER TABLE user_settings ADD COLUMN data_retention_days INTEGER NOT NULL DEFAULT 30;"
+                )
+
     # --------------------------------------------------------------------------
     # Settings Management (Session-Scoped)
     # --------------------------------------------------------------------------
@@ -169,10 +177,17 @@ class CalmspaceStorage:
     # Check-In Records (Session-Scoped, No Reflection Persisted)
     # --------------------------------------------------------------------------
     def add_checkin(
-        self, session_id: str, mood: int, stress: int, sleep_hours: float, route: str
+        self,
+        session_id: str,
+        mood: int,
+        stress: int,
+        sleep_hours: float,
+        route: str,
+        timestamp: str | None = None,
     ) -> CheckInRecord:
         record_id = str(uuid.uuid4())
-        timestamp = datetime.now(UTC).isoformat()
+        if timestamp is None:
+            timestamp = datetime.now(UTC).isoformat()
 
         conn = self._get_connection()
         with conn:
@@ -218,6 +233,59 @@ class CalmspaceStorage:
             )
             for r in rows
         ]
+
+    # --------------------------------------------------------------------------
+    # Retention Management & Automated Pruning (Issue #11 Stage 2)
+    # --------------------------------------------------------------------------
+    def cleanup_expired_records(
+        self, session_id: str, now: datetime | None = None
+    ) -> int:
+        """
+        Deletes check-in records older than the session's configured data_retention_days.
+
+        Enforces:
+        1. Reads session's configured retention period from user_settings (or default 30d).
+        2. Supports exactly 14, 30, 60, and 90 days. Falls back to 30 days for any other value.
+        3. Scoped strictly via `WHERE session_id = ?` to prevent cross-session deletion.
+        4. Calculates cutoff using consistent UTC timestamps.
+        5. Atomic transaction execution with safe handling for empty / missing tables.
+        6. Preserves essential configuration (user_settings) and active study planner tasks.
+
+        Returns:
+            int: The number of pruned check-in records.
+        """
+        if not session_id:
+            return 0
+
+        # Read configured retention days for this session
+        settings = self.get_settings(session_id)
+        retention_days = settings.data_retention_days
+        allowed_retention = {14, 30, 60, 90}
+        if retention_days not in allowed_retention:
+            retention_days = 30
+
+        # Calculate expiry using consistent UTC datetime
+        if now is None:
+            now_dt = datetime.now(UTC)
+        elif now.tzinfo is None:
+            now_dt = now.replace(tzinfo=UTC)
+        else:
+            now_dt = now.astimezone(UTC)
+
+        cutoff = now_dt - timedelta(days=retention_days)
+        cutoff_iso = cutoff.isoformat()
+
+        conn = self._get_connection()
+        with conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM checkins
+                WHERE session_id = ?
+                  AND strftime('%Y-%m-%d %H:%M:%f', timestamp) < strftime('%Y-%m-%d %H:%M:%f', ?);
+                """,
+                (session_id, cutoff_iso),
+            )
+            return cursor.rowcount
 
     # --------------------------------------------------------------------------
     # Study Tasks (Session-Scoped)

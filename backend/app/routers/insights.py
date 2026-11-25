@@ -8,6 +8,7 @@ from fastapi import APIRouter, Header, Query
 
 from app.models.schemas import InsightSummary
 from app.services.analytics import compute_session_insights
+from app.services.storage import storage
 
 router = APIRouter(prefix="/api/insights", tags=["Insights"])
 
@@ -18,4 +19,5 @@ async def get_insights(
     x_session_id: str | None = Header("anonymous-default-session"),
 ):
     session_id = x_session_id or "anonymous-default-session"
+    storage.cleanup_expired_records(session_id)
     return compute_session_insights(session_id=session_id, days=days)

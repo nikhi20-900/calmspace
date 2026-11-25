@@ -25,6 +25,9 @@ async def submit_checkin(
 ):
     session_id = x_session_id or "anonymous-default-session"
 
+    # 0. Automatically prune expired records per session's retention policy
+    storage.cleanup_expired_records(session_id)
+
     # 1. Fetch recent check-ins for trend-based safety checks
     recent_records = [
         {"mood": c.mood, "stress": c.stress, "sleep_hours": c.sleep_hours}
@@ -78,4 +81,5 @@ async def get_checkin_history(
     x_session_id: str | None = Header("anonymous-default-session"),
 ):
     session_id = x_session_id or "anonymous-default-session"
+    storage.cleanup_expired_records(session_id)
     return storage.get_checkins(session_id)

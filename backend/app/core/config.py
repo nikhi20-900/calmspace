@@ -4,9 +4,45 @@ Validated environment configuration for AI providers, models, timeouts, and rate
 """
 
 import os
+import sys
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+DEFAULT_LOCAL_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
+
+def load_local_env(env_file: Path | None = None, *, override: bool = False) -> bool:
+    """
+    Loads key=value pairs from a local .env file (default: backend/app/.env)
+    into os.environ without printing or logging values.
+    """
+    target = env_file or DEFAULT_LOCAL_ENV_FILE
+    if not target.is_file():
+        return False
+
+    for raw_line in target.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and (
+            (value.startswith('"') and value.endswith('"'))
+            or (value.startswith("'") and value.endswith("'"))
+        ):
+            value = value[1:-1]
+        if override or key not in os.environ:
+            os.environ[key] = value
+    return True
 
 
 class AIServiceConfig(BaseModel):
@@ -60,6 +96,9 @@ class AIServiceConfig(BaseModel):
         Loads configuration from environment variables with strict validation.
         Fails closed on invalid provider values or missing required credentials.
         """
+        if "pytest" not in sys.modules:
+            load_local_env()
+
         raw_provider = os.getenv("CALMSPACE_AI_PROVIDER", "").strip().lower()
         api_key = os.getenv("CALMSPACE_AI_API_KEY") or os.getenv("GEMINI_API_KEY")
         if api_key:
