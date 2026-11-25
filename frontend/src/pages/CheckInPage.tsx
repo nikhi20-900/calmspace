@@ -40,7 +40,7 @@ export const CheckInPage: React.FC = () => {
   // null = no default selection; forces conscious choice on mood & stress
   const [mood, setMood] = useState<number | null>(null);
   const [stress, setStress] = useState<number | null>(null);
-  const [sleepHours, setSleepHours] = useState<number | null>(null);
+  const [sleepHours, setSleepHours] = useState<number>(7.0);
   const [reflection, setReflection] = useState('');
   const [consentAi, setConsentAi] = useState(false);
 
@@ -85,8 +85,7 @@ export const CheckInPage: React.FC = () => {
     if (stress === null || !Number.isInteger(stress) || stress < 1 || stress > 5) {
       return 'Stress must be a whole rating between 1 (Very low) and 5 (Very high).';
     }
-    const resolvedSleep = sleepHours ?? 7.0;
-    if (typeof resolvedSleep !== 'number' || !Number.isFinite(resolvedSleep) || resolvedSleep < 0.0 || resolvedSleep > 24.0) {
+    if (typeof sleepHours !== 'number' || !Number.isFinite(sleepHours) || sleepHours < 0.0 || sleepHours > 24.0) {
       return 'Sleep duration must be a finite number between 0.0 and 24.0 hours.';
     }
     if (reflection.length > 2000) {
@@ -120,8 +119,7 @@ export const CheckInPage: React.FC = () => {
       }
     }
     if (currentStep === 3) {
-      const resolvedSleep = sleepHours ?? 7.0;
-      if (!Number.isFinite(resolvedSleep) || resolvedSleep < 0.0 || resolvedSleep > 24.0) {
+      if (!Number.isFinite(sleepHours) || sleepHours < 0.0 || sleepHours > 24.0) {
         setErrorMsg('Sleep duration must be between 0.0 and 24.0 hours.');
         return;
       }
@@ -155,13 +153,11 @@ export const CheckInPage: React.FC = () => {
     setErrorMsg(null);
     setIsNetworkError(false);
 
-    const resolvedSleep = sleepHours ?? 7.0;
-
     try {
       const response = await api.submitCheckIn({
         mood: mood!,
         stress: stress!,
-        sleep_hours: resolvedSleep,
+        sleep_hours: sleepHours,
         reflection: reflection.trim() || undefined,
         consent_ai_processing: consentAi,
       });
@@ -189,9 +185,9 @@ export const CheckInPage: React.FC = () => {
       />
 
       {/* Pre-check-in Privacy Disclosure Banner */}
-      <div className="mb-4 flex items-center justify-between gap-2 p-3 rounded-[var(--radius-card)] bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]">
+      <div className="mb-4 flex items-center justify-between gap-2 p-3.5 rounded-[var(--radius-card)] bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)]">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-[#245532] shrink-0" />
+          <ShieldCheck className="w-4 h-4 text-[var(--color-sage-text)] shrink-0" />
           <span>Rules decide safety · Reflection text is never persisted</span>
         </div>
         <button
@@ -209,7 +205,7 @@ export const CheckInPage: React.FC = () => {
           className="mb-4 p-3.5 rounded-[var(--radius-card)] bg-[var(--color-lavender-soft)] border border-[var(--color-lavender-border)] text-sm text-[var(--color-text-main)] flex items-start gap-2.5 animate-fade-in"
           role="status"
         >
-          <Info className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-0.5" />
+          <Info className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-1" />
           <div className="leading-relaxed">
             <span className="font-semibold text-[var(--color-primary)]">
               Most recent check-in logged today{' '}
@@ -229,7 +225,7 @@ export const CheckInPage: React.FC = () => {
         className="mb-6 bg-[var(--color-surface)] p-4 rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-[var(--shadow-subtle)]"
         aria-label="Check-in progress"
       >
-        <div className="flex items-center justify-between text-xs font-medium text-[var(--color-text-secondary)] mb-2">
+        <div className="flex items-center justify-between text-sm font-medium text-[var(--color-text-secondary)] mb-2">
           <span>
             Step {currentStep} of {totalSteps}:{' '}
             <strong className="text-[var(--color-text-main)]">{STEP_TITLES[currentStep - 1]}</strong>
@@ -244,7 +240,7 @@ export const CheckInPage: React.FC = () => {
           aria-valuemax={totalSteps}
         >
           <div
-            className="bg-[var(--color-primary)] h-full transition-all duration-300 ease-out rounded-full"
+            className="bg-[var(--color-primary-fill)] h-full transition-all duration-300 ease-out rounded-full"
             style={{ width: `${(currentStep / totalSteps) * 100}%` }}
           />
         </div>
@@ -256,12 +252,12 @@ export const CheckInPage: React.FC = () => {
           <div
             className={`p-3.5 mb-5 rounded-[var(--radius-button)] text-sm flex items-start gap-2.5 ${
               isNetworkError
-                ? 'bg-rose-50 border border-rose-200 text-rose-800'
+                ? 'bg-[var(--color-danger-soft)] border border-[var(--color-danger-border)] text-[var(--color-danger-text)]'
                 : 'bg-[var(--color-amber-light)] border border-[var(--color-amber-border)] text-[var(--color-amber-text)]'
             }`}
             role="alert"
           >
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <AlertCircle className="w-4 h-4 shrink-0 mt-1" />
             <div className="flex-1">
               <p className="font-semibold">{isNetworkError ? 'Connection Issue' : 'Please check your answer'}</p>
               <p className="mt-0.5">{errorMsg}</p>
@@ -270,7 +266,7 @@ export const CheckInPage: React.FC = () => {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className="mt-2 inline-flex items-center gap-1.5 font-semibold text-xs text-rose-900 underline hover:no-underline"
+                  className="mt-2 inline-flex items-center gap-1.5 font-semibold text-sm text-[var(--color-danger-text)] underline hover:no-underline"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
                   <span>Retry Submission</span>
@@ -330,7 +326,7 @@ export const CheckInPage: React.FC = () => {
       </Card>
 
       {/* Privacy footnote */}
-      <div className="flex items-center justify-center gap-2 mt-6 text-xs text-[var(--color-text-secondary)] flex-wrap">
+      <div className="flex items-center justify-center gap-2 mt-6 text-sm text-[var(--color-text-secondary)] flex-wrap">
         <ShieldCheck className="w-4 h-4 text-[var(--color-sage-text)]" />
         <span>Encrypted anonymous session. No clinical diagnosis.</span>
         <span>·</span>

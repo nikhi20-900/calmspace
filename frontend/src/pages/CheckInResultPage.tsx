@@ -19,6 +19,10 @@ import {
 } from 'lucide-react';
 import { FALLBACK_SUPPORT_RESOURCES } from '../services/api';
 
+const EMERGENCY_GUARANTEE_CONTACTS: SupportContact[] = FALLBACK_SUPPORT_RESOURCES.filter(
+  (c) => !c.is_demo_placeholder && c.is_active !== false
+);
+
 export const CheckInResultPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -29,7 +33,7 @@ export const CheckInResultPage: React.FC = () => {
     const wasExited = sessionStorage.getItem('calmspace_high_risk_exited') === 'true';
     if (wasExited) {
       window.history.replaceState({}, '');
-      navigate('/', { replace: true });
+      navigate('/app', { replace: true });
       return;
     }
 
@@ -55,21 +59,26 @@ export const CheckInResultPage: React.FC = () => {
   const { safety, guidance, record } = result;
   const isHighRisk = safety.route === 'HIGH';
 
-  // Only show verified (non-demo) contacts on the high-risk screen
+  // Only show verified (non-demo, active) contacts on the high-risk screen;
+  // fall back to canonical emergency contacts if filtering yields none.
   const allContacts: SupportContact[] = result.support_contacts?.length
     ? result.support_contacts
     : FALLBACK_SUPPORT_RESOURCES;
-  const verifiedContacts = allContacts.filter((c) => !c.is_demo_placeholder);
+  const filteredVerified = allContacts.filter(
+    (c) => !c.is_demo_placeholder && c.is_active !== false
+  );
+  const verifiedContacts =
+    filteredVerified.length > 0 ? filteredVerified : EMERGENCY_GUARANTEE_CONTACTS;
 
   /**
-   * Safe Exit — wipes transient session state and returns to overview.
+   * Safe Exit — wipes transient session state and returns to Overview (/app).
    * Browser "Back" cannot reload the exited result.
    */
   const handleSafeExit = () => {
     sessionStorage.removeItem('calmspace_latest_checkin');
     sessionStorage.setItem('calmspace_high_risk_exited', 'true');
     window.history.replaceState({}, '');
-    navigate('/', { replace: true, state: {} });
+    navigate('/app', { replace: true, state: {} });
   };
 
   // =========================================================================
@@ -98,86 +107,113 @@ export const CheckInResultPage: React.FC = () => {
 
         {/* Verified call cards only — demo cards intentionally hidden */}
         <div className="space-y-4">
-          {verifiedContacts.map((contact) => {
-            const isPrimary = contact.id === 'tele-manas';
-            return (
-              <div
-                key={contact.id}
-                className={`rounded-[var(--radius-card)] p-5 sm:p-6 ${
-                  isPrimary
-                    ? 'bg-[var(--color-surface)] border-2 border-[var(--color-primary)] shadow-[var(--shadow-soft)]'
-                    : 'bg-[var(--color-surface)] border border-[var(--color-border)]'
-                }`}
-              >
-                {/* Badge + verification */}
-                <div className="flex items-center gap-2 flex-wrap mb-2">
-                  <span
-                    className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                      isPrimary
-                        ? 'text-[var(--color-primary)] bg-[var(--color-lavender-soft)]'
-                        : 'text-[var(--color-amber-text)] bg-[var(--color-amber-soft)]'
-                    }`}
-                  >
-                    {contact.badge_label}
-                  </span>
-                  <span className="text-[11px] text-[var(--color-sage-text)] flex items-center gap-1 font-medium">
-                    <Shield className="w-3 h-3" aria-hidden="true" />
-                    Verified
-                  </span>
-                </div>
-
-                <h2 className="text-lg font-bold text-[var(--color-text-main)] mb-1">{contact.name}</h2>
-                <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-3">
-                  {contact.description}
-                </p>
-
-                {/* Hours + source link */}
-                <div className="flex items-center gap-4 flex-wrap text-xs text-[var(--color-text-secondary)] mb-4">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-                    {contact.hours}
-                  </span>
-                  {contact.official_source_url && (
-                    <a
-                      href={contact.official_source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] hover:underline"
-                      aria-label={`Official registry for ${contact.name}`}
-                    >
-                      Source: {contact.verification_source}
-                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                    </a>
-                  )}
-                </div>
-
-                {/* Large tap-to-call button */}
-                <a
-                  href={`tel:${contact.contact_number.replace(/\s+/g, '')}`}
-                  className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-[var(--radius-button)] text-base font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+          {verifiedContacts.length > 0 ? (
+            verifiedContacts.map((contact) => {
+              const isPrimary = contact.id === 'tele-manas';
+              return (
+                <div
+                  key={contact.id}
+                  className={`rounded-[var(--radius-card)] p-5 sm:p-6 ${
                     isPrimary
-                      ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)] shadow-sm'
-                      : 'bg-[var(--color-surface)] border-2 border-[var(--color-border-dark)] text-[var(--color-text-main)] hover:bg-[var(--color-bg)]'
+                      ? 'bg-[var(--color-surface)] border-2 border-[var(--color-primary)] shadow-[var(--shadow-soft)]'
+                      : 'bg-[var(--color-surface)] border border-[var(--color-border)]'
                   }`}
-                  aria-label={`Call ${contact.name} at ${contact.display_phone}`}
+                >
+                  {/* Badge + verification */}
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                        isPrimary
+                          ? 'text-[var(--color-primary)] bg-[var(--color-lavender-soft)]'
+                          : 'text-[var(--color-amber-text)] bg-[var(--color-amber-soft)]'
+                      }`}
+                    >
+                      {contact.badge_label}
+                    </span>
+                    <span className="text-sm text-[var(--color-sage-text)] flex items-center gap-1 font-medium">
+                      <Shield className="w-3.5 h-3.5" aria-hidden="true" />
+                      Verified
+                    </span>
+                  </div>
+
+                  <h2 className="text-lg font-bold text-[var(--color-text-main)] mb-1">{contact.name}</h2>
+                  <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-3">
+                    {contact.description}
+                  </p>
+
+                  {/* Hours + source link */}
+                  <div className="flex items-center gap-4 flex-wrap text-sm text-[var(--color-text-secondary)] mb-4">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
+                      {contact.hours}
+                    </span>
+                    {contact.official_source_url && (
+                      <a
+                        href={contact.official_source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] hover:underline"
+                        aria-label={`Official registry for ${contact.name}`}
+                      >
+                        Source: {contact.verification_source}
+                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Large tap-to-call button */}
+                  <a
+                    href={`tel:${contact.contact_number.replace(/\s+/g, '')}`}
+                    className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-[var(--radius-button)] text-base font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                      isPrimary
+                        ? 'bg-[var(--color-primary-fill)] text-white hover:bg-[var(--color-primary-fill-hover)] active:bg-[var(--color-primary-fill-active)] shadow-sm'
+                        : 'bg-[var(--color-surface)] border-2 border-[var(--color-border-dark)] text-[var(--color-text-main)] hover:bg-[var(--color-bg)]'
+                    }`}
+                    aria-label={`Call ${contact.name} at ${contact.display_phone}`}
+                  >
+                    <Phone className="w-5 h-5" aria-hidden="true" />
+                    <span>Call {contact.display_phone}</span>
+                  </a>
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-[var(--radius-card)] p-6 bg-[var(--color-surface)] border-2 border-[var(--color-primary)] space-y-3">
+              <h2 className="text-lg font-bold text-[var(--color-text-main)]">
+                Immediate National Support Lines
+              </h2>
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                Free, confidential 24/7 support is available directly by phone:
+              </p>
+              <div className="space-y-2.5">
+                <a
+                  href="tel:14416"
+                  className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-[var(--radius-button)] text-base font-bold bg-[var(--color-primary-fill)] text-white hover:bg-[var(--color-primary-fill-hover)]"
                 >
                   <Phone className="w-5 h-5" aria-hidden="true" />
-                  <span>Call {contact.display_phone}</span>
+                  <span>Call Tele-MANAS (14416)</span>
+                </a>
+                <a
+                  href="tel:112"
+                  className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-[var(--radius-button)] text-base font-bold bg-[var(--color-surface)] border-2 border-[var(--color-border-dark)] text-[var(--color-text-main)] hover:bg-[var(--color-bg)]"
+                >
+                  <Phone className="w-5 h-5" aria-hidden="true" />
+                  <span>Dial Emergency Services (112)</span>
                 </a>
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
 
         {/* Demo integration note — text only, no card */}
-        <p className="mt-6 text-xs text-[var(--color-text-muted)] text-center leading-relaxed">
+        <p className="mt-6 text-sm text-[var(--color-text-muted)] text-center leading-relaxed">
           Campus counselling integrations are configured by your institution and are not shown here.{' '}
           <Link to="/support" className="text-[var(--color-primary)] hover:underline font-medium">
             View full support directory →
           </Link>
         </p>
 
-        {/* Demo Integration Dialog (accessible via /support page only) */}
+        {/* Demo Integration Dialog */}
         <Dialog
           isOpen={demoNoticeOpen}
           onClose={() => setDemoNoticeOpen(false)}
@@ -191,7 +227,7 @@ export const CheckInResultPage: React.FC = () => {
             </p>
             <a
               href="tel:14416"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-[var(--radius-button)] bg-[var(--color-primary)] text-white text-sm font-bold hover:bg-[var(--color-primary-hover)] transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-[var(--radius-button)] bg-[var(--color-primary-fill)] text-white text-sm font-bold hover:bg-[var(--color-primary-fill-hover)] transition-colors"
               aria-label="Call Tele-MANAS at 14416"
             >
               <Phone className="w-4 h-4" aria-hidden="true" />
@@ -209,11 +245,11 @@ export const CheckInResultPage: React.FC = () => {
         <div className="mt-10 p-5 rounded-[var(--radius-card)] bg-[var(--color-surface)] border border-[var(--color-border)] shadow-[var(--shadow-subtle)]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-[var(--color-text-main)] flex items-center gap-1.5">
+              <h3 className="text-base font-bold text-[var(--color-text-main)] flex items-center gap-1.5">
                 <Shield className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
                 Safe Exit
               </h3>
-              <p className="text-xs text-[var(--color-text-secondary)] max-w-xs">
+              <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">
                 Closes this screen and returns you to overview. No AI conversation will resume automatically.
               </p>
             </div>
@@ -227,7 +263,7 @@ export const CheckInResultPage: React.FC = () => {
               Return to Overview
             </Button>
           </div>
-          <p className="mt-4 pt-3 border-t border-[var(--color-border-light)] text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+          <p className="mt-4 pt-3 border-t border-[var(--color-border-light)] text-sm text-[var(--color-text-muted)] leading-relaxed">
             <strong>Availability notice:</strong> Helplines and emergency dispatch are independently operated; Calmspace cannot guarantee response times or clinical outcomes.
           </p>
         </div>
@@ -240,9 +276,9 @@ export const CheckInResultPage: React.FC = () => {
   // =========================================================================
   return (
     <div className="max-w-xl mx-auto py-4 sm:py-8 animate-fade-in">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
         <Badge route={safety.route} />
-        <span className="text-xs text-[var(--color-text-secondary)]">
+        <span className="text-sm text-[var(--color-text-secondary)]">
           Logged today at{' '}
           {new Date(record.timestamp).toLocaleTimeString([], {
             hour: '2-digit',
@@ -254,7 +290,7 @@ export const CheckInResultPage: React.FC = () => {
       {/* Supportive Response Card */}
       <Card padding="lg" className="border-t-4 border-t-[var(--color-primary)] space-y-6">
         <div>
-          <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-[var(--color-primary)]">
+          <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-[var(--color-primary)]">
             <Sparkles className="w-4 h-4" aria-hidden="true" />
             <span>Supportive Reflection</span>
           </div>
@@ -280,9 +316,9 @@ export const CheckInResultPage: React.FC = () => {
                   {guidance.suggestion_chips.map((chip, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-main)] shadow-[var(--shadow-subtle)]"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-main)] shadow-[var(--shadow-subtle)]"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                      <CheckCircle2 className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
                       <span>{chip}</span>
                     </span>
                   ))}
@@ -293,8 +329,8 @@ export const CheckInResultPage: React.FC = () => {
         )}
 
         {/* Disclaimer */}
-        <div className="flex items-start gap-2 text-xs text-[var(--color-text-secondary)]">
-          <Info className="w-4 h-4 text-[var(--color-text-muted)] shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="flex items-start gap-2 text-sm text-[var(--color-text-secondary)]">
+          <Info className="w-4 h-4 text-[var(--color-text-muted)] shrink-0 mt-1" aria-hidden="true" />
           <p>{guidance?.disclaimer || 'This is supportive guidance, not medical advice.'}</p>
         </div>
 
@@ -302,7 +338,7 @@ export const CheckInResultPage: React.FC = () => {
         <div className="pt-4 border-t border-[var(--color-border-light)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Link
             to="/support"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]"
           >
             <HelpCircle className="w-4 h-4" aria-hidden="true" />
             <span>Prefer to talk to a human counsellor?</span>
@@ -311,7 +347,7 @@ export const CheckInResultPage: React.FC = () => {
           <Button
             variant="primary"
             size="md"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/app')}
             rightIcon={<ArrowRight className="w-4 h-4" />}
           >
             Return to Overview

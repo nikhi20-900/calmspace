@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ShieldCheck,
   EyeOff,
@@ -6,7 +6,6 @@ import {
   Lock,
   Sparkles,
   Trash2,
-  AlertTriangle,
   Clock,
   CheckCircle2,
   Info,
@@ -90,7 +89,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
   {
     field: 'reflection',
     table: 'N/A (Transient)',
-    type: 'Text (≤ 2,000 chars)',
+    type: 'Text (<= 2,000 chars)',
     purpose: 'Crisis keyword detection & opt-in AI guidance',
     storedOnServer: false,
     accessScope: 'Volatile request scope only',
@@ -118,7 +117,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
   {
     field: 'nickname',
     table: 'user_settings',
-    type: 'String (≤ 60 chars)',
+    type: 'String (<= 60 chars)',
     purpose: 'Friendly dashboard greeting (non-identifying)',
     storedOnServer: true,
     accessScope: 'Authenticated session only',
@@ -151,6 +150,7 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('matrix');
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const tabs: Array<{ id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }> = [
     { id: 'matrix', label: 'Data Inventory Matrix', icon: Database },
@@ -158,6 +158,25 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
     { id: 'ai-safety', label: 'AI & Safety Routing', icon: Sparkles },
     { id: 'retention-deletion', label: 'Retention & Deletion', icon: Clock },
   ];
+
+  const handleTabKeyDown = (e: React.KeyboardEvent, idx: number) => {
+    let nextIdx: number | null = null;
+    if (e.key === 'ArrowRight') {
+      nextIdx = (idx + 1) % tabs.length;
+    } else if (e.key === 'ArrowLeft') {
+      nextIdx = (idx - 1 + tabs.length) % tabs.length;
+    } else if (e.key === 'Home') {
+      nextIdx = 0;
+    } else if (e.key === 'End') {
+      nextIdx = tabs.length - 1;
+    }
+
+    if (nextIdx !== null) {
+      e.preventDefault();
+      setActiveTab(tabs[nextIdx].id);
+      tabRefs.current[nextIdx]?.focus();
+    }
+  };
 
   return (
     <Dialog
@@ -169,38 +188,43 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
     >
       <div className="space-y-4">
         {/* Guiding Principle Banner */}
-        <div className="p-3 rounded-card bg-[#F0EFFC] border border-[#D5D1E5] flex items-center gap-2.5 text-xs text-[#25233B]">
-          <ShieldCheck className="w-4 h-4 text-[#5554B8] shrink-0" />
+        <div className="p-3.5 rounded-card bg-[var(--color-primary-subtle)] border border-[var(--color-lavender-border)] flex items-center gap-2.5 text-sm text-[var(--color-text-main)]">
+          <ShieldCheck className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
           <span>
             <strong>Our Guiding Principle:</strong> &ldquo;Rules decide safety. AI writes the language. Humans help. Privacy by default.&rdquo;
           </span>
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tab Navigation with WAI-ARIA Arrow Key Support */}
         <div
           role="tablist"
           aria-label="Privacy disclosures sections"
-          className="flex border-b border-[#E8E6F1] gap-1 overflow-x-auto pb-1"
+          className="flex border-b border-[var(--color-border)] gap-1 overflow-x-auto pb-1"
         >
-          {tabs.map((tab) => {
+          {tabs.map((tab, idx) => {
             const Icon = tab.icon;
             const isSelected = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                ref={(el) => {
+                  tabRefs.current[idx] = el;
+                }}
+                type="button"
                 role="tab"
                 id={`tab-${tab.id}`}
                 aria-selected={isSelected}
                 aria-controls={`tabpanel-${tab.id}`}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-lg transition-all whitespace-nowrap min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                onKeyDown={(e) => handleTabKeyDown(e, idx)}
+                className={`flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold rounded-t-lg transition-all whitespace-nowrap min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
                   isSelected
-                    ? 'border-b-2 border-[#5554B8] text-[#5554B8] bg-[#E9E7FB]/50'
-                    : 'text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'
+                    ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-lavender-soft)]/50'
+                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)] hover:bg-[var(--color-bg)]'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <Icon className="w-4 h-4 shrink-0" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -216,61 +240,60 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
             tabIndex={0}
             className="space-y-3 focus:outline-none"
           >
-            <div className="flex items-center justify-between text-xs text-[#625F78]">
+            <div className="flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
               <span>Field-by-field storage and retention policies:</span>
-              <span className="font-medium text-[#245532] flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> 12 documented fields
+              <span className="font-medium text-[var(--color-sage-text)] flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> 12 documented fields
               </span>
             </div>
 
-            {/* Scrollable Table View */}
-            <div className="border border-[#E8E6F1] rounded-card overflow-hidden bg-white shadow-xs max-h-[50vh] overflow-y-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-[#FAF9FD] sticky top-0 z-10 border-b border-[#E8E6F1]">
+            <div className="border border-[var(--color-border)] rounded-card overflow-hidden bg-[var(--color-surface)] shadow-xs max-h-[50vh] overflow-y-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-[var(--color-surface-subtle)] sticky top-0 z-10 border-b border-[var(--color-border)]">
                   <tr>
-                    <th scope="col" className="py-2.5 px-3 font-semibold text-[#25233B]">Field</th>
-                    <th scope="col" className="py-2.5 px-3 font-semibold text-[#25233B]">Entity / Table</th>
-                    <th scope="col" className="py-2.5 px-3 font-semibold text-[#25233B]">Purpose</th>
-                    <th scope="col" className="py-2.5 px-3 font-semibold text-[#25233B]">Stored?</th>
-                    <th scope="col" className="py-2.5 px-3 font-semibold text-[#25233B]">Retention</th>
+                    <th scope="col" className="py-2.5 px-3 font-semibold text-[var(--color-text-main)]">Field</th>
+                    <th scope="col" className="py-2.5 px-3 font-semibold text-[var(--color-text-main)]">Entity / Table</th>
+                    <th scope="col" className="py-2.5 px-3 font-semibold text-[var(--color-text-main)]">Purpose</th>
+                    <th scope="col" className="py-2.5 px-3 font-semibold text-[var(--color-text-main)]">Stored?</th>
+                    <th scope="col" className="py-2.5 px-3 font-semibold text-[var(--color-text-main)]">Retention</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E8E6F1]/70">
+                <tbody className="divide-y divide-[var(--color-border)]">
                   {INVENTORY_DATA.map((item, idx) => (
                     <tr
                       key={idx}
                       className={
                         item.isTransient
-                          ? 'bg-[#EAF5ED]/60 font-medium'
-                          : 'hover:bg-[#FAF9FD] transition-colors'
+                          ? 'bg-[var(--color-sage-light)] font-medium'
+                          : 'hover:bg-[var(--color-surface-subtle)] transition-colors'
                       }
                     >
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-[#25233B]">
+                      <td className="py-2.5 px-3 font-mono text-xs text-[var(--color-text-main)]">
                         {item.field}
                         {item.isTransient && (
-                          <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#DCE9DF] text-[#245532]">
+                          <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded text-xs font-bold bg-[var(--color-sage-soft)] text-[var(--color-sage-text)]">
                             TRANSIENT ONLY
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-[#625F78] font-mono text-[11px]">
+                      <td className="py-2.5 px-3 text-[var(--color-text-secondary)] font-mono text-xs">
                         {item.table}
                       </td>
-                      <td className="py-2.5 px-3 text-[#625F78] max-w-xs leading-relaxed">
+                      <td className="py-2.5 px-3 text-[var(--color-text-secondary)] max-w-xs leading-relaxed">
                         {item.purpose}
                       </td>
                       <td className="py-2.5 px-3">
                         {item.storedOnServer ? (
-                          <span className="inline-flex items-center gap-1 text-[#5554B8] font-semibold text-[11px]">
-                            <Server className="w-3 h-3" /> Yes
+                          <span className="inline-flex items-center gap-1 text-[var(--color-primary)] font-semibold text-xs">
+                            <Server className="w-3.5 h-3.5" /> Yes
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[#245532] font-bold text-[11px]">
-                            <EyeOff className="w-3 h-3 text-[#245532]" /> NEVER
+                          <span className="inline-flex items-center gap-1 text-[var(--color-sage-text)] font-bold text-xs">
+                            <EyeOff className="w-3.5 h-3.5 text-[var(--color-sage-text)]" /> NEVER
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-[#625F78] text-[11px]">
+                      <td className="py-2.5 px-3 text-[var(--color-text-secondary)] text-xs">
                         {item.retention}
                       </td>
                     </tr>
@@ -279,7 +302,7 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
               </table>
             </div>
 
-            <p className="text-[11px] text-[#625F78] leading-relaxed italic">
+            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed italic">
               * Note: Check-in records strictly contain mood, stress, sleep, and triage route. No free-text reflections are persisted.
             </p>
           </div>
@@ -294,34 +317,34 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
             tabIndex={0}
             className="space-y-3.5 focus:outline-none"
           >
-            <div className="p-4 rounded-card bg-[#FAF9FD] border border-[#E8E6F1] space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#245532] uppercase tracking-wider">
+            <div className="p-4 rounded-card bg-[var(--color-surface-subtle)] border border-[var(--color-border)] space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[var(--color-sage-text)] uppercase tracking-wider">
                 <EyeOff className="w-4 h-4" />
                 <span>Strict Non-Persistence Guarantees</span>
               </div>
-              <ul className="text-xs text-[#625F78] space-y-3 leading-relaxed">
+              <ul className="text-sm text-[var(--color-text-secondary)] space-y-3 leading-relaxed">
                 <li className="flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-[#245532] mt-1 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-sage-text)] mt-2 shrink-0" />
                   <div>
-                    <strong className="text-[#25233B]">Zero Reflection Persistence:</strong> Written reflections are never written to any database, file system, or persistent log. They reside exclusively in transient memory during request processing and are freed by runtime garbage collection immediately after the response is sent.
+                    <strong className="text-[var(--color-text-main)]">Zero Reflection Persistence:</strong> Written reflections are never written to any database, file system, or persistent log. They reside exclusively in transient memory during request processing and are freed by runtime garbage collection immediately after the response is sent.
                   </div>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-[#245532] mt-1 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-sage-text)] mt-2 shrink-0" />
                   <div>
-                    <strong className="text-[#25233B]">Zero Personal Identifiers:</strong> We do not collect student IDs, university email addresses, real names, phone numbers, or IP addresses. You are known only by an anonymous cryptographic token.
+                    <strong className="text-[var(--color-text-main)]">Zero Personal Identifiers:</strong> We do not collect student IDs, university email addresses, real names, phone numbers, or IP addresses. You are known only by an anonymous cryptographic token.
                   </div>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-[#245532] mt-1 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-sage-text)] mt-2 shrink-0" />
                   <div>
-                    <strong className="text-[#25233B]">No Medical Profiling or Clinical Diagnoses:</strong> Calmspace does not generate clinical diagnoses, ICD/DSM codes, or permanent psychiatric records. Data is never shared with health insurers, hospital systems, or university disciplinary bodies.
+                    <strong className="text-[var(--color-text-main)]">No Medical Profiling or Clinical Diagnoses:</strong> Calmspace does not generate clinical diagnoses, ICD/DSM codes, or permanent psychiatric records. Data is never shared with health insurers, hospital systems, or university disciplinary bodies.
                   </div>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-[#245532] mt-1 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-sage-text)] mt-2 shrink-0" />
                   <div>
-                    <strong className="text-[#25233B]">No Third-Party Ad Trackers or Data Brokers:</strong> We do not include marketing analytics, cross-site trackers, Facebook pixels, or data broker cookies.
+                    <strong className="text-[var(--color-text-main)]">No Third-Party Ad Trackers or Data Brokers:</strong> We do not include marketing analytics, cross-site trackers, Facebook pixels, or data broker cookies.
                   </div>
                 </li>
               </ul>
@@ -338,36 +361,36 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
             tabIndex={0}
             className="space-y-3.5 focus:outline-none"
           >
-            <div className="p-4 rounded-card bg-[#FAF9FD] border border-[#E8E6F1] space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#5554B8] uppercase tracking-wider">
+            <div className="p-4 rounded-card bg-[var(--color-surface-subtle)] border border-[var(--color-border)] space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[var(--color-primary)] uppercase tracking-wider">
                 <Sparkles className="w-4 h-4" />
                 <span>Explicit Consent & Deterministic Safety Rules</span>
               </div>
 
-              <div className="space-y-3 text-xs text-[#625F78] leading-relaxed">
-                <div className="p-3 rounded-lg bg-white border border-[#E8E6F1]">
-                  <strong className="text-[#25233B] block mb-1">
+              <div className="space-y-3 text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <strong className="text-[var(--color-text-main)] block mb-1">
                     1. Deterministic Local Safety Rules Come First
                   </strong>
                   Before any AI language model is ever invoked, your inputs and reflection are analyzed by deterministic, rule-based safety checks to detect crisis or distress indicators. Safety evaluations are not left to unpredictable LLM outputs.
                 </div>
 
-                <div className="p-3 rounded-lg bg-white border border-[#E8E6F1]">
-                  <strong className="text-[#25233B] block mb-1">
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <strong className="text-[var(--color-text-main)] block mb-1">
                     2. High-Risk / Crisis AI Bypass (Zero-Call Guarantee)
                   </strong>
                   If a check-in is evaluated as HIGH risk or detects crisis signals, external AI generation is strictly bypassed (0 API calls are made). Immediate, verified human emergency contacts (like Tele-MANAS 14416 and 112) are displayed directly.
                 </div>
 
-                <div className="p-3 rounded-lg bg-white border border-[#E8E6F1]">
-                  <strong className="text-[#25233B] block mb-1">
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <strong className="text-[var(--color-text-main)] block mb-1">
                     3. Point-of-Collection Opt-In (Default: OFF)
                   </strong>
                   AI-assisted supportive messages are completely optional. The consent checkbox is unchecked by default on every check-in. If you do not check it, your reflection is never sent to external AI providers.
                 </div>
 
-                <div className="p-3 rounded-lg bg-white border border-[#E8E6F1]">
-                  <strong className="text-[#25233B] block mb-1">
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <strong className="text-[var(--color-text-main)] block mb-1">
                     4. Ephemeral Cloud Provider Gateway
                   </strong>
                   When you explicitly opt in on Low/Medium routes, your reflection is transmitted over TLS to Google Gemini solely to generate real-time compassionate guidance. It is not saved in Calmspace databases and is discarded immediately after generation.
@@ -386,38 +409,39 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
             tabIndex={0}
             className="space-y-3.5 focus:outline-none"
           >
-            <div className="p-4 rounded-card bg-[#FAF9FD] border border-[#E8E6F1] space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#5554B8] uppercase tracking-wider">
+            <div className="p-4 rounded-card bg-[var(--color-surface-subtle)] border border-[var(--color-border)] space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[var(--color-primary)] uppercase tracking-wider">
                 <Lock className="w-4 h-4" />
                 <span>Session Isolation & Destruction Controls</span>
               </div>
 
-              <div className="space-y-3 text-xs text-[#625F78] leading-relaxed">
-                <div className="p-3 rounded-lg bg-white border border-[#E8E6F1]">
-                  <div className="flex items-center gap-2 font-semibold text-[#25233B] mb-1">
-                    <KeyRound className="w-4 h-4 text-[#5554B8]" />
+              <div className="space-y-3 text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <div className="flex items-center gap-2 font-semibold text-[var(--color-text-main)] mb-1">
+                    <KeyRound className="w-4 h-4 text-[var(--color-primary)]" />
                     <span>Cryptographic Session Scoping</span>
                   </div>
                   <p>
-                    All stored check-ins, study planner tasks, and settings are strictly partitioned by your anonymous session UUID. Every database query enforces <code className="px-1 py-0.5 bg-[#F7F6FB] rounded text-[#5554B8]">WHERE session_id = ?</code>. No user can view or alter another user&rsquo;s entries.
+                    All stored check-ins, study planner tasks, and settings are strictly partitioned by your anonymous session UUID. Every database query enforces{' '}
+                    <code className="px-1.5 py-0.5 bg-[var(--color-bg)] rounded text-[var(--color-primary)]">
+                      WHERE session_id = ?
+                    </code>
+                    . No user can view or alter another user&rsquo;s entries.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-white border border-[#E8E6F1]">
-                  <div className="flex items-center gap-2 font-semibold text-[#25233B] mb-1">
-                    <Clock className="w-4 h-4 text-[#5554B8]" />
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <div className="flex items-center gap-2 font-semibold text-[var(--color-text-main)] mb-1">
+                    <Clock className="w-4 h-4 text-[var(--color-primary)]" />
                     <span>Configurable Rolling Retention (14, 30, 60, 90 Days)</span>
                   </div>
                   <p>
                     You can set your preferred rolling retention window in Settings (default 30 days). Historical entries outside this window are slated for automated cleanup.
                   </p>
-                  <p className="mt-1 text-[11px] text-[#7A4D05] bg-[#FDF8F0] p-2 rounded border border-[#E8CEA5]">
-                    ℹ️ <strong>Stage 1 Status:</strong> Retention preferences are persisted to your user profile. Automated background pruning is scheduled for the Stage 2 rollout.
-                  </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-white border border-red-200">
-                  <div className="flex items-center gap-2 font-semibold text-red-700 mb-1">
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-danger-border)]">
+                  <div className="flex items-center gap-2 font-semibold text-[var(--color-danger-text)] mb-1">
                     <Trash2 className="w-4 h-4" />
                     <span>Immediate Permanent Erasure (&ldquo;Delete All My Data&rdquo;)</span>
                   </div>
@@ -426,9 +450,9 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-white border border-[#E8E6F1]">
-                  <div className="flex items-center gap-2 font-semibold text-[#25233B] mb-1">
-                    <Info className="w-4 h-4 text-[#5554B8]" />
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <div className="flex items-center gap-2 font-semibold text-[var(--color-text-main)] mb-1">
+                    <Info className="w-4 h-4 text-[var(--color-primary)]" />
                     <span>Opt-In Aggregated Analytics</span>
                   </div>
                   <p>
@@ -441,9 +465,9 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
         )}
 
         {/* Modal Footer Controls */}
-        <div className="pt-3 border-t border-[#E8E6F1] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#625F78]">
+        <div className="pt-3 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-[var(--color-text-secondary)]">
           <span className="flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5 text-[#245532]" />
+            <Lock className="w-4 h-4 text-[var(--color-sage-text)]" />
             <span>Authoritative source: docs/privacy_data_inventory.md</span>
           </span>
           <Button variant="primary" size="sm" onClick={onClose}>

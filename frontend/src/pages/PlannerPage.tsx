@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -14,19 +14,17 @@ import {
   Trash2,
   Clock,
   Coffee,
-  Sparkles,
   Info,
   Edit3,
   Bell,
   X,
-  AlertCircle,
-  RotateCcw,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StudyTask, UserSettings } from '../types';
 
 const CATEGORIES = ['All', 'Study', 'Reading', 'Revision', 'Assignment', 'Break'] as const;
 type CategoryFilter = (typeof CATEGORIES)[number];
+type StatusFilter = 'all' | 'active' | 'completed';
 
 const STARTER_PROMPTS = [
   { title: 'Review lecture slides for 25 mins', estimated_minutes: 25, category: 'Revision' },
@@ -41,8 +39,9 @@ export const PlannerPage: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings | null>(null);
 
   // Filter states
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('All');
+  const statusTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   // Add Task Form state
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
@@ -57,12 +56,9 @@ export const PlannerPage: React.FC = () => {
   const [editMinutes, setEditMinutes] = useState<number>(25);
   const [editCategory, setEditCategory] = useState<string>('Study');
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
-  const [editNotice, setEditNotice] = useState<string | null>(null);
 
-  // Scroll ref for breather section
   const breatherRef = useRef<HTMLDivElement>(null);
 
-  // Load initial tasks and settings
   useEffect(() => {
     async function loadData() {
       try {
@@ -94,7 +90,6 @@ export const PlannerPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Foreground active time tracking (Stage 3)
   const {
     activeVisibleMinutes,
     isPromptVisible,
@@ -105,7 +100,6 @@ export const PlannerPage: React.FC = () => {
     enabled: Boolean(settings?.break_reminders_enabled),
   });
 
-  // Task creation handler
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -120,7 +114,6 @@ export const PlannerPage: React.FC = () => {
       setTitle('');
       setShowAddForm(false);
     } catch {
-      // Graceful local creation fallback if offline/mock
       const localTask: StudyTask = {
         id: 'local-' + Date.now(),
         title: title.trim(),
@@ -137,7 +130,6 @@ export const PlannerPage: React.FC = () => {
     }
   };
 
-  // 1-Click starter prompt handler
   const handleAddStarter = async (starter: (typeof STARTER_PROMPTS)[number]) => {
     try {
       const newTask = await api.createTask(starter);
@@ -153,9 +145,7 @@ export const PlannerPage: React.FC = () => {
     }
   };
 
-  // Toggle task completion
   const handleToggle = async (taskId: string) => {
-    // Optimistic toggle
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
     );
@@ -166,7 +156,6 @@ export const PlannerPage: React.FC = () => {
     }
   };
 
-  // Delete task
   const handleDelete = async (taskId: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     try {
@@ -176,16 +165,13 @@ export const PlannerPage: React.FC = () => {
     }
   };
 
-  // Open edit modal
   const handleOpenEdit = (task: StudyTask) => {
     setEditingTask(task);
     setEditTitle(task.title);
     setEditMinutes(task.estimated_minutes);
     setEditCategory(task.category);
-    setEditNotice(null);
   };
 
-  // Save edit handler
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask || !editTitle.trim()) return;
@@ -197,7 +183,6 @@ export const PlannerPage: React.FC = () => {
       category: editCategory,
     };
 
-    // Apply update to local state
     setTasks((prev) =>
       prev.map((t) =>
         t.id === editingTask.id ? { ...t, ...updatedPayload } : t
@@ -205,34 +190,45 @@ export const PlannerPage: React.FC = () => {
     );
 
     try {
-      // Attempt backend PATCH /api/planner/tasks/{id}
       await api.updateTask(editingTask.id, updatedPayload);
       setEditingTask(null);
     } catch {
-      // Coordinate with Roushan: Backend PATCH endpoint pending integration
-      // Retain optimistic UI state and close modal cleanly
       setEditingTask(null);
     } finally {
       setIsSavingEdit(false);
     }
   };
 
-  // Filtered task collection
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      // Status filter
       if (statusFilter === 'active' && t.completed) return false;
       if (statusFilter === 'completed' && !t.completed) return false;
-
-      // Category filter
       if (categoryFilter !== 'All' && t.category !== categoryFilter) return false;
-
       return true;
     });
   }, [tasks, statusFilter, categoryFilter]);
 
   const completedCount = tasks.filter((t) => t.completed).length;
   const activeCount = tasks.length - completedCount;
+
+  const statusTabs: Array<{ value: StatusFilter; label: string }> = [
+    { value: 'all', label: `All (${tasks.length})` },
+    { value: 'active', label: `Active (${activeCount})` },
+    { value: 'completed', label: `Completed (${completedCount})` },
+  ];
+
+  const handleStatusTabKeyDown = (e: React.KeyboardEvent, idx: number) => {
+    let nextIdx: number | null = null;
+    if (e.key === 'ArrowRight') nextIdx = (idx + 1) % statusTabs.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + statusTabs.length) % statusTabs.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = statusTabs.length - 1;
+    if (nextIdx !== null) {
+      e.preventDefault();
+      setStatusFilter(statusTabs[nextIdx].value);
+      statusTabRefs.current[nextIdx]?.focus();
+    }
+  };
 
   if (loading) {
     return <LoadingState message="Loading your study-life balance planner..." />;
@@ -259,22 +255,22 @@ export const PlannerPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Stage 3: In-App Foreground Pacing Prompt (Dismissible, Foreground Only) */}
+      {/* Foreground Pacing Prompt */}
       {isPromptVisible && (
         <div
           role="status"
           aria-live="polite"
-          className="p-4 rounded-card bg-[#F9F8FD] border-2 border-[#5554B8]/30 shadow-soft animate-fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          className="p-4 rounded-card bg-[var(--color-surface-subtle)] border-2 border-[var(--color-lavender-border)] shadow-soft animate-fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-4"
         >
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#E9E7FB] flex items-center justify-center text-[#5554B8] shrink-0 mt-0.5">
+            <div className="w-9 h-9 rounded-full bg-[var(--color-lavender-soft)] flex items-center justify-center text-[var(--color-primary)] shrink-0 mt-0.5">
               <Bell className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-[#25233B]">
+              <h2 className="text-sm font-bold text-[var(--color-text-main)]">
                 Gentle Pacing Suggestion
               </h2>
-              <p className="text-xs text-[#625F78] leading-relaxed mt-0.5">
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mt-0.5">
                 You&apos;ve been actively focusing for ~{activeVisibleMinutes} minutes in Calmspace. Stepping away for a 5-minute pause can help rest your eyes and reset your attention.
               </p>
             </div>
@@ -288,22 +284,18 @@ export const PlannerPage: React.FC = () => {
                 dismissPrompt();
                 breatherRef.current?.scrollIntoView({ behavior: 'smooth' });
               }}
-              leftIcon={<Coffee className="w-3.5 h-3.5" />}
+              leftIcon={<Coffee className="w-4 h-4" />}
             >
               Take 5-min Breather
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => snoozePrompt(15)}
-            >
+            <Button variant="outline" size="sm" onClick={() => snoozePrompt(15)}>
               Remind in 15m
             </Button>
             <button
               type="button"
               onClick={dismissPrompt}
               aria-label="Dismiss pacing reminder"
-              className="p-2 text-[#625F78] hover:text-[#25233B] rounded-button"
+              className="p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)] rounded-button"
             >
               <X className="w-4 h-4" />
             </button>
@@ -311,22 +303,22 @@ export const PlannerPage: React.FC = () => {
         </div>
       )}
 
-      {/* Stage 2: Reusable 5-Minute Breather Timer Experience */}
+      {/* 5-Minute Breather Timer */}
       <div ref={breatherRef}>
         <BreatherTimer initialMinutes={5} />
       </div>
 
-      {/* Stage 1: Add Task Form (Collapsible) */}
+      {/* Add Task Form */}
       {showAddForm && (
-        <Card padding="lg" className="border-2 border-[#5554B8]/30 animate-fade-in">
+        <Card padding="lg" className="border-2 border-[var(--color-lavender-border)] animate-fade-in">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-[#25233B]">
+            <h2 className="text-base font-bold text-[var(--color-text-main)]">
               Plan a gentle study block
             </h2>
             <button
               type="button"
               onClick={() => setShowAddForm(false)}
-              className="p-1 rounded text-[#625F78] hover:text-[#25233B]"
+              className="p-1.5 rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)]"
               aria-label="Cancel adding study block"
             >
               <X className="w-4 h-4" />
@@ -335,7 +327,7 @@ export const PlannerPage: React.FC = () => {
 
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
-              <label htmlFor="task-title" className="block text-xs font-semibold text-[#625F78] mb-1">
+              <label htmlFor="task-title" className="block text-sm font-semibold text-[var(--color-text-secondary)] mb-1">
                 What would you like to focus on?
               </label>
               <input
@@ -345,20 +337,20 @@ export const PlannerPage: React.FC = () => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Read Chapter 4 of Organic Chemistry"
-                className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                className="w-full px-3.5 py-2.5 rounded-input border border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-main)] placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="task-duration" className="block text-xs font-semibold text-[#625F78] mb-1">
+                <label htmlFor="task-duration" className="block text-sm font-semibold text-[var(--color-text-secondary)] mb-1">
                   Estimated duration
                 </label>
                 <select
                   id="task-duration"
                   value={estimatedMinutes}
                   onChange={(e) => setEstimatedMinutes(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                  className="w-full px-3.5 py-2.5 rounded-input border border-[var(--color-border)] text-sm text-[var(--color-text-main)] bg-[var(--color-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
                 >
                   <option value={15}>15 mins (Quick review)</option>
                   <option value={25}>25 mins (Pomodoro block)</option>
@@ -368,14 +360,14 @@ export const PlannerPage: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="task-category" className="block text-xs font-semibold text-[#625F78] mb-1">
+                <label htmlFor="task-category" className="block text-sm font-semibold text-[var(--color-text-secondary)] mb-1">
                   Session Category
                 </label>
                 <select
                   id="task-category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                  className="w-full px-3.5 py-2.5 rounded-input border border-[var(--color-border)] text-sm text-[var(--color-text-main)] bg-[var(--color-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
                 >
                   <option value="Study">Study</option>
                   <option value="Reading">Reading</option>
@@ -387,20 +379,10 @@ export const PlannerPage: React.FC = () => {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAddForm(false)}
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                isLoading={isCreating}
-              >
+              <Button type="submit" variant="primary" size="sm" isLoading={isCreating}>
                 Save Session Block
               </Button>
             </div>
@@ -410,55 +392,38 @@ export const PlannerPage: React.FC = () => {
 
       {/* Task Filters & Counts */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E8E6F1]">
-          {/* Status Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[var(--color-border)]">
           <div
             role="tablist"
             aria-label="Filter tasks by completion status"
-            className="flex items-center gap-1 p-1 bg-white rounded-button border border-[#E8E6F1] shadow-subtle shrink-0"
+            className="flex items-center gap-1 p-1 bg-[var(--color-surface)] rounded-button border border-[var(--color-border)] shadow-subtle shrink-0"
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={statusFilter === 'all'}
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-button transition-colors ${
-                statusFilter === 'all'
-                  ? 'bg-[#5554B8] text-white shadow-xs'
-                  : 'text-[#625F78] hover:text-[#25233B]'
-              }`}
-            >
-              All ({tasks.length})
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={statusFilter === 'active'}
-              onClick={() => setStatusFilter('active')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-button transition-colors ${
-                statusFilter === 'active'
-                  ? 'bg-[#5554B8] text-white shadow-xs'
-                  : 'text-[#625F78] hover:text-[#25233B]'
-              }`}
-            >
-              Active ({activeCount})
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={statusFilter === 'completed'}
-              onClick={() => setStatusFilter('completed')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-button transition-colors ${
-                statusFilter === 'completed'
-                  ? 'bg-[#5554B8] text-white shadow-xs'
-                  : 'text-[#625F78] hover:text-[#25233B]'
-              }`}
-            >
-              Completed ({completedCount})
-            </button>
+            {statusTabs.map((tab, idx) => {
+              const isSelected = statusFilter === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  ref={(el) => {
+                    statusTabRefs.current[idx] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  tabIndex={isSelected ? 0 : -1}
+                  onClick={() => setStatusFilter(tab.value)}
+                  onKeyDown={(e) => handleStatusTabKeyDown(e, idx)}
+                  className={`px-3 py-1.5 text-sm font-semibold rounded-button transition-colors ${
+                    isSelected
+                      ? 'bg-[var(--color-primary-fill)] text-white shadow-xs'
+                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Category Filter Pills */}
           <div
             role="group"
             aria-label="Filter tasks by category"
@@ -470,10 +435,10 @@ export const PlannerPage: React.FC = () => {
                 type="button"
                 onClick={() => setCategoryFilter(cat)}
                 aria-pressed={categoryFilter === cat}
-                className={`px-2.5 py-1 text-xs font-medium rounded-full transition-all shrink-0 ${
+                className={`px-3 py-1.5 text-sm font-medium rounded-full transition-all shrink-0 ${
                   categoryFilter === cat
-                    ? 'bg-[#25233B] text-white'
-                    : 'bg-white text-[#625F78] border border-[#E8E6F1] hover:bg-[#F7F6FB]'
+                    ? 'bg-[var(--color-urgent-bg)] text-[var(--color-urgent-text)]'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-bg)]'
                 }`}
               >
                 {cat}
@@ -484,28 +449,24 @@ export const PlannerPage: React.FC = () => {
 
         {/* Task List */}
         {filteredTasks.length === 0 ? (
-          /* Welcoming Empty State with Starter Prompts */
           <Card padding="lg" className="text-center py-12 space-y-4">
-            <div className="w-12 h-12 rounded-full bg-[#E9E7FB] flex items-center justify-center text-[#5554B8] mx-auto">
+            <div className="w-12 h-12 rounded-full bg-[var(--color-lavender-soft)] flex items-center justify-center text-[var(--color-primary)] mx-auto">
               <CalendarCheck className="w-6 h-6" />
             </div>
             <div className="space-y-1 max-w-sm mx-auto">
-              <h2 className="text-base font-bold text-[#25233B]">
-                {tasks.length === 0
-                  ? 'No study blocks scheduled right now'
-                  : 'No tasks match your selected filter'}
+              <h2 className="text-base font-bold text-[var(--color-text-main)]">
+                {tasks.length === 0 ? 'No study blocks scheduled right now' : 'No tasks match your selected filter'}
               </h2>
-              <p className="text-xs text-[#625F78] leading-relaxed">
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
                 {tasks.length === 0
                   ? 'Plan a small, manageable block or pick a gentle starter below to get momentum without overwhelm.'
                   : 'Try switching your status or category filters above to view other planned tasks.'}
               </p>
             </div>
 
-            {/* Quick Starter Prompt Chips */}
             {tasks.length === 0 && (
               <div className="pt-2 max-w-lg mx-auto">
-                <span className="text-[11px] font-semibold text-[#8E8AA7] uppercase tracking-wider block mb-2">
+                <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block mb-2">
                   Gentle Starter Ideas
                 </span>
                 <div className="flex flex-wrap justify-center gap-2">
@@ -514,9 +475,9 @@ export const PlannerPage: React.FC = () => {
                       key={idx}
                       type="button"
                       onClick={() => handleAddStarter(prompt)}
-                      className="px-3 py-1.5 text-xs font-medium rounded-full bg-white border border-[#D5D1E5] text-[#25233B] hover:bg-[#F2F1FD] hover:border-[#5554B8] transition-all flex items-center gap-1.5"
+                      className="px-3.5 py-2 text-sm font-medium rounded-full bg-[var(--color-surface)] border border-[var(--color-border-dark)] text-[var(--color-text-main)] hover:bg-[var(--color-lavender-light)] hover:border-[var(--color-primary)] transition-all flex items-center gap-1.5"
                     >
-                      <Plus className="w-3 h-3 text-[#5554B8]" />
+                      <Plus className="w-3.5 h-3.5 text-[var(--color-primary)]" />
                       <span>{prompt.title}</span>
                     </button>
                   ))}
@@ -531,46 +492,43 @@ export const PlannerPage: React.FC = () => {
                 key={task.id}
                 className={`p-4 rounded-card border transition-all flex items-center justify-between gap-3 ${
                   task.completed
-                    ? 'bg-[#F7F6FB] border-[#E8E6F1] opacity-60'
-                    : 'bg-white border-[#E8E6F1] shadow-subtle hover:border-[#D5D1E5]'
+                    ? 'bg-[var(--color-bg)] border-[var(--color-border)] opacity-70'
+                    : 'bg-[var(--color-surface)] border-[var(--color-border)] shadow-subtle hover:border-[var(--color-border-dark)]'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     type="button"
                     onClick={() => handleToggle(task.id)}
-                    className="text-[#5554B8] hover:text-[#4645A7] transition-transform active:scale-90 shrink-0"
-                    aria-label={
-                      task.completed ? 'Mark task as incomplete' : 'Mark task as completed'
-                    }
+                    className="text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-transform active:scale-90 shrink-0"
+                    aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as completed'}
                   >
                     {task.completed ? (
-                      <CheckCircle className="w-5 h-5 text-[#245532]" />
+                      <CheckCircle className="w-5 h-5 text-[var(--color-sage-text)]" />
                     ) : (
-                      <Circle className="w-5 h-5 text-[#8E8AA7]" />
+                      <Circle className="w-5 h-5 text-[var(--color-text-muted)]" />
                     )}
                   </button>
 
                   <div className="min-w-0">
                     <span
                       className={`text-sm font-medium block truncate ${
-                        task.completed ? 'line-through text-[#625F78]' : 'text-[#25233B]'
+                        task.completed ? 'line-through text-[var(--color-text-secondary)]' : 'text-[var(--color-text-main)]'
                       }`}
                     >
                       {task.title}
                     </span>
-                    <div className="flex items-center gap-2 mt-0.5 text-xs text-[#625F78] flex-wrap">
+                    <div className="flex items-center gap-2 mt-1 text-sm text-[var(--color-text-secondary)] flex-wrap">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
+                        <Clock className="w-3.5 h-3.5" />
                         {task.estimated_minutes} mins
                       </span>
                       <span>•</span>
-                      <span className="bg-[#E9E7FB] text-[#5554B8] px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                      <span className="bg-[var(--color-lavender-soft)] text-[var(--color-primary)] px-2.5 py-0.5 rounded-full text-xs font-semibold">
                         {task.category}
                       </span>
-                      {/* Non-punitive pacing cue for active tasks */}
                       {!task.completed && (
-                        <span className="text-[11px] text-[#7A4D05] bg-[#FFFDF9] px-2 py-0.5 rounded-full border border-[#F4DCCB]">
+                        <span className="text-xs text-[var(--color-amber-text)] bg-[var(--color-amber-light)] px-2.5 py-0.5 rounded-full border border-[var(--color-amber-border)]">
                           Gentle pace • Take your time
                         </span>
                       )}
@@ -582,7 +540,7 @@ export const PlannerPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleOpenEdit(task)}
-                    className="text-[#625F78] hover:text-[#25233B] p-2 rounded-button hover:bg-[#F7F6FB] transition-colors"
+                    className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)] p-2 rounded-button hover:bg-[var(--color-bg)] transition-colors"
                     aria-label={`Edit task: ${task.title}`}
                   >
                     <Edit3 className="w-4 h-4" />
@@ -591,7 +549,7 @@ export const PlannerPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleDelete(task.id)}
-                    className="text-[#8E8AA7] hover:text-red-600 p-2 rounded-button hover:bg-red-50 transition-colors"
+                    className="text-[var(--color-text-muted)] hover:text-[var(--color-danger-text)] p-2 rounded-button hover:bg-[var(--color-danger-soft)] transition-colors"
                     aria-label={`Delete task: ${task.title}`}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -603,7 +561,7 @@ export const PlannerPage: React.FC = () => {
         )}
       </div>
 
-      {/* Stage 1: Edit Task Modal Dialog */}
+      {/* Edit Task Modal Dialog */}
       <Dialog
         isOpen={Boolean(editingTask)}
         onClose={() => setEditingTask(null)}
@@ -613,7 +571,7 @@ export const PlannerPage: React.FC = () => {
       >
         <form onSubmit={handleSaveEdit} className="space-y-4 mt-3">
           <div>
-            <label htmlFor="edit-task-title" className="block text-xs font-semibold text-[#625F78] mb-1">
+            <label htmlFor="edit-task-title" className="block text-sm font-semibold text-[var(--color-text-secondary)] mb-1">
               Task Focus
             </label>
             <input
@@ -622,20 +580,20 @@ export const PlannerPage: React.FC = () => {
               required
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+              className="w-full px-3.5 py-2.5 rounded-input border border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-main)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="edit-task-duration" className="block text-xs font-semibold text-[#625F78] mb-1">
+              <label htmlFor="edit-task-duration" className="block text-sm font-semibold text-[var(--color-text-secondary)] mb-1">
                 Estimated duration
               </label>
               <select
                 id="edit-task-duration"
                 value={editMinutes}
                 onChange={(e) => setEditMinutes(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                className="w-full px-3.5 py-2.5 rounded-input border border-[var(--color-border)] text-sm text-[var(--color-text-main)] bg-[var(--color-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
               >
                 <option value={15}>15 mins (Quick review)</option>
                 <option value={25}>25 mins (Pomodoro block)</option>
@@ -645,14 +603,14 @@ export const PlannerPage: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="edit-task-category" className="block text-xs font-semibold text-[#625F78] mb-1">
+              <label htmlFor="edit-task-category" className="block text-sm font-semibold text-[var(--color-text-secondary)] mb-1">
                 Category
               </label>
               <select
                 id="edit-task-category"
                 value={editCategory}
                 onChange={(e) => setEditCategory(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                className="w-full px-3.5 py-2.5 rounded-input border border-[var(--color-border)] text-sm text-[var(--color-text-main)] bg-[var(--color-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
               >
                 <option value="Study">Study</option>
                 <option value="Reading">Reading</option>
@@ -663,25 +621,11 @@ export const PlannerPage: React.FC = () => {
             </div>
           </div>
 
-          <p className="text-[11px] text-[#8E8AA7]">
-            Note: Task edits update your active session view. Backend PATCH persistence endpoint is coordinated with the database workstream.
-          </p>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-[#E8E6F1]">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditingTask(null)}
-            >
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--color-border)]">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setEditingTask(null)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              isLoading={isSavingEdit}
-            >
+            <Button type="submit" variant="primary" size="sm" isLoading={isSavingEdit}>
               Save Changes
             </Button>
           </div>
@@ -689,13 +633,13 @@ export const PlannerPage: React.FC = () => {
       </Dialog>
 
       {/* Reminder & Pacing Notice */}
-      <div className="flex items-start gap-2.5 p-4 rounded-card bg-[#F7F6FB] border border-[#E8E6F1] text-xs text-[#625F78]">
-        <Info className="w-4 h-4 text-[#5554B8] shrink-0 mt-0.5" />
+      <div className="flex items-start gap-2.5 p-4 rounded-card bg-[var(--color-surface-subtle)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)]">
+        <Info className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-1" />
         <div className="space-y-1">
           <p>
-            <strong>Intentional in-app pacing:</strong> Calmspace provides gentle in-app pacing suggestions during active study sessions according to your settings ({settings?.reminder_interval_minutes || 45} mins).
+            <strong className="text-[var(--color-text-main)]">Intentional in-app pacing:</strong> Calmspace provides gentle in-app pacing suggestions during active study sessions according to your settings ({settings?.reminder_interval_minutes || 45} mins).
           </p>
-          <p className="text-[#8E8AA7]">
+          <p className="text-[var(--color-text-muted)]">
             We respect your attention: no external push notifications, no browser alerts when the tab is closed, and zero productivity guilt.
           </p>
         </div>

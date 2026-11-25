@@ -4,11 +4,6 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { LoadingState } from '../components/ui/LoadingState';
-
-/** Lazy-load the Three.js mascot so it never blocks the initial paint */
-const BlobScene = lazy(() =>
-  import('../components/mascot/BlobScene').then((m) => ({ default: m.BlobScene }))
-);
 import {
   HeartPulse,
   Smile,
@@ -22,7 +17,6 @@ import {
   Calendar,
   Phone,
   AlertCircle,
-  ExternalLink,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -35,6 +29,11 @@ import {
 import { api } from '../services/api';
 import { InsightSummary, CheckInRecord, UserSettings } from '../types';
 import { usePrivacyModal } from '../context/PrivacyModalContext';
+
+/** Lazy-load the Three.js mascot so it never blocks the initial paint */
+const BlobScene = lazy(() =>
+  import('../components/mascot/BlobScene').then((m) => ({ default: m.BlobScene }))
+);
 
 export const OverviewPage: React.FC = () => {
   const { openPrivacyModal } = usePrivacyModal();
@@ -78,7 +77,6 @@ export const OverviewPage: React.FC = () => {
           setLoadError(true);
         }
       } catch {
-        // Suppress detailed error objects from client logs to protect session and network privacy
         setLoadError(true);
       } finally {
         setLoading(false);
@@ -111,17 +109,17 @@ export const OverviewPage: React.FC = () => {
       {loadError && (
         <div
           role="status"
-          className="p-3.5 rounded-card bg-[#FDF8F0] border border-[#E8CEA5] text-[#7A4D05] flex items-center justify-between gap-3 text-xs"
+          className="p-3.5 rounded-card bg-[var(--color-amber-light)] border border-[var(--color-amber-border)] text-[var(--color-amber-text)] flex items-center justify-between gap-3 text-sm"
         >
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-[#7A4D05]" />
+            <AlertCircle className="w-4 h-4 shrink-0" />
             <span>
               Unable to reach the server. Verified helpline contacts remain accessible below.
             </span>
           </div>
           <Link
             to="/support"
-            className="font-semibold underline hover:text-[#5554B8] shrink-0"
+            className="font-semibold underline hover:text-[var(--color-primary)] shrink-0"
           >
             Support directory
           </Link>
@@ -129,21 +127,21 @@ export const OverviewPage: React.FC = () => {
       )}
 
       {/* Editorial Welcome Header — CTA button first on mobile */}
-      <section className="bg-gradient-to-r from-[var(--color-lavender-soft)] via-[var(--color-bg)] to-[var(--color-peach-soft)]/20 p-6 sm:p-8 rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-[var(--shadow-soft)]">
-        {/* Primary CTA: rendered at the top so it's immediately visible without scrolling */}
+      <section className="bg-gradient-to-r from-[var(--color-lavender-soft)] via-[var(--color-bg)] to-[var(--color-peach-soft)]/30 p-6 sm:p-8 rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-[var(--shadow-soft)]">
+        {/* Primary CTA */}
         <div className="mb-5 shrink-0 flex flex-col items-start gap-2">
           {isCheckedInToday ? (
             <div className="flex flex-col items-start gap-1.5">
-              <div className="flex items-center gap-2 bg-[var(--color-sage-soft)] text-[var(--color-sage-text)] px-4 py-2 rounded-full text-xs font-semibold border border-[var(--color-sage-border)]">
+              <div className="flex items-center gap-2 bg-[var(--color-sage-soft)] text-[var(--color-sage-text)] px-4 py-2 rounded-full text-sm font-semibold border border-[var(--color-sage-border)]">
                 <ShieldCheck className="w-4 h-4" />
                 <span>Today's check-in complete</span>
               </div>
               <Link
                 to="/checkin/result"
-                className="text-xs font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] flex items-center gap-1"
+                className="text-sm font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] flex items-center gap-1"
               >
                 <span>View today's summary</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           ) : (
@@ -158,7 +156,7 @@ export const OverviewPage: React.FC = () => {
               </Button>
             </Link>
           )}
-          <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] flex-wrap">
             <span>Takes ~60 seconds · Your wellbeing check-in starts here</span>
             <span>·</span>
             <button
@@ -166,7 +164,7 @@ export const OverviewPage: React.FC = () => {
               onClick={openPrivacyModal}
               className="text-[var(--color-primary)] font-semibold hover:underline inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)] rounded"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#245532]" />
+              <ShieldCheck className="w-4 h-4 text-[var(--color-sage-text)]" />
               <span>Privacy & Data Inventory</span>
             </button>
           </div>
@@ -198,18 +196,19 @@ export const OverviewPage: React.FC = () => {
       {/* Quick Human Support Bar */}
       <section
         aria-label="Immediate Crisis & Support Contacts"
-        className="p-4 rounded-card bg-white border border-[#E8E6F1] shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        className="p-4 rounded-card bg-[var(--color-surface)] border border-[var(--color-border)] shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3"
       >
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-[#E9E7FB] text-[#5554B8] flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-[var(--color-lavender-soft)] text-[var(--color-primary)] flex items-center justify-center shrink-0">
             <Phone className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-xs font-bold text-[#25233B] block">
+            <span className="text-sm font-bold text-[var(--color-text-main)] block">
               Immediate Human Support Ready 24/7
             </span>
-            <span className="text-[11px] text-[#625F78]">
-              Tele-MANAS: <strong className="text-[#25233B]">14416</strong> • Emergency: <strong className="text-[#25233B]">112</strong> • Free & confidential
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              Tele-MANAS: <strong className="text-[var(--color-text-main)]">14416</strong> • Emergency:{' '}
+              <strong className="text-[var(--color-text-main)]">112</strong> • Free & confidential
             </span>
           </div>
         </div>
@@ -217,16 +216,16 @@ export const OverviewPage: React.FC = () => {
         <div className="flex items-center gap-2 shrink-0">
           <a
             href="tel:14416"
-            className="text-xs font-semibold px-3 py-1.5 rounded-button bg-[#E9E7FB] text-[#5554B8] hover:bg-[#DCD8F7] transition-colors"
+            className="text-sm font-semibold px-3.5 py-2 rounded-button bg-[var(--color-lavender-soft)] text-[var(--color-primary)] hover:bg-[var(--color-lavender-border)] transition-colors"
           >
             Call 14416
           </a>
           <Link
             to="/support"
-            className="text-xs font-semibold px-3 py-1.5 rounded-button bg-white border border-[#E8E6F1] text-[#25233B] hover:bg-[#F7F6FB] transition-colors flex items-center gap-1"
+            className="text-sm font-semibold px-3.5 py-2 rounded-button bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-main)] hover:bg-[var(--color-bg)] transition-colors flex items-center gap-1"
           >
             <span>Full directory</span>
-            <ArrowRight className="w-3 h-3" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </section>
@@ -234,14 +233,14 @@ export const OverviewPage: React.FC = () => {
       {/* FIRST-TIME STUDENT EMPTY STATE */}
       {hasNoCheckins ? (
         <Card padding="lg" className="text-center py-12 space-y-4">
-          <div className="w-12 h-12 rounded-full bg-[#E9E7FB] text-[#5554B8] flex items-center justify-center mx-auto shadow-subtle">
+          <div className="w-12 h-12 rounded-full bg-[var(--color-lavender-soft)] text-[var(--color-primary)] flex items-center justify-center mx-auto shadow-subtle">
             <HeartPulse className="w-6 h-6" />
           </div>
           <div className="max-w-md mx-auto space-y-1">
-            <h2 className="text-lg font-bold text-[#25233B]">
+            <h2 className="text-lg font-bold text-[var(--color-text-main)]">
               No check-ins yet.
             </h2>
-            <p className="text-sm text-[#625F78] leading-relaxed">
+            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
               Your first one takes about a minute. We'll help you track your sleep, stress, and mood patterns gently over time without clinical diagnoses.
             </p>
           </div>
@@ -255,7 +254,7 @@ export const OverviewPage: React.FC = () => {
               variant="outline"
               size="md"
               onClick={openPrivacyModal}
-              leftIcon={<ShieldCheck className="w-4 h-4 text-[#245532]" />}
+              leftIcon={<ShieldCheck className="w-4 h-4 text-[var(--color-sage-text)]" />}
             >
               Review Privacy & Data Inventory
             </Button>
@@ -264,59 +263,58 @@ export const OverviewPage: React.FC = () => {
       ) : (
         /* DASHBOARD SUMMARY GRIDS */
         <>
-          {/* Three Compact Summary Cards: Mood, Sleep, Stress */}
           <section className="grid grid-cols-1 sm:grid-cols-3 gap-4" aria-label="Recent wellbeing summaries">
             {/* Mood Card */}
             <Card padding="md" className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#625F78] flex items-center gap-1.5">
-                  <Smile className="w-4 h-4 text-[#5554B8]" />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                  <Smile className="w-4 h-4 text-[var(--color-primary)]" />
                   <span>Recent Mood</span>
                 </span>
                 {latestCheckin && <Badge route={latestCheckin.route} />}
               </div>
-              <div className="text-2xl font-bold text-[#25233B]">
+              <div className="text-2xl font-bold text-[var(--color-text-main)]">
                 {latestCheckin ? `${latestCheckin.mood} / 5` : '—'}
               </div>
-              <p className="text-xs text-[#625F78]">
+              <p className="text-sm text-[var(--color-text-secondary)]">
                 {insights ? `Averaged ${insights.average_mood} this week` : 'Logged recently'}
               </p>
             </Card>
 
             {/* Sleep Card */}
             <Card padding="md" className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#625F78] flex items-center gap-1.5">
-                  <Moon className="w-4 h-4 text-[#5554B8]" />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                  <Moon className="w-4 h-4 text-[var(--color-primary)]" />
                   <span>Sleep Rest</span>
                 </span>
-                <span className="text-xs text-[#245532] font-medium bg-[#DCE9DF] px-2 py-0.5 rounded-full">
+                <span className="text-xs text-[var(--color-sage-text)] font-medium bg-[var(--color-sage-soft)] px-2.5 py-0.5 rounded-full">
                   {latestCheckin && latestCheckin.sleep_hours >= 6 ? 'Adequate' : 'Light'}
                 </span>
               </div>
-              <div className="text-2xl font-bold text-[#25233B]">
+              <div className="text-2xl font-bold text-[var(--color-text-main)]">
                 {latestCheckin ? `${latestCheckin.sleep_hours.toFixed(1)} hrs` : '—'}
               </div>
-              <p className="text-xs text-[#625F78]">
+              <p className="text-sm text-[var(--color-text-secondary)]">
                 {insights ? `Avg ${insights.average_sleep} hrs recently` : 'Rest duration'}
               </p>
             </Card>
 
             {/* Stress Card */}
             <Card padding="md" className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#625F78] flex items-center gap-1.5">
-                  <Activity className="w-4 h-4 text-[#7A4D05]" />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-[var(--color-amber-text)]" />
                   <span>Stress Pressure</span>
                 </span>
-                <span className="text-xs text-[#7A4D05] font-medium bg-[#F6E6CC] px-2 py-0.5 rounded-full">
+                <span className="text-xs text-[var(--color-amber-text)] font-medium bg-[var(--color-amber-soft)] px-2.5 py-0.5 rounded-full">
                   {latestCheckin && latestCheckin.stress <= 2 ? 'Low' : 'Noticeable'}
                 </span>
               </div>
-              <div className="text-2xl font-bold text-[#25233B]">
+              <div className="text-2xl font-bold text-[var(--color-text-main)]">
                 {latestCheckin ? `${latestCheckin.stress} / 5` : '—'}
               </div>
-              <p className="text-xs text-[#625F78]">
+              <p className="text-sm text-[var(--color-text-secondary)]">
                 {insights ? `Avg ${insights.average_stress} stress rating` : 'Academic load'}
               </p>
             </Card>
@@ -326,21 +324,21 @@ export const OverviewPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Weekly Mood Trend Rechart */}
             <Card padding="lg" className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h2 className="text-base font-bold text-[#25233B]">
+                  <h2 className="text-base font-bold text-[var(--color-text-main)]">
                     Weekly Mood Pattern
                   </h2>
-                  <p className="text-xs text-[#625F78] mt-0.5">
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
                     Gentle snapshot of your daily baseline over the last 7 entries.
                   </p>
                 </div>
                 <Link
                   to="/insights"
-                  className="text-xs font-semibold text-[#5554B8] hover:text-[#4645A7] flex items-center gap-1"
+                  className="text-sm font-semibold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] flex items-center gap-1 shrink-0"
                 >
                   <span>Detailed insights</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 
@@ -350,47 +348,48 @@ export const OverviewPage: React.FC = () => {
                     <LineChart data={insights.mood_trend}>
                       <XAxis
                         dataKey="day"
-                        stroke="#8E8AA7"
-                        fontSize={11}
+                        stroke="var(--color-chart-axis)"
+                        fontSize={12}
                         tickLine={false}
-                        axisLine={{ stroke: '#E8E6F1' }}
+                        axisLine={{ stroke: 'var(--color-border)' }}
                       />
                       <YAxis
                         domain={[1, 5]}
                         ticks={[1, 2, 3, 4, 5]}
-                        stroke="#8E8AA7"
-                        fontSize={11}
+                        stroke="var(--color-chart-axis)"
+                        fontSize={12}
                         tickLine={false}
-                        axisLine={{ stroke: '#E8E6F1' }}
+                        axisLine={{ stroke: 'var(--color-border)' }}
                       />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: '#FFFFFF',
-                          borderColor: '#E8E6F1',
+                          backgroundColor: 'var(--color-surface)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text-main)',
                           borderRadius: '12px',
-                          boxShadow: '0 4px 20px rgba(91,91,214,0.08)',
-                          fontSize: '12px',
+                          boxShadow: 'var(--shadow-soft)',
+                          fontSize: '13px',
                         }}
                       />
                       <Line
                         type="monotone"
                         dataKey="mood"
-                        stroke="#5554B8"
+                        stroke="var(--color-primary)"
                         strokeWidth={2.5}
-                        dot={{ r: 4, fill: '#5554B8', strokeWidth: 2, stroke: '#FFFFFF' }}
-                        activeDot={{ r: 6, fill: '#4645A7' }}
+                        dot={{ r: 4, fill: 'var(--color-primary)', strokeWidth: 2, stroke: 'var(--color-surface)' }}
+                        activeDot={{ r: 6, fill: 'var(--color-primary-hover)' }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                   {insights.plain_summary && (
-                    <p className="text-xs text-[#625F78] text-center mt-2 italic">
+                    <p className="text-sm text-[var(--color-text-secondary)] text-center mt-2 italic">
                       "{insights.plain_summary}"
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="h-40 flex flex-col items-center justify-center text-xs text-[#625F78] text-center p-4 bg-[#F7F6FB] rounded-button border border-[#E8E6F1]/50">
-                  <Calendar className="w-5 h-5 text-[#8E8AA7] mb-1.5" />
+                <div className="h-40 flex flex-col items-center justify-center text-sm text-[var(--color-text-secondary)] text-center p-4 bg-[var(--color-bg)] rounded-button border border-[var(--color-border)]">
+                  <Calendar className="w-5 h-5 text-[var(--color-text-muted)] mb-1.5" />
                   <span>Complete 2 or more daily check-ins to view your personal trend graph.</span>
                 </div>
               )}
@@ -399,21 +398,21 @@ export const OverviewPage: React.FC = () => {
             {/* Next Break Reminder & Balance Card */}
             <Card padding="lg" className="space-y-4 flex flex-col justify-between">
               <div>
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#5554B8] mb-2">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)] mb-2">
                   <Coffee className="w-4 h-4" />
                   <span>Pacing & Breaks</span>
                 </div>
-                <h2 className="text-base font-bold text-[#25233B]">
+                <h2 className="text-base font-bold text-[var(--color-text-main)]">
                   Next mindful breather
                 </h2>
-                <p className="text-xs text-[#625F78] mt-1 leading-relaxed">
+                <p className="text-sm text-[var(--color-text-secondary)] mt-1 leading-relaxed">
                   Stepping away from computer screens every {settings.reminder_interval_minutes || 45} minutes protects your focus from mental fatigue.
                 </p>
               </div>
 
-              <div className="p-4 rounded-button bg-[#F7F6FB] border border-[#E8E6F1] my-2">
-                <p className="text-xs font-medium text-[#25233B] mb-2">
-                  {breakTaken ? "✓ Breather logged! Hydrate and return when ready." : "Would you like to take a short break right now?"}
+              <div className="p-4 rounded-button bg-[var(--color-bg)] border border-[var(--color-border)] my-2">
+                <p className="text-sm font-medium text-[var(--color-text-main)] mb-2.5">
+                  {breakTaken ? '✓ Breather logged! Hydrate and return when ready.' : 'Would you like to take a short break right now?'}
                 </p>
                 <Button
                   variant={breakTaken ? 'outline' : 'secondary'}
@@ -425,13 +424,13 @@ export const OverviewPage: React.FC = () => {
                 </Button>
               </div>
 
-              <div className="pt-2 border-t border-[#F0EFF7] flex items-center justify-between text-xs text-[#625F78]">
-                <Link to="/planner" className="hover:text-[#5554B8] flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#5554B8] rounded">
-                  <Calendar className="w-3.5 h-3.5" />
+              <div className="pt-2 border-t border-[var(--color-border-light)] flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
+                <Link to="/planner" className="hover:text-[var(--color-primary)] flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)] rounded">
+                  <Calendar className="w-4 h-4" />
                   <span>Open study planner</span>
                 </Link>
-                <Link to="/support" className="hover:text-[#5554B8] flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#5554B8] rounded">
-                  <HelpCircle className="w-3.5 h-3.5" />
+                <Link to="/support" className="hover:text-[var(--color-primary)] flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)] rounded">
+                  <HelpCircle className="w-4 h-4" />
                   <span>Get human help</span>
                 </Link>
               </div>

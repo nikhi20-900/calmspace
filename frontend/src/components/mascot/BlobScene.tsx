@@ -449,7 +449,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
             </div>
             <div className="w-6 h-2 border-b-2 border-[#6E689C] rounded-full" />
           </div>
-          <span className="text-xs text-[#625F78] mt-4 font-medium">Calmspace Blob</span>
+          <span className="text-sm text-[var(--color-text-secondary)] mt-4 font-medium">Calmspace Blob</span>
         </div>
       )}
     </div>

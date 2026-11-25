@@ -8,10 +8,10 @@
 @layer base {
   html {
     font-family: var(--font-sans);
-    background-color: #F7F6FB;
-    color: #25233B;
+    background-color: var(--color-bg);
+    color: var(--color-text-main);
     line-height: var(--line-height-body);
-    font-size: 14px; /* 14px body minimum */
+    font-size: 16px; /* Preserve 1rem = 16px so Tailwind text-sm = 14px */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -20,8 +20,10 @@
     min-height: 100vh;
     margin: 0;
     padding: 0;
-    background-color: #F7F6FB;
-    color: #25233B;
+    background-color: var(--color-bg);
+    color: var(--color-text-main);
+    font-size: var(--font-size-body-min); /* 14px body minimum */
+    line-height: var(--line-height-body);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -32,7 +34,8 @@
   }
 
   /* Muted text at minimum 4.5:1 contrast */
-  .text-muted, [class*="text-muted"] {
+  .text-muted,
+  .text-text-muted {
     color: var(--color-text-muted);
   }
 
@@ -54,10 +57,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D8D5E5;
+  background: var(--color-scrollbar);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #B6B2CB;
+  background: var(--color-scrollbar-hover);
 }

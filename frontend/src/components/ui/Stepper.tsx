@@ -52,12 +52,12 @@ export const Stepper: React.FC<StepperProps> = ({
 
   return (
     <div
-      className="w-full flex flex-col items-center justify-center p-4 bg-white rounded-card border border-[#E8E6F1] focus-within:ring-2 focus-within:ring-[#5554B8]"
+      className="w-full flex flex-col items-center justify-center p-4 bg-[var(--color-surface)] rounded-card border border-[var(--color-border)] focus-within:ring-2 focus-within:ring-[var(--color-primary)]"
       role="group"
       aria-label={label}
     >
-      <div className="flex items-center gap-2 text-xs font-medium text-[#625F78] mb-3">
-        <Moon className="w-4 h-4 text-[#5554B8]" />
+      <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+        <Moon className="w-4 h-4 text-[var(--color-primary)]" />
         <span>{label} (0.0 to 24.0 hours)</span>
       </div>
 
@@ -76,16 +76,16 @@ export const Stepper: React.FC<StepperProps> = ({
           onClick={handleDecrement}
           disabled={safeValue <= min}
           aria-label="Decrease sleep hours by 0.5"
-          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-button bg-[#F7F6FB] border border-[#E8E6F1] text-[#25233B] hover:bg-[#E9E7FB] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-button bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-main)] hover:bg-[var(--color-lavender-soft)] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
         >
           <Minus className="w-5 h-5" />
         </button>
 
         <div className="text-center min-w-[120px]">
-          <span className="text-3xl font-bold text-[#25233B] tracking-tight">
+          <span className="text-3xl font-bold text-[var(--color-text-main)] tracking-tight">
             {safeValue.toFixed(1)}
           </span>
-          <span className="block text-xs font-medium text-[#625F78] mt-0.5">
+          <span className="block text-sm font-medium text-[var(--color-text-secondary)] mt-0.5">
             {unit} of sleep
           </span>
         </div>
@@ -95,30 +95,30 @@ export const Stepper: React.FC<StepperProps> = ({
           onClick={handleIncrement}
           disabled={safeValue >= max}
           aria-label="Increase sleep hours by 0.5"
-          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-button bg-[#F7F6FB] border border-[#E8E6F1] text-[#25233B] hover:bg-[#E9E7FB] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-button bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-main)] hover:bg-[var(--color-lavender-soft)] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
         >
           <Plus className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="mt-3 text-xs text-[#625F78] text-center" aria-live="polite">
+      <div className="mt-3 text-sm text-[var(--color-text-secondary)] text-center" aria-live="polite">
         {safeValue < 4.0 && (
-          <span className="text-[#8E4A00] font-medium bg-[#F6E6CC] px-2.5 py-0.5 rounded-full inline-block">
+          <span className="text-[var(--color-amber-text)] font-medium bg-[var(--color-amber-soft)] px-3 py-1 rounded-full inline-block">
             Very short rest — prioritize pacing today
           </span>
         )}
         {safeValue >= 4.0 && safeValue < 6.0 && (
-          <span className="text-[#7A4D05] font-medium bg-[#FBF0EA] px-2.5 py-0.5 rounded-full inline-block">
+          <span className="text-[var(--color-amber-text)] font-medium bg-[var(--color-amber-light)] border border-[var(--color-amber-border)] px-3 py-1 rounded-full inline-block">
             Lighter rest — take gentle study breaks
           </span>
         )}
         {safeValue >= 6.0 && safeValue <= 9.0 && (
-          <span className="text-[#245532] font-medium bg-[#DCE9DF] px-2.5 py-0.5 rounded-full inline-block">
+          <span className="text-[var(--color-sage-text)] font-medium bg-[var(--color-sage-soft)] px-3 py-1 rounded-full inline-block">
             Healthy restorative range
           </span>
         )}
         {safeValue > 9.0 && (
-          <span className="text-[#5554B8] font-medium bg-[#E9E7FB] px-2.5 py-0.5 rounded-full inline-block">
+          <span className="text-[var(--color-primary)] font-medium bg-[var(--color-lavender-soft)] px-3 py-1 rounded-full inline-block">
             Extended recovery rest
           </span>
         )}

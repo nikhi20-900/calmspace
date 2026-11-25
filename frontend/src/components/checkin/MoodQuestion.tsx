@@ -26,22 +26,22 @@ export const MoodQuestion: React.FC<MoodQuestionProps> = ({ value, onChange }) =
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-[#E9E7FB] flex items-center justify-center text-[#5554B8]">
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-lg bg-[var(--color-lavender-soft)] flex items-center justify-center text-[var(--color-primary)] shrink-0">
           <Smile className="w-4 h-4" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-[#25233B]">
+          <h2 className="text-lg font-semibold text-[var(--color-text-main)]">
             How has your mood felt today?
           </h2>
-          <p className="text-sm text-[#4D4A66]">
+          <p className="text-sm text-[var(--color-text-secondary)]">
             Select the rating that feels closest to your present state.
           </p>
         </div>
       </div>
 
       {value === null && (
-        <p className="text-sm font-medium text-[#7A4D05]" role="status">
+        <p className="text-sm font-medium text-[var(--color-amber-text)]" role="status">
           Tap a rating below to continue.
         </p>
       )}
@@ -52,6 +52,7 @@ export const MoodQuestion: React.FC<MoodQuestionProps> = ({ value, onChange }) =
           onChange={onChange}
           labels={labels}
           labelDescriptions={descriptions}
+          ariaLabel="Mood rating scale from 1 (Very low) to 5 (Great)"
         />
       </div>
     </div>

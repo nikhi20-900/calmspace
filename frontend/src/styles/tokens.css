@@ -32,14 +32,21 @@
 
 /* ─── Light theme (default) ─────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
+
   /* Surfaces */
   --color-bg: #F7F6FB;
   --color-surface: #FFFFFF;
+  --color-surface-subtle: #FAF9FD;
+  --color-overlay: rgba(37, 35, 59, 0.45);
 
-  /* Brand */
+  /* Brand (text/icon ink vs solid button fills with #FFFFFF text) */
   --color-primary: #5554B8;
   --color-primary-hover: #4645A7;
   --color-primary-active: #3D3C94;
+  --color-primary-fill: #5554B8;
+  --color-primary-fill-hover: #4645A7;
+  --color-primary-fill-active: #3D3C94;
   --color-primary-light: #E9E7FB;
   --color-primary-subtle: #F2F1FD;
 
@@ -63,15 +70,31 @@
   --color-amber-text: #7A4D05;
   --color-amber-border: #E8CEA5;
 
-  /* Typography — WCAG AA: text-secondary ≥ 4.5:1 on white */
-  --color-text-main: #25233B;
-  --color-text-secondary: #4D4A66;   /* was #625F78 (3.9:1) → lifted to 4.6:1 */
-  --color-text-muted: #6B6886;       /* was #8E8AA7 (2.8:1) → lifted to 4.5:1 */
+  --color-danger-soft: #FEF2F2;
+  --color-danger-text: #B91C1C;
+  --color-danger-border: #FECACA;
 
-  /* Borders */
+  --color-urgent-bg: #25233B;
+  --color-urgent-hover: #1A192A;
+  --color-urgent-text: #FFFFFF;
+  --color-urgent-border: #3A3855;
+
+  /* Typography — WCAG AA: text-secondary >= 4.5:1 on surface & bg */
+  --color-text-main: #25233B;
+  --color-text-secondary: #4D4A66;
+  --color-text-muted: #6B6886;
+  --color-text-light: #7B7796;
+
+  /* Borders & Scrollbar */
   --color-border: #E8E6F1;
   --color-border-light: #F1EFF7;
   --color-border-dark: #D4D0E3;
+  --color-scrollbar: #D8D5E5;
+  --color-scrollbar-hover: #B6B2CB;
+
+  /* Charts */
+  --color-chart-grid: #F0EFF7;
+  --color-chart-axis: #6B6886;
 
   /* Shape */
   --radius-card: 18px;
@@ -82,6 +105,7 @@
   --shadow-soft: 0 4px 24px rgba(91, 91, 214, 0.06);
   --shadow-hover: 0 8px 32px rgba(91, 91, 214, 0.10);
   --shadow-subtle: 0 2px 8px rgba(91, 91, 214, 0.03);
+  --shadow-elevation: 0 12px 40px rgba(91, 91, 214, 0.08);
 
   /* Typography */
   --font-sans: 'Satoshi', 'General Sans', system-ui, -apple-system, sans-serif;
@@ -90,8 +114,135 @@
   --font-size-body-min: 14px;
 }
 
-/* ─── Dark theme ─────────────────────────────────────────────────────────────
-   Disabled until all component surfaces (bg-white, Card, etc.) are ported.
-   Re-enable once every hardcoded bg-white/bg-[#FFFFFF] uses var(--color-surface).
-   ─────────────────────────────────────────────────────────────────────────── */
-/* @media (prefers-color-scheme: dark) { ... } */
+/* ─── Dark theme (explicit [data-theme="dark"] OR OS preference when system) ── */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #11101C;
+  --color-surface: #1A1928;
+  --color-surface-subtle: #232236;
+  --color-overlay: rgba(8, 7, 15, 0.72);
+
+  --color-primary: #A6A5F5;
+  --color-primary-hover: #BDBCF9;
+  --color-primary-active: #D1D0FC;
+  --color-primary-fill: #5D5CC4;
+  --color-primary-fill-hover: #5554B8;
+  --color-primary-fill-active: #4645A7;
+  --color-primary-light: #282747;
+  --color-primary-subtle: #201F3A;
+
+  --color-lavender-soft: #282747;
+  --color-lavender-light: #201F3A;
+  --color-lavender-border: #3E3C66;
+  --color-mascot-lavender: #8E84E8;
+
+  --color-peach-soft: #3D2B22;
+  --color-peach-light: #2B1F19;
+  --color-peach-border: #634739;
+
+  --color-sage-soft: #1A3323;
+  --color-sage-light: #15281C;
+  --color-sage-text: #8BE0A4;
+  --color-sage-border: #2C543B;
+
+  --color-amber-soft: #332512;
+  --color-amber-light: #261C0E;
+  --color-amber-text: #F7CA79;
+  --color-amber-border: #59411F;
+
+  --color-danger-soft: #38191D;
+  --color-danger-text: #FCA5A5;
+  --color-danger-border: #7F1D1D;
+
+  --color-urgent-bg: #2E2C47;
+  --color-urgent-hover: #3B395B;
+  --color-urgent-text: #F1F0FA;
+  --color-urgent-border: #4D4A73;
+
+  --color-text-main: #F1F0FA;
+  --color-text-secondary: #C7C4DE;
+  --color-text-muted: #A8A4C4;
+  --color-text-light: #8C88A8;
+
+  --color-border: #2E2C42;
+  --color-border-light: #252438;
+  --color-border-dark: #454263;
+  --color-scrollbar: #383552;
+  --color-scrollbar-hover: #4F4B73;
+
+  --color-chart-grid: #252438;
+  --color-chart-axis: #A8A4C4;
+
+  --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-elevation: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --color-bg: #11101C;
+    --color-surface: #1A1928;
+    --color-surface-subtle: #232236;
+    --color-overlay: rgba(8, 7, 15, 0.72);
+
+    --color-primary: #A6A5F5;
+    --color-primary-hover: #BDBCF9;
+    --color-primary-active: #D1D0FC;
+    --color-primary-fill: #5D5CC4;
+    --color-primary-fill-hover: #5554B8;
+    --color-primary-fill-active: #4645A7;
+    --color-primary-light: #282747;
+    --color-primary-subtle: #201F3A;
+
+    --color-lavender-soft: #282747;
+    --color-lavender-light: #201F3A;
+    --color-lavender-border: #3E3C66;
+    --color-mascot-lavender: #8E84E8;
+
+    --color-peach-soft: #3D2B22;
+    --color-peach-light: #2B1F19;
+    --color-peach-border: #634739;
+
+    --color-sage-soft: #1A3323;
+    --color-sage-light: #15281C;
+    --color-sage-text: #8BE0A4;
+    --color-sage-border: #2C543B;
+
+    --color-amber-soft: #332512;
+    --color-amber-light: #261C0E;
+    --color-amber-text: #F7CA79;
+    --color-amber-border: #59411F;
+
+    --color-danger-soft: #38191D;
+    --color-danger-text: #FCA5A5;
+    --color-danger-border: #7F1D1D;
+
+    --color-urgent-bg: #2E2C47;
+    --color-urgent-hover: #3B395B;
+    --color-urgent-text: #F1F0FA;
+    --color-urgent-border: #4D4A73;
+
+    --color-text-main: #F1F0FA;
+    --color-text-secondary: #C7C4DE;
+    --color-text-muted: #A8A4C4;
+    --color-text-light: #8C88A8;
+
+    --color-border: #2E2C42;
+    --color-border-light: #252438;
+    --color-border-dark: #454263;
+    --color-scrollbar: #383552;
+    --color-scrollbar-hover: #4F4B73;
+
+    --color-chart-grid: #252438;
+    --color-chart-axis: #A8A4C4;
+
+    --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.35);
+    --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-elevation: 0 12px 40px rgba(0, 0, 0, 0.5);
+  }
+}

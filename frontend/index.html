@@ -11,10 +11,25 @@
     <meta property="og:image" content="/calmspace-mascot.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="/calmspace-mascot.jpg" />
-    
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('calmspace_theme_preference');
+          var root = document.documentElement;
+          if (pref === 'light' || pref === 'dark') {
+            root.setAttribute('data-theme', pref);
+            root.style.colorScheme = pref;
+          } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            root.style.colorScheme = 'dark';
+          } else {
+            root.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
     <title>Calmspace — Student Wellbeing Companion</title>
   </head>
-  <body class="bg-[#F7F6FB] text-[#25233B] antialiased selection:bg-[#E9E7FB] selection:text-[#5554B8]">
+  <body class="bg-[var(--color-bg)] text-[var(--color-text-main)] antialiased selection:bg-[var(--color-lavender-soft)] selection:text-[var(--color-primary)]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -7,7 +7,7 @@ export interface SleepQuestionProps {
   onChange: (val: number) => void;
 }
 
-/** Quick-pick sleep presets for thumb-friendly interaction */
+/** Quick-pick sleep presets for thumb-friendly interaction (all within 0-24h) */
 const SLEEP_PRESETS = [
   { label: '< 4 h', hours: 3.5 },
   { label: '5 h', hours: 5 },
@@ -22,38 +22,38 @@ export const SleepQuestion: React.FC<SleepQuestionProps> = ({ value, onChange })
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-[#DCE9DF] flex items-center justify-center text-[#245532]">
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-lg bg-[var(--color-sage-soft)] flex items-center justify-center text-[var(--color-sage-text)] shrink-0">
           <Moon className="w-4 h-4" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-[#25233B]">
+          <h2 className="text-lg font-semibold text-[var(--color-text-main)]">
             How much sleep did you get last night?
           </h2>
-          <p className="text-sm text-[#4D4A66]">
+          <p className="text-sm text-[var(--color-text-secondary)]">
             Quality rest plays a major role in mental clarity and nervous system balance.
           </p>
         </div>
       </div>
 
-      {/* Quick-pick chips */}
+      {/* Quick-pick chips aligned with active/default value */}
       <div>
-        <span className="block text-xs font-semibold uppercase tracking-wider text-[#4D4A66] mb-2">
+        <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
           Quick select
         </span>
         <div className="flex flex-wrap gap-2">
           {SLEEP_PRESETS.map((preset) => {
-            const isSelected = value !== null && Math.abs(value - preset.hours) < 0.01;
+            const isSelected = Math.abs(displayValue - preset.hours) < 0.01;
             return (
               <button
                 key={preset.label}
                 type="button"
                 onClick={() => onChange(preset.hours)}
                 aria-pressed={isSelected}
-                className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                className={`px-3.5 py-2 rounded-full text-sm font-semibold border transition-all min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
                   isSelected
-                    ? 'bg-[#5554B8] text-white border-[#5554B8]'
-                    : 'bg-white text-[#25233B] border-[#E8E6F1] hover:border-[#5554B8] hover:text-[#5554B8]'
+                    ? 'bg-[var(--color-primary-fill)] text-white border-[var(--color-primary-fill)]'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-main)] border-[var(--color-border)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
                 }`}
               >
                 {preset.label}
@@ -65,7 +65,7 @@ export const SleepQuestion: React.FC<SleepQuestionProps> = ({ value, onChange })
 
       {/* Fine-tune stepper */}
       <div className="pt-1">
-        <span className="block text-xs font-semibold uppercase tracking-wider text-[#4D4A66] mb-2">
+        <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
           Fine-tune
         </span>
         <Stepper

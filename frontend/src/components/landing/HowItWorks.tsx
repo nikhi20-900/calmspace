@@ -37,59 +37,57 @@ export const HowItWorks: React.FC = () => {
   ];
 
   return (
-    <section id="how-it-works" className="py-20 sm:py-28 bg-[#F7F6FB] border-t border-[#E8E6F1]">
+    <section id="how-it-works" className="py-20 sm:py-28 bg-[var(--color-bg)] border-t border-[var(--color-border)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#E9E7FB] text-xs font-semibold text-[#5554B8] uppercase tracking-wider mb-4">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-lavender-soft)] text-xs font-semibold text-[var(--color-primary)] uppercase tracking-wider mb-4">
             <Sparkles className="w-3.5 h-3.5" />
             <span>How Calmspace Works</span>
           </div>
-          <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold text-[#25233B] tracking-tight">
+          <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold text-[var(--color-text-main)] tracking-tight">
             Small steps count.
           </h2>
-          <p className="mt-4 text-lg text-[#625F78] leading-relaxed">
+          <p className="mt-4 text-lg text-[var(--color-text-secondary)] leading-relaxed">
             We designed Calmspace to feel like taking a slow, deep breath in a quiet room.
             No streaks to maintain, no algorithms ranking your productivity.
           </p>
         </div>
 
-        {/* 3 Step Cards */}
         <ScrollStagger className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {steps.map((step) => {
             const Icon = step.icon;
             return (
               <ScrollStaggerItem
                 key={step.num}
-                className="bg-white rounded-3xl p-8 border border-[#E8E6F1] shadow-subtle hover:shadow-card hover:border-[#DCD9F5] transition-all duration-300 flex flex-col justify-between"
+                className="bg-[var(--color-surface)] rounded-3xl p-8 border border-[var(--color-border)] shadow-subtle hover:shadow-card hover:border-[var(--color-lavender-border)] transition-all duration-300 flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-6">
-                    <span className="font-heading text-3xl font-extrabold text-[#5554B8]/30">
+                    <span className="font-heading text-3xl font-extrabold text-[var(--color-primary)]/40">
                       {step.num}
                     </span>
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#F2F1FD] text-[#5554B8] border border-[#E9E7FB]">
+                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary)] border border-[var(--color-lavender-border)]">
                       {step.duration}
                     </span>
                   </div>
 
-                  <div className="w-12 h-12 rounded-2xl bg-[#E9E7FB] text-[#5554B8] flex items-center justify-center mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--color-lavender-soft)] text-[var(--color-primary)] flex items-center justify-center mb-5">
                     <Icon className="w-6 h-6" />
                   </div>
 
-                  <h3 className="font-heading text-xl font-bold text-[#25233B] mb-3">
+                  <h3 className="font-heading text-xl font-bold text-[var(--color-text-main)] mb-3">
                     {step.title}
                   </h3>
 
-                  <p className="text-sm text-[#625F78] leading-relaxed mb-6">
+                  <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-6">
                     {step.description}
                   </p>
                 </div>
 
-                <div className="border-t border-[#F0EFF7] pt-5 space-y-2.5">
+                <div className="border-t border-[var(--color-border-light)] pt-5 space-y-2.5">
                   {step.highlights.map((h, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs text-[#25233B] font-medium">
-                      <CheckCircle2 className="w-4 h-4 text-[#5554B8] shrink-0" />
+                    <div key={i} className="flex items-center gap-2 text-sm text-[var(--color-text-main)] font-medium">
+                      <CheckCircle2 className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
                       <span>{h}</span>
                     </div>
                   ))}
@@ -99,15 +97,14 @@ export const HowItWorks: React.FC = () => {
           })}
         </ScrollStagger>
 
-        {/* Action Callout */}
         <div className="mt-14 text-center">
           <button
             type="button"
             onClick={() => navigate('/checkin')}
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-base font-semibold text-white bg-[#5554B8] hover:bg-[#4645A7] shadow-soft hover:shadow-card transition-all active:scale-98"
+            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-base font-semibold text-white bg-[var(--color-primary-fill)] hover:bg-[var(--color-primary-fill-hover)] shadow-soft hover:shadow-card transition-all active:scale-98"
           >
             <span>Start a 60-second check-in</span>
-            <ArrowRight className="w-4 h-4 text-[#E9E7FB]" />
+            <ArrowRight className="w-4 h-4 text-white/90" />
           </button>
         </div>
       </div>

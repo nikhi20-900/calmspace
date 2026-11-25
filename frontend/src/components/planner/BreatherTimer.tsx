@@ -21,7 +21,6 @@ export const BreatherTimer: React.FC<BreatherTimerProps> = ({
 
   const targetEndTimeRef = useRef<number | null>(null);
 
-  // Accurate countdown based on Date.now() elapsed time
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -77,81 +76,63 @@ export const BreatherTimer: React.FC<BreatherTimerProps> = ({
   const seconds = secondsLeft % 60;
   const formattedTime = `${minutes}:${seconds.toString().padStart(2, '0')}`;
   const progressRatio = (totalSeconds - secondsLeft) / totalSeconds;
-  const strokeDashoffset = 283 - 283 * progressRatio; // Circle radius 45 -> circumference ~282.7
+  const strokeDashoffset = 283 - 283 * progressRatio;
 
   return (
     <Card
       padding="lg"
-      className={`border border-[#D9D5F4] bg-gradient-to-br from-[#F5F4FD] via-white to-[#F4DCCB]/20 transition-all ${className}`}
+      className={`border border-[var(--color-lavender-border)] bg-gradient-to-br from-[var(--color-lavender-light)] via-[var(--color-surface)] to-[var(--color-peach-light)] transition-all ${className}`}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        {/* Left: Info & Breathing Guidance */}
         <div className="space-y-3 max-w-md">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#5554B8]">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
             <Coffee className="w-4 h-4" />
             <span>Mindful Breather</span>
           </div>
 
           <div>
-            <h2 className="text-lg font-bold text-[#25233B]">
+            <h2 className="text-lg font-bold text-[var(--color-text-main)]">
               Five-Minute Screen Pause
             </h2>
-            <p className="text-xs sm:text-sm text-[#625F78] leading-relaxed mt-1">
+            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mt-1">
               Step away from your keyboard, soften your gaze, or take a gentle sip of water. Small pauses restore mental clarity.
             </p>
           </div>
 
-          {/* Completion banner or subtle ambient guide */}
           {isCompleted ? (
             <div
               role="status"
-              className="p-3 rounded-card bg-[#DCE9DF] border border-[#BCD4C3] flex items-center gap-2.5 text-xs text-[#245532]"
+              className="p-3 rounded-card bg-[var(--color-sage-soft)] border border-[var(--color-sage-border)] flex items-center gap-2.5 text-sm text-[var(--color-sage-text)]"
             >
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-[#245532]" />
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>
                 <strong>Breather complete.</strong> Notice how your body feels. Ready to return gently, or take another moment?
               </span>
             </div>
           ) : (
-            <p className="text-[11px] text-[#8E8AA7]">
+            <p className="text-sm text-[var(--color-text-muted)]">
               Ambient visual timer • Breathe at your own natural, comfortable rhythm.
             </p>
           )}
         </div>
 
-        {/* Right: Circular Visual Pacing Timer & Controls */}
         <div className="flex flex-col items-center justify-center gap-4 shrink-0">
           <div className="relative w-36 h-36 flex items-center justify-center">
-            {/* Ambient decorative soft breathing glow */}
             <div
               aria-hidden="true"
-              className={`absolute inset-2 rounded-full bg-[#E9E7FB]/60 transition-transform duration-1000 ${
+              className={`absolute inset-2 rounded-full bg-[var(--color-lavender-soft)]/70 transition-transform duration-1000 ${
                 isRunning ? 'animate-pulse scale-105' : 'scale-100'
               }`}
-              style={{
-                transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
-              }}
+              style={{ transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)' }}
             />
 
-            {/* SVG Progress Ring */}
-            <svg
-              className="w-full h-full -rotate-90 transform"
-              viewBox="0 0 100 100"
-              aria-hidden="true"
-            >
+            <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100" aria-hidden="true">
+              <circle cx="50" cy="50" r="45" stroke="var(--color-border)" strokeWidth="6" fill="none" />
               <circle
                 cx="50"
                 cy="50"
                 r="45"
-                stroke="#E8E6F1"
-                strokeWidth="6"
-                fill="none"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                stroke="#5554B8"
+                stroke="var(--color-primary)"
                 strokeWidth="6"
                 fill="none"
                 strokeDasharray="283"
@@ -161,53 +142,36 @@ export const BreatherTimer: React.FC<BreatherTimerProps> = ({
               />
             </svg>
 
-            {/* Centered Digital Countdown */}
             <div className="absolute flex flex-col items-center justify-center select-none text-center">
               <span
                 role="timer"
                 aria-live="polite"
                 aria-label={`Breather countdown: ${formattedTime} remaining`}
-                className="text-2xl font-bold tracking-tight text-[#25233B]"
+                className="text-2xl font-bold tracking-tight text-[var(--color-text-main)]"
               >
                 {formattedTime}
               </span>
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-[#625F78]">
+              <span className="text-xs uppercase font-semibold tracking-wider text-[var(--color-text-secondary)]">
                 {isRunning ? 'Relaxing' : isCompleted ? 'Completed' : 'Paused'}
               </span>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-2">
             {!isRunning && !isCompleted && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleStart}
-                leftIcon={<Play className="w-3.5 h-3.5" />}
-              >
+              <Button variant="primary" size="sm" onClick={handleStart} leftIcon={<Play className="w-3.5 h-3.5" />}>
                 {secondsLeft < totalSeconds ? 'Resume' : 'Start 5 Mins'}
               </Button>
             )}
 
             {isRunning && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handlePause}
-                leftIcon={<Pause className="w-3.5 h-3.5" />}
-              >
+              <Button variant="secondary" size="sm" onClick={handlePause} leftIcon={<Pause className="w-3.5 h-3.5" />}>
                 Pause
               </Button>
             )}
 
             {isCompleted && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleRestart}
-                leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-              >
+              <Button variant="primary" size="sm" onClick={handleRestart} leftIcon={<Sparkles className="w-3.5 h-3.5" />}>
                 Take Another 5 Mins
               </Button>
             )}

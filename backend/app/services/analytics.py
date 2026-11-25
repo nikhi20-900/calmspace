@@ -51,6 +51,8 @@ def compute_session_insights(
     Enforces time window bounds (1 to 90 days).
     """
     engine = storage_engine or storage
+    if hasattr(engine, "cleanup_expired_records"):
+        engine.cleanup_expired_records(session_id)
     all_checkins: list[CheckInRecord] = engine.get_checkins(session_id)
 
     if not all_checkins:

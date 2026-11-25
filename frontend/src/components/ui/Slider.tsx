@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 
 export interface SliderProps {
   id?: string;
@@ -30,6 +30,7 @@ export const Slider: React.FC<SliderProps> = ({
   labelDescriptions,
   ariaLabel = 'Rating scale from 1 to 5',
 }) => {
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const steps: number[] = [];
   for (let i = min; i <= max; i += step) {
     steps.push(i);
@@ -38,20 +39,30 @@ export const Slider: React.FC<SliderProps> = ({
   // null = nothing selected yet; 0 and out-of-range values are treated as unset
   const hasSelection = value !== null && value >= min && value <= max;
 
+  const selectAndFocus = (targetVal: number) => {
+    onChange(targetVal);
+    const targetIdx = steps.indexOf(targetVal);
+    if (targetIdx >= 0) {
+      buttonRefs.current[targetIdx]?.focus();
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
       e.preventDefault();
-      const cur = hasSelection ? value! : min - 1;
-      if (cur < max) onChange(Math.min(max, cur + step));
+      const cur = hasSelection ? value! : min - step;
+      const nextVal = Math.min(max, cur + step);
+      selectAndFocus(nextVal);
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
       e.preventDefault();
-      if (hasSelection && value! > min) onChange(Math.max(min, value! - step));
+      const nextVal = hasSelection ? Math.max(min, value! - step) : min;
+      selectAndFocus(nextVal);
     } else if (e.key === 'Home') {
       e.preventDefault();
-      onChange(min);
+      selectAndFocus(min);
     } else if (e.key === 'End') {
       e.preventDefault();
-      onChange(max);
+      selectAndFocus(max);
     }
   };
 
@@ -64,29 +75,37 @@ export const Slider: React.FC<SliderProps> = ({
         aria-label={ariaLabel}
         onKeyDown={handleKeyDown}
       >
-        {steps.map((num) => {
+        {steps.map((num, idx) => {
           const isSelected = hasSelection && value === num;
+          const isFocusable = hasSelection ? isSelected : idx === 0;
           return (
             <button
               key={num}
+              ref={(el) => {
+                buttonRefs.current[idx] = el;
+              }}
               type="button"
               role="radio"
               aria-checked={isSelected}
-              tabIndex={isSelected ? 0 : -1}
+              tabIndex={isFocusable ? 0 : -1}
               onClick={() => onChange(num)}
-              className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-button border text-center transition-all duration-200 min-h-[60px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
+              className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-button border text-center transition-all duration-200 min-h-[64px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 ${
                 isSelected
-                  ? 'bg-[#5554B8] text-white border-[#5554B8] shadow-sm'
-                  : 'bg-white text-[#25233B] border-[#E8E6F1] hover:border-[#5554B8] hover:bg-[#F7F6FB]'
+                  ? 'bg-[var(--color-primary-fill)] text-white border-[var(--color-primary-fill)] shadow-sm'
+                  : 'bg-[var(--color-surface)] text-[var(--color-text-main)] border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-bg)]'
               }`}
             >
-              <span className={`text-base font-bold ${isSelected ? 'text-white' : 'text-[#25233B]'}`}>
+              <span
+                className={`text-base font-bold ${
+                  isSelected ? 'text-white' : 'text-[var(--color-text-main)]'
+                }`}
+              >
                 {num}
               </span>
               {labels[num] && (
                 <span
-                  className={`text-[10px] sm:text-xs mt-0.5 font-medium leading-tight break-words text-center ${
-                    isSelected ? 'text-[#E9E7FB]' : 'text-[#4D4A66]'
+                  className={`text-xs sm:text-sm mt-0.5 font-medium leading-tight break-words text-center ${
+                    isSelected ? 'text-white/95' : 'text-[var(--color-text-secondary)]'
                   }`}
                 >
                   {labels[num]}
@@ -98,23 +117,23 @@ export const Slider: React.FC<SliderProps> = ({
       </div>
 
       {/* Selection feedback — only shown once a value is chosen */}
-      <div className="text-center pt-1 min-h-[2.5rem]" aria-live="polite">
+      <div className="text-center pt-1 min-h-[2.75rem]" aria-live="polite">
         {hasSelection ? (
           <>
-            <p className="text-sm font-medium text-[#25233B]">
+            <p className="text-sm font-medium text-[var(--color-text-main)]">
               Selected:{' '}
-              <span className="font-bold text-[#5554B8]">
+              <span className="font-bold text-[var(--color-primary)]">
                 {value} — {labels[value!]}
               </span>
             </p>
             {labelDescriptions && labelDescriptions[value!] && (
-              <p className="text-xs text-[#4D4A66] mt-1 max-w-md mx-auto leading-relaxed">
+              <p className="text-sm text-[var(--color-text-secondary)] mt-1 max-w-md mx-auto leading-relaxed">
                 {labelDescriptions[value!]}
               </p>
             )}
           </>
         ) : (
-          <p className="text-xs text-[#6B6886] italic">No rating selected yet</p>
+          <p className="text-sm text-[var(--color-text-muted)] italic">No rating selected yet</p>
         )}
       </div>
     </div>

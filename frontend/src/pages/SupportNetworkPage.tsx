@@ -66,7 +66,7 @@ export const SupportNetworkPage: React.FC = () => {
         role="region"
         aria-label="Care and availability disclaimer"
       >
-        <Info className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-0.5" aria-hidden="true" />
+        <Info className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-1" aria-hidden="true" />
         <div>
           <p className="font-semibold text-[var(--color-text-main)] mb-0.5">Care & Availability Notice</p>
           <p>
@@ -82,7 +82,7 @@ export const SupportNetworkPage: React.FC = () => {
           role="alert"
         >
           <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-[var(--color-amber-text)] shrink-0 mt-0.5" aria-hidden="true" />
+            <AlertTriangle className="w-4 h-4 text-[var(--color-amber-text)] shrink-0 mt-1" aria-hidden="true" />
             <div>
               <p className="font-semibold">Viewing offline verified directory</p>
               <p className="text-[var(--color-text-secondary)] mt-0.5">
@@ -122,8 +122,8 @@ export const SupportNetworkPage: React.FC = () => {
                     <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--color-lavender-soft)] text-[var(--color-primary)]">
                       {contact.badge_label}
                     </span>
-                    <span className="text-xs text-[var(--color-sage-text)] flex items-center gap-1 font-medium">
-                      <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span className="text-sm text-[var(--color-sage-text)] flex items-center gap-1 font-medium">
+                      <ShieldCheck className="w-4 h-4" aria-hidden="true" />
                       Verified
                     </span>
                   </div>
@@ -134,13 +134,13 @@ export const SupportNetworkPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-3 pt-3 border-t border-[var(--color-border-light)]">
-                  <div className="space-y-1 text-xs text-[var(--color-text-secondary)]">
+                  <div className="space-y-1.5 text-sm text-[var(--color-text-secondary)]">
                     <div className="flex items-center justify-between flex-wrap gap-1">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                        <Clock className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
                         {contact.hours}
                       </span>
-                      <span className="text-[10px] text-[var(--color-text-muted)]">
+                      <span className="text-sm text-[var(--color-text-muted)]">
                         Last verified: {contact.last_verified_date}
                       </span>
                     </div>
@@ -150,11 +150,11 @@ export const SupportNetworkPage: React.FC = () => {
                           href={contact.official_source_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-primary)] hover:underline"
+                          className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-primary)] hover:underline"
                           aria-label={`Official registry source for ${contact.name} (opens in new tab)`}
                         >
                           <span>Source: {contact.verification_source}</span>
-                          <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                          <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                         </a>
                       </div>
                     )}
@@ -163,7 +163,7 @@ export const SupportNetworkPage: React.FC = () => {
                   {/* Large call button */}
                   <a
                     href={`tel:${contact.contact_number.replace(/\s+/g, '')}`}
-                    className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-[var(--radius-button)] bg-[var(--color-primary)] text-white text-base font-bold hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                    className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-[var(--radius-button)] bg-[var(--color-primary-fill)] text-white text-base font-bold hover:bg-[var(--color-primary-fill-hover)] active:bg-[var(--color-primary-fill-active)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
                     aria-label={`Call ${contact.name} at ${contact.display_phone}`}
                   >
                     <Phone className="w-5 h-5" aria-hidden="true" />
@@ -191,13 +191,13 @@ export const SupportNetworkPage: React.FC = () => {
             {emergencyResources.map((contact) => (
               <Card key={contact.id} padding="lg" className="bg-[var(--color-surface)]">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-amber-text)] bg-[var(--color-amber-soft)] px-2.5 py-0.5 rounded-full">
                         {contact.badge_label}
                       </span>
-                      <span className="text-xs text-[var(--color-sage-text)] flex items-center gap-1 font-medium">
-                        <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span className="text-sm text-[var(--color-sage-text)] flex items-center gap-1 font-medium">
+                        <ShieldCheck className="w-4 h-4" aria-hidden="true" />
                         Verified: {contact.last_verified_date}
                       </span>
                     </div>
@@ -208,11 +208,11 @@ export const SupportNetworkPage: React.FC = () => {
                         href={contact.official_source_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-primary)] hover:underline pt-1"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-primary)] hover:underline pt-1"
                         aria-label={`Official registry for ${contact.name}`}
                       >
                         <span>Source: {contact.verification_source}</span>
-                        <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                       </a>
                     )}
                   </div>
@@ -233,14 +233,14 @@ export const SupportNetworkPage: React.FC = () => {
         )}
       </section>
 
-      {/* 3. Campus Counselling — collapsed by default, demo notice inline */}
+      {/* 3. Campus Counselling — de-emphasized demo section */}
       {campusResources.length > 0 && (
         <section className="space-y-3" aria-labelledby="heading-campus">
           <div className="flex items-center gap-2">
             <h2 id="heading-campus" className="text-base font-bold text-[var(--color-text-main)]">
               University Campus Counselling
             </h2>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--color-amber-soft)] text-[var(--color-amber-text)] border border-[var(--color-amber-border)]">
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--color-amber-soft)] text-[var(--color-amber-text)] border border-[var(--color-amber-border)]">
               Demo
             </span>
           </div>
@@ -261,22 +261,22 @@ export const SupportNetworkPage: React.FC = () => {
               <Card
                 key={contact.id}
                 padding="md"
-                className="bg-[var(--color-bg)] border border-[var(--color-border)] opacity-70"
+                className="bg-[var(--color-bg)] border border-[var(--color-border)] opacity-75"
               >
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[var(--color-amber-soft)] text-[var(--color-amber-text)]">
                     {contact.badge_label}
                   </span>
-                  <h3 className="text-sm font-bold text-[var(--color-text-main)] pt-1">{contact.name}</h3>
-                  <p className="text-xs text-[var(--color-text-secondary)]">{contact.description}</p>
-                  <div className="flex flex-wrap gap-4 text-xs text-[var(--color-text-secondary)] pt-1">
+                  <h3 className="text-base font-bold text-[var(--color-text-main)] pt-1">{contact.name}</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{contact.description}</p>
+                  <div className="flex flex-wrap gap-4 text-sm text-[var(--color-text-secondary)] pt-1">
                     <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                      <Clock className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
                       {contact.hours}
                     </span>
                     {!contact.is_demo_placeholder && contact.email && (
                       <span className="flex items-center gap-1">
-                        <Mail className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                        <Mail className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
                         {contact.email}
                       </span>
                     )}
@@ -298,7 +298,7 @@ export const SupportNetworkPage: React.FC = () => {
       >
         <div className="space-y-4 text-sm text-[var(--color-text-main)] leading-relaxed">
           <div className="p-3.5 rounded-[var(--radius-card)] bg-[var(--color-amber-light)] border border-[var(--color-amber-border)] text-[var(--color-amber-text)] flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-1" aria-hidden="true" />
             <div>
               <p className="font-semibold mb-0.5">Template Placeholder</p>
               <p>
@@ -316,7 +316,7 @@ export const SupportNetworkPage: React.FC = () => {
             <p className="text-[var(--color-text-secondary)] mb-3">Call Tele-MANAS (Govt. of India), 24/7 national mental health helpline:</p>
             <a
               href="tel:14416"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-[var(--radius-button)] bg-[var(--color-primary)] text-white text-sm font-bold hover:bg-[var(--color-primary-hover)] transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-[var(--radius-button)] bg-[var(--color-primary-fill)] text-white text-sm font-bold hover:bg-[var(--color-primary-fill-hover)] transition-colors"
               aria-label="Call Tele-MANAS at 14416"
             >
               <Phone className="w-4 h-4" aria-hidden="true" />
