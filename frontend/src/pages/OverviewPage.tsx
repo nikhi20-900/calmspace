@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { LoadingState } from '../components/ui/LoadingState';
+
+/** Lazy-load the Three.js mascot so it never blocks the initial paint */
+const BlobScene = lazy(() =>
+  import('../components/mascot/BlobScene').then((m) => ({ default: m.BlobScene }))
+);
 import {
   HeartPulse,
   Smile,
@@ -29,8 +34,10 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 import { InsightSummary, CheckInRecord, UserSettings } from '../types';
+import { usePrivacyModal } from '../context/PrivacyModalContext';
 
 export const OverviewPage: React.FC = () => {
+  const { openPrivacyModal } = usePrivacyModal();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [history, setHistory] = useState<CheckInRecord[]>([]);
@@ -121,53 +128,69 @@ export const OverviewPage: React.FC = () => {
         </div>
       )}
 
-      {/* Editorial Welcome Header */}
-      <section className="bg-gradient-to-r from-[#F0EFFC] via-[#F7F6FB] to-[#F4DCCB]/20 p-6 sm:p-8 rounded-card border border-[#E8E6F1] shadow-soft">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      {/* Editorial Welcome Header — CTA button first on mobile */}
+      <section className="bg-gradient-to-r from-[var(--color-lavender-soft)] via-[var(--color-bg)] to-[var(--color-peach-soft)]/20 p-6 sm:p-8 rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-[var(--shadow-soft)]">
+        {/* Primary CTA: rendered at the top so it's immediately visible without scrolling */}
+        <div className="mb-5 shrink-0 flex flex-col items-start gap-2">
+          {isCheckedInToday ? (
+            <div className="flex flex-col items-start gap-1.5">
+              <div className="flex items-center gap-2 bg-[var(--color-sage-soft)] text-[var(--color-sage-text)] px-4 py-2 rounded-full text-xs font-semibold border border-[var(--color-sage-border)]">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Today's check-in complete</span>
+              </div>
+              <Link
+                to="/checkin/result"
+                className="text-xs font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] flex items-center gap-1"
+              >
+                <span>View today's summary</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          ) : (
+            <Link to="/checkin">
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<HeartPulse className="w-4 h-4" />}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+              >
+                Start Daily Check-in
+              </Button>
+            </Link>
+          )}
+          <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] flex-wrap">
+            <span>Takes ~60 seconds · Your wellbeing check-in starts here</span>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={openPrivacyModal}
+              className="text-[var(--color-primary)] font-semibold hover:underline inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)] rounded"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-[#245532]" />
+              <span>Privacy & Data Inventory</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-2 max-w-xl">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#5554B8]">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Quiet Room for Reflection</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#25233B] tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-main)] tracking-tight">
               {getGreeting()}, {settings.nickname || 'Student'}.
             </h1>
-            <p className="text-sm sm:text-base text-[#625F78] leading-relaxed-wellness">
+            <p className="text-sm sm:text-base text-[var(--color-text-secondary)] leading-relaxed">
               Take a breath. No deadlines or performance metrics live here. A private space to reflect on how you're feeling.
             </p>
           </div>
 
-          {/* Today's Check-in Status Action */}
-          <div className="shrink-0 flex flex-col items-start md:items-end gap-2">
-            {isCheckedInToday ? (
-              <div className="flex flex-col items-start md:items-end gap-1.5">
-                <div className="flex items-center gap-2 bg-[#DCE9DF] text-[#245532] px-4 py-2 rounded-full text-xs font-semibold border border-[#BCD4C3]">
-                  <ShieldCheck className="w-4 h-4 text-[#245532]" />
-                  <span>Today's check-in complete</span>
-                </div>
-                <Link
-                  to="/checkin/result"
-                  className="text-xs font-medium text-[#5554B8] hover:text-[#4645A7] flex items-center gap-1"
-                >
-                  <span>View today's summary</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            ) : (
-              <Link to="/checkin">
-                <Button
-                  variant="primary"
-                  size="md"
-                  leftIcon={<HeartPulse className="w-4 h-4" />}
-                  rightIcon={<ArrowRight className="w-4 h-4" />}
-                >
-                  Start Daily Check-in
-                </Button>
-              </Link>
-            )}
-            <span className="text-xs text-[#625F78]">
-              Takes ~60 seconds • Your wellbeing check-in starts here
-            </span>
+          {/* Mascot: lazy-loaded, only shown on md+ */}
+          <div className="hidden md:block w-32 h-32 shrink-0">
+            <Suspense fallback={<div className="w-full h-full rounded-full bg-[var(--color-lavender-soft)] animate-pulse" />}>
+              <BlobScene expression="idle" className="w-full h-full" />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -222,12 +245,20 @@ export const OverviewPage: React.FC = () => {
               Your first one takes about a minute. We'll help you track your sleep, stress, and mood patterns gently over time without clinical diagnoses.
             </p>
           </div>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link to="/checkin">
               <Button variant="primary" size="md">
                 Begin First Check-in
               </Button>
             </Link>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={openPrivacyModal}
+              leftIcon={<ShieldCheck className="w-4 h-4 text-[#245532]" />}
+            >
+              Review Privacy & Data Inventory
+            </Button>
           </div>
         </Card>
       ) : (

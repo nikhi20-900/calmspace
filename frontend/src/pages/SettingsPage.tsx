@@ -12,14 +12,19 @@ import {
   KeyRound,
   Info,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { api, getAnonymousSessionId } from '../services/api';
 import { UserSettings } from '../types';
+import { usePrivacyModal } from '../context/PrivacyModalContext';
 
 export const SettingsPage: React.FC = () => {
+  const { openPrivacyModal } = usePrivacyModal();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Deletion Dialog State (2-step confirmation)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -31,7 +36,10 @@ export const SettingsPage: React.FC = () => {
     async function loadSettings() {
       try {
         const data = await api.getSettings();
-        setSettings(data);
+        setSettings({
+          ...data,
+          data_retention_days: data.data_retention_days ?? 30,
+        });
       } catch (e) {
         setSettings({
           nickname: 'Student',
@@ -50,13 +58,18 @@ export const SettingsPage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings) return;
+    setIsSaving(true);
+    setSaveError(null);
     try {
       const updated = await api.updateSettings(settings);
       setSettings(updated);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setSaveError(e?.message || 'Failed to update preferences. Please check your connection and retry.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -105,6 +118,16 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
+      {saveError && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-card bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+          <span>{saveError}</span>
+        </div>
+      )}
+
       {deletionSuccess && (
         <div className="p-3.5 rounded-card bg-[#DCE9DF] border border-[#BCD4C3] text-[#245532] text-xs flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" />
@@ -148,6 +171,35 @@ export const SettingsPage: React.FC = () => {
             </p>
           </div>
 
+          {/* Rolling Retention Period Selector */}
+          <div className="pt-4 border-t border-[#F0EFF7] space-y-2">
+            <label htmlFor="settings-retention" className="block text-xs font-semibold text-[#625F78]">
+              Check-in History Rolling Retention Period
+            </label>
+            <select
+              id="settings-retention"
+              value={settings.data_retention_days || 30}
+              onChange={(e) => setSettings({ ...settings, data_retention_days: Number(e.target.value) })}
+              className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+            >
+              <option value={14}>14 days (2 weeks)</option>
+              <option value={30}>30 days (Default - 1 month)</option>
+              <option value={60}>60 days (2 months)</option>
+              <option value={90}>90 days (1 quarter term)</option>
+            </select>
+            <div className="text-[11px] text-[#625F78] space-y-1 mt-1">
+              <p>
+                Currently selected: <strong className="text-[#25233B]">{settings.data_retention_days || 30} days</strong> of rolling check-in history.
+              </p>
+              <div className="p-2.5 rounded-input bg-[#F7F6FB] border border-[#E8E6F1] flex items-start gap-2 text-[#625F78]">
+                <Info className="w-3.5 h-3.5 text-[#5554B8] shrink-0 mt-0.5" />
+                <span>
+                  Your preferred rolling retention window for check-in history. <em>Note: Automated background pruning is scheduled for the Stage 2 rollout.</em> You can immediately erase all stored data anytime in the destructive zone below.
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div className="pt-4 border-t border-[#F0EFF7] space-y-4">
             <Toggle
               id="reminders-toggle"
@@ -167,7 +219,7 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="pt-4 border-t border-[#F0EFF7] flex justify-end">
-            <Button type="submit" variant="primary" size="md">
+            <Button type="submit" variant="primary" size="md" isLoading={isSaving} disabled={isSaving}>
               Save Preferences
             </Button>
           </div>
@@ -197,6 +249,18 @@ export const SettingsPage: React.FC = () => {
             <span><strong>Rule-based routing:</strong> Safety escalation is governed by transparent rules, not unpredictable algorithms.</span>
           </li>
         </ul>
+
+        <div className="pt-3 border-t border-[#E8E6F1]/80">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={openPrivacyModal}
+            leftIcon={<ShieldCheck className="w-4 h-4 text-[#245532]" />}
+          >
+            Inspect Complete Privacy & Data Inventory
+          </Button>
+        </div>
       </Card>
 
       {/* Destructive Action Section: Delete All My Data */}

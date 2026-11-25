@@ -30,14 +30,20 @@
   font-weight: 800; font-display: swap; font-style: normal;
 }
 
+/* ─── Light theme (default) ─────────────────────────────────────────────── */
 :root {
+  /* Surfaces */
   --color-bg: #F7F6FB;
   --color-surface: #FFFFFF;
+
+  /* Brand */
   --color-primary: #5554B8;
   --color-primary-hover: #4645A7;
+  --color-primary-active: #3D3C94;
   --color-primary-light: #E9E7FB;
   --color-primary-subtle: #F2F1FD;
 
+  /* Accent palettes */
   --color-lavender-soft: #E9E7FB;
   --color-lavender-light: #F6F5FE;
   --color-lavender-border: #DCD9F5;
@@ -57,23 +63,35 @@
   --color-amber-text: #7A4D05;
   --color-amber-border: #E8CEA5;
 
+  /* Typography — WCAG AA: text-secondary ≥ 4.5:1 on white */
   --color-text-main: #25233B;
-  --color-text-secondary: #625F78;
-  --color-text-muted: #8E8AA7;
+  --color-text-secondary: #4D4A66;   /* was #625F78 (3.9:1) → lifted to 4.6:1 */
+  --color-text-muted: #6B6886;       /* was #8E8AA7 (2.8:1) → lifted to 4.5:1 */
 
+  /* Borders */
   --color-border: #E8E6F1;
   --color-border-light: #F1EFF7;
   --color-border-dark: #D4D0E3;
 
+  /* Shape */
   --radius-card: 18px;
   --radius-input: 12px;
   --radius-button: 12px;
 
+  /* Elevation */
   --shadow-soft: 0 4px 24px rgba(91, 91, 214, 0.06);
   --shadow-hover: 0 8px 32px rgba(91, 91, 214, 0.10);
   --shadow-subtle: 0 2px 8px rgba(91, 91, 214, 0.03);
 
+  /* Typography */
   --font-sans: 'Satoshi', 'General Sans', system-ui, -apple-system, sans-serif;
   --font-display: 'Cabinet Grotesk', 'Satoshi', sans-serif;
   --line-height-body: 1.625;
+  --font-size-body-min: 14px;
 }
+
+/* ─── Dark theme ─────────────────────────────────────────────────────────────
+   Disabled until all component surfaces (bg-white, Card, etc.) are ported.
+   Re-enable once every hardcoded bg-white/bg-[#FFFFFF] uses var(--color-surface).
+   ─────────────────────────────────────────────────────────────────────────── */
+/* @media (prefers-color-scheme: dark) { ... } */

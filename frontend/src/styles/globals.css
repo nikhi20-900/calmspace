@@ -8,9 +8,10 @@
 @layer base {
   html {
     font-family: var(--font-sans);
-    background-color: var(--color-bg);
-    color: var(--color-text-main);
+    background-color: #F7F6FB;
+    color: #25233B;
     line-height: var(--line-height-body);
+    font-size: 14px; /* 14px body minimum */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -28,6 +29,11 @@
     color: var(--color-text-main);
     font-weight: 600;
     letter-spacing: -0.015em;
+  }
+
+  /* Muted text at minimum 4.5:1 contrast */
+  .text-muted, [class*="text-muted"] {
+    color: var(--color-text-muted);
   }
 
   /* Accessible focus indicators */

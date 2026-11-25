@@ -3,7 +3,7 @@ import { Slider } from '../ui/Slider';
 import { Activity } from 'lucide-react';
 
 export interface StressQuestionProps {
-  value: number;
+  value: number | null;
   onChange: (val: number) => void;
 }
 
@@ -34,11 +34,17 @@ export const StressQuestion: React.FC<StressQuestionProps> = ({ value, onChange 
           <h2 className="text-lg font-semibold text-[#25233B]">
             What is your current stress level?
           </h2>
-          <p className="text-xs text-[#625F78]">
+          <p className="text-sm text-[#4D4A66]">
             Be honest with where you are. There are no right or wrong answers.
           </p>
         </div>
       </div>
+
+      {value === null && (
+        <p className="text-sm font-medium text-[#7A4D05]" role="status">
+          Tap a rating below to continue.
+        </p>
+      )}
 
       <div className="pt-2">
         <Slider

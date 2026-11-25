@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   Info,
   ExternalLink,
-  AlertTriangle,
 } from 'lucide-react';
 import { FALLBACK_SUPPORT_RESOURCES } from '../services/api';
 
@@ -27,7 +26,6 @@ export const CheckInResultPage: React.FC = () => {
   const [demoNoticeOpen, setDemoNoticeOpen] = useState(false);
 
   useEffect(() => {
-    // If user has explicitly executed a safe-exit, do not restore state even if router location.state lingers
     const wasExited = sessionStorage.getItem('calmspace_high_risk_exited') === 'true';
     if (wasExited) {
       window.history.replaceState({}, '');
@@ -35,7 +33,6 @@ export const CheckInResultPage: React.FC = () => {
       return;
     }
 
-    // Read from location state or sessionStorage
     const stateResult = (location.state as any)?.result;
     if (stateResult) {
       setResult(stateResult);
@@ -57,16 +54,16 @@ export const CheckInResultPage: React.FC = () => {
 
   const { safety, guidance, record } = result;
   const isHighRisk = safety.route === 'HIGH';
-  const contacts: SupportContact[] = result.support_contacts?.length
+
+  // Only show verified (non-demo) contacts on the high-risk screen
+  const allContacts: SupportContact[] = result.support_contacts?.length
     ? result.support_contacts
     : FALLBACK_SUPPORT_RESOURCES;
+  const verifiedContacts = allContacts.filter((c) => !c.is_demo_placeholder);
 
   /**
-   * Explicit Safe Exit Navigation Policy
-   * Enforces that exiting from a HIGH-route evaluation cleans up transient
-   * check-in session state and returns to the overview without triggering,
-   * prompting, or resuming any AI dialogue or conversation.
-   * Wipes window.history state so browser "Back" cannot reload the exited result.
+   * Safe Exit — wipes transient session state and returns to overview.
+   * Browser "Back" cannot reload the exited result.
    */
   const handleSafeExit = () => {
     sessionStorage.removeItem('calmspace_latest_checkin');
@@ -77,212 +74,149 @@ export const CheckInResultPage: React.FC = () => {
 
   // =========================================================================
   // HIGH-RISK ESCALATION SCREEN
-  // "You don't have to handle this alone."
-  // Uncluttered, no charts, verified tap-to-call helplines, honest demo notices
+  // Calm tone · verified contacts only · large tap-to-call buttons · no demo cards
   // =========================================================================
   if (isHighRisk) {
     return (
       <div
-        className="max-w-2xl mx-auto py-6 sm:py-10 animate-fade-in"
+        className="max-w-lg mx-auto py-8 sm:py-12 px-4 animate-fade-in"
         role="alert"
         aria-live="assertive"
       >
-        {/* Soft, calm supportive header */}
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-full bg-[#E9E7FB] flex items-center justify-center mx-auto mb-4 text-[#5554B8]">
-            <HeartHandshake className="w-7 h-7" />
+        {/* Header: calm, human, non-clinical */}
+        <div className="text-center mb-10">
+          <div className="w-16 h-16 rounded-full bg-[var(--color-lavender-soft)] flex items-center justify-center mx-auto mb-5">
+            <HeartHandshake className="w-8 h-8 text-[var(--color-primary)]" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#25233B] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-main)] tracking-tight leading-snug">
             You don't have to handle this alone.
           </h1>
-          <p className="text-base text-[#625F78] mt-2 max-w-lg mx-auto leading-relaxed">
-            Your wellbeing is what matters most right now. We've surfaced verified national crisis
-            helplines ready to listen immediately, alongside campus integration options.
+          <p className="text-base text-[var(--color-text-secondary)] mt-3 max-w-sm mx-auto leading-relaxed">
+            Reach out to a trained crisis listener right now — these are real people, free and confidential.
           </p>
         </div>
 
-        {/* Ordered Human Support Actions */}
+        {/* Verified call cards only — demo cards intentionally hidden */}
         <div className="space-y-4">
-          {contacts.map((contact, index) => {
-            const isNationalHelpline = contact.id === 'tele-manas';
-            const isEmergency = contact.category === 'emergency';
-            const isDemo = Boolean(contact.is_demo_placeholder);
-
+          {verifiedContacts.map((contact) => {
+            const isPrimary = contact.id === 'tele-manas';
             return (
               <div
                 key={contact.id}
-                className={`p-5 sm:p-6 rounded-card transition-all ${
-                  isNationalHelpline
-                    ? 'bg-white border-2 border-[#5554B8] shadow-soft'
-                    : isEmergency
-                      ? 'bg-[#FBFBFE] border border-[#E8E6F1]'
-                      : isDemo
-                        ? 'bg-[#FFFDF9] border border-[#F4DCCB]'
-                        : 'bg-white border border-[#E8E6F1] shadow-soft'
+                className={`rounded-[var(--radius-card)] p-5 sm:p-6 ${
+                  isPrimary
+                    ? 'bg-[var(--color-surface)] border-2 border-[var(--color-primary)] shadow-[var(--shadow-soft)]'
+                    : 'bg-[var(--color-surface)] border border-[var(--color-border)]'
                 }`}
               >
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="space-y-1 max-w-md">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                          isNationalHelpline
-                            ? 'text-[#5554B8] bg-[#E9E7FB]'
-                            : isEmergency
-                              ? 'text-[#7A4D05] bg-[#F6E6CC]'
-                              : isDemo
-                                ? 'text-[#7A4D05] bg-[#FBF0EA] border border-[#F4DCCB]'
-                                : 'text-[#245532] bg-[#DCE9DF]'
-                        }`}
-                      >
-                        Priority {index + 1} • {contact.badge_label}
-                      </span>
-                      {isDemo && (
-                        <span className="text-[10px] font-semibold text-[#B24823] bg-[#FDEEE9] px-2 py-0.5 rounded-full">
-                          Demo Only • Not Connected
-                        </span>
-                      )}
-                    </div>
-
-                    <h2 className="text-lg font-bold text-[#25233B] pt-1">
-                      {contact.name}
-                    </h2>
-
-                    <p className="text-xs text-[#625F78] leading-relaxed">
-                      {contact.description}
-                    </p>
-
-                    {/* Metadata & Verification Source */}
-                    <div className="pt-2 space-y-1 text-xs text-[#625F78]">
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <span className="flex items-center gap-1 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-[#5554B8]" />
-                          {contact.hours}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Shield className="w-3.5 h-3.5 text-[#245532]" />
-                          Verified: {contact.last_verified_date}
-                        </span>
-                      </div>
-
-                      {/* Official Verification Authority Link */}
-                      {contact.official_source_url ? (
-                        <div className="pt-0.5">
-                          <a
-                            href={contact.official_source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#5554B8] hover:underline"
-                          >
-                            <span>Source: {contact.verification_source}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-[#7A4D05] italic">
-                          Source: {contact.verification_source}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions Column */}
-                  <div className="shrink-0 w-full sm:w-auto mt-2 sm:mt-0 flex sm:flex-col gap-2">
-                    {isDemo ? (
-                      <button
-                        type="button"
-                        onClick={() => setDemoNoticeOpen(true)}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-button bg-[#25233B] text-white text-xs font-semibold hover:bg-[#1A192A] transition-colors"
-                      >
-                        <Info className="w-3.5 h-3.5" />
-                        <span>Integration Info</span>
-                      </button>
-                    ) : (
-                      <a
-                        href={`tel:${contact.contact_number.replace(/\s+/g, '')}`}
-                        className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-button font-semibold text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
-                          isNationalHelpline
-                            ? 'bg-[#5554B8] text-white hover:bg-[#4645A7] active:bg-[#3D3C94] shadow-sm'
-                            : 'bg-white border border-[#D5D1E5] text-[#25233B] hover:bg-[#F7F6FB]'
-                        }`}
-                      >
-                        <Phone className="w-4 h-4" />
-                        <span>Call {contact.display_phone}</span>
-                      </a>
-                    )}
-                  </div>
+                {/* Badge + verification */}
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <span
+                    className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                      isPrimary
+                        ? 'text-[var(--color-primary)] bg-[var(--color-lavender-soft)]'
+                        : 'text-[var(--color-amber-text)] bg-[var(--color-amber-soft)]'
+                    }`}
+                  >
+                    {contact.badge_label}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-sage-text)] flex items-center gap-1 font-medium">
+                    <Shield className="w-3 h-3" aria-hidden="true" />
+                    Verified
+                  </span>
                 </div>
+
+                <h2 className="text-lg font-bold text-[var(--color-text-main)] mb-1">{contact.name}</h2>
+                <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-3">
+                  {contact.description}
+                </p>
+
+                {/* Hours + source link */}
+                <div className="flex items-center gap-4 flex-wrap text-xs text-[var(--color-text-secondary)] mb-4">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                    {contact.hours}
+                  </span>
+                  {contact.official_source_url && (
+                    <a
+                      href={contact.official_source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] hover:underline"
+                      aria-label={`Official registry for ${contact.name}`}
+                    >
+                      Source: {contact.verification_source}
+                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+
+                {/* Large tap-to-call button */}
+                <a
+                  href={`tel:${contact.contact_number.replace(/\s+/g, '')}`}
+                  className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-[var(--radius-button)] text-base font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                    isPrimary
+                      ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)] shadow-sm'
+                      : 'bg-[var(--color-surface)] border-2 border-[var(--color-border-dark)] text-[var(--color-text-main)] hover:bg-[var(--color-bg)]'
+                  }`}
+                  aria-label={`Call ${contact.name} at ${contact.display_phone}`}
+                >
+                  <Phone className="w-5 h-5" aria-hidden="true" />
+                  <span>Call {contact.display_phone}</span>
+                </a>
               </div>
             );
           })}
         </div>
 
-        {/* Demo Integration Explanation Modal */}
+        {/* Demo integration note — text only, no card */}
+        <p className="mt-6 text-xs text-[var(--color-text-muted)] text-center leading-relaxed">
+          Campus counselling integrations are configured by your institution and are not shown here.{' '}
+          <Link to="/support" className="text-[var(--color-primary)] hover:underline font-medium">
+            View full support directory →
+          </Link>
+        </p>
+
+        {/* Demo Integration Dialog (accessible via /support page only) */}
         <Dialog
           isOpen={demoNoticeOpen}
           onClose={() => setDemoNoticeOpen(false)}
-          title="Campus Integration Notice (Demo Placeholder)"
-          description="Important information regarding institutional campus support connections."
+          title="Campus Integration Notice"
+          description="Important information regarding campus support connections."
           maxWidth="md"
         >
-          <div className="space-y-4 text-xs text-[#25233B] leading-relaxed">
-            <div className="p-3.5 rounded-card bg-[#FBF0EA] border border-[#F4DCCB] text-[#7A4D05] flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-[#B24823]" />
-              <div>
-                <p className="font-semibold text-sm mb-0.5 text-[#B24823]">
-                  No Request Has Been Sent
-                </p>
-                <p>
-                  This is a demonstration preview of the campus counseling booking workflow.
-                  Calmspace is not connected to a live institutional clinic in this demo environment.
-                </p>
-              </div>
-            </div>
-
-            <p className="text-[#625F78]">
-              In a production university deployment, this action integrates directly with your
-              institution's authenticated student health API or confidential booking portal.
+          <div className="space-y-4 text-sm text-[var(--color-text-main)] leading-relaxed">
+            <p className="text-[var(--color-text-secondary)]">
+              Campus entries are demonstration templates. Calmspace does not send student data to institutional systems without configured webhooks.
             </p>
-
-            <div className="p-4 rounded-card bg-[#E9E7FB] border border-[#D5D1E5]">
-              <p className="font-semibold text-sm text-[#25233B] mb-1">
-                Need immediate human support?
-              </p>
-              <p className="text-[#625F78] mb-3">
-                Call Tele-MANAS (Government of India national mental health helpline), available
-                24/7 in 20+ languages. Free and confidential.
-              </p>
-              <a
-                href="tel:14416"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-button bg-[#5554B8] text-white text-xs font-semibold hover:bg-[#4645A7] transition-colors"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>Call Tele-MANAS (14416)</span>
-              </a>
-            </div>
+            <a
+              href="tel:14416"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-[var(--radius-button)] bg-[var(--color-primary)] text-white text-sm font-bold hover:bg-[var(--color-primary-hover)] transition-colors"
+              aria-label="Call Tele-MANAS at 14416"
+            >
+              <Phone className="w-4 h-4" aria-hidden="true" />
+              Call Tele-MANAS (14416)
+            </a>
           </div>
-
-          <div className="mt-5 pt-3 border-t border-[#E8E6F1] flex justify-end">
+          <div className="mt-5 pt-3 border-t border-[var(--color-border)] flex justify-end">
             <Button variant="secondary" size="sm" onClick={() => setDemoNoticeOpen(false)}>
-              Close Notice
+              Close
             </Button>
           </div>
         </Dialog>
 
-        {/* Prominent Safe Exit Policy & Navigation */}
-        <div className="mt-10 p-5 rounded-card bg-white border border-[#E8E6F1] shadow-soft">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-left space-y-1">
-              <h3 className="text-sm font-bold text-[#25233B] flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-[#5554B8]" />
-                <span>Safe Exit Policy</span>
+        {/* Safe exit */}
+        <div className="mt-10 p-5 rounded-[var(--radius-card)] bg-[var(--color-surface)] border border-[var(--color-border)] shadow-[var(--shadow-subtle)]">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-[var(--color-text-main)] flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
+                Safe Exit
               </h3>
-              <p className="text-xs text-[#625F78] max-w-md">
-                Exiting closes this crisis evaluation and returns you to the overview. Calmspace will
-                never automatically resume an AI conversation.
+              <p className="text-xs text-[var(--color-text-secondary)] max-w-xs">
+                Closes this screen and returns you to overview. No AI conversation will resume automatically.
               </p>
             </div>
-
             <Button
               variant="secondary"
               size="md"
@@ -290,26 +224,12 @@ export const CheckInResultPage: React.FC = () => {
               className="shrink-0 font-semibold"
               rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              Safe Exit to Overview
+              Return to Overview
             </Button>
           </div>
-
-          <div className="mt-4 pt-3 border-t border-[#F0EFF7] space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-[#8E8AA7]">
-              <span>
-                AI generation is strictly disabled for high-risk evaluations. National helplines are verified against official government registries; campus entries are configurable demo placeholders.
-              </span>
-              <Link
-                to="/support"
-                className="font-medium text-[#5554B8] hover:underline shrink-0"
-              >
-                View Full Support Directory →
-              </Link>
-            </div>
-            <p className="text-[10px] text-[#A29EBA] leading-relaxed">
-              <strong>Availability notice:</strong> Helplines and emergency dispatch are independently operated; Calmspace cannot guarantee response times, immediate availability, or clinical outcomes.
-            </p>
-          </div>
+          <p className="mt-4 pt-3 border-t border-[var(--color-border-light)] text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+            <strong>Availability notice:</strong> Helplines and emergency dispatch are independently operated; Calmspace cannot guarantee response times or clinical outcomes.
+          </p>
         </div>
       </div>
     );
@@ -317,13 +237,12 @@ export const CheckInResultPage: React.FC = () => {
 
   // =========================================================================
   // LOW / MEDIUM SUPPORTIVE GUIDANCE SCREEN
-  // "AI writes the language. Rules decide safety. Humans help."
   // =========================================================================
   return (
     <div className="max-w-xl mx-auto py-4 sm:py-8 animate-fade-in">
       <div className="mb-6 flex items-center justify-between">
         <Badge route={safety.route} />
-        <span className="text-xs text-[#625F78]">
+        <span className="text-xs text-[var(--color-text-secondary)]">
           Logged today at{' '}
           {new Date(record.timestamp).toLocaleTimeString([], {
             hour: '2-digit',
@@ -332,39 +251,38 @@ export const CheckInResultPage: React.FC = () => {
         </span>
       </div>
 
-      {/* Prominent Supportive Response Card */}
-      <Card padding="lg" className="border-t-4 border-t-[#5554B8] space-y-6">
+      {/* Supportive Response Card */}
+      <Card padding="lg" className="border-t-4 border-t-[var(--color-primary)] space-y-6">
         <div>
-          <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-[#5554B8]">
-            <Sparkles className="w-4 h-4" />
+          <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-[var(--color-primary)]">
+            <Sparkles className="w-4 h-4" aria-hidden="true" />
             <span>Supportive Reflection</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#25233B]">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text-main)]">
             {safety.status_label}
           </h1>
-          <p className="text-xs text-[#625F78] mt-1">{safety.status_summary}</p>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">{safety.status_summary}</p>
         </div>
 
         {/* AI Guidance Text */}
         {guidance && (
-          <div className="p-4 sm:p-5 rounded-card bg-[#F7F6FB] border border-[#E8E6F1]">
-            <p className="text-sm sm:text-base text-[#25233B] leading-relaxed-wellness font-normal">
+          <div className="p-4 sm:p-5 rounded-[var(--radius-card)] bg-[var(--color-bg)] border border-[var(--color-border)]">
+            <p className="text-sm sm:text-base text-[var(--color-text-main)] leading-relaxed font-normal">
               "{guidance.message}"
             </p>
 
-            {/* Optional suggestion chips */}
             {guidance.suggestion_chips && guidance.suggestion_chips.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-[#E8E6F1]">
-                <span className="block text-xs font-semibold uppercase tracking-wider text-[#625F78] mb-2">
+              <div className="mt-4 pt-3 border-t border-[var(--color-border)]">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
                   Gentle suggestions for today:
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {guidance.suggestion_chips.map((chip, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white border border-[#E8E6F1] text-[#25233B] shadow-subtle"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-main)] shadow-[var(--shadow-subtle)]"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#5554B8]" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
                       <span>{chip}</span>
                     </span>
                   ))}
@@ -374,19 +292,19 @@ export const CheckInResultPage: React.FC = () => {
           </div>
         )}
 
-        {/* Disclaimer Note */}
-        <div className="flex items-start gap-2 text-xs text-[#625F78]">
-          <Info className="w-4 h-4 text-[#8E8AA7] shrink-0 mt-0.5" />
+        {/* Disclaimer */}
+        <div className="flex items-start gap-2 text-xs text-[var(--color-text-secondary)]">
+          <Info className="w-4 h-4 text-[var(--color-text-muted)] shrink-0 mt-0.5" aria-hidden="true" />
           <p>{guidance?.disclaimer || 'This is supportive guidance, not medical advice.'}</p>
         </div>
 
-        {/* Actions Row */}
-        <div className="pt-4 border-t border-[#F0EFF7] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Actions */}
+        <div className="pt-4 border-t border-[var(--color-border-light)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Link
             to="/support"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-[#5554B8] hover:text-[#4645A7]"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]"
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle className="w-4 h-4" aria-hidden="true" />
             <span>Prefer to talk to a human counsellor?</span>
           </Link>
 
