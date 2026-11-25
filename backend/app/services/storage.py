@@ -1,11 +1,18 @@
 """
-Privacy-First Storage Engine
+Privacy-First Persistent Storage Engine (Issue #10)
+
 Key Principles:
-1. Student data is indexed solely by an anonymous session ID (UUID). No names, student IDs or emails required.
-2. Reflection text is NEVER persisted in check-in records.
-3. Provides full data wipe on request ("Delete all my data").
+1. Student data is indexed solely by an anonymous session ID (UUID / token).
+   No names, student roll numbers, or personal emails are collected or stored.
+2. Reflection text is NEVER stored in database records (Structural Privacy Guarantee).
+3. Session Isolation: Every read, update, and delete query is strictly session-scoped.
+4. Full 2-step data wipe on request ("Delete all my data").
+5. Persistent storage using SQLite / SQL engine, surviving application restarts.
 """
 
+import os
+import sqlite3
+import threading
 import uuid
 from datetime import UTC, datetime
 
@@ -13,85 +20,329 @@ from app.models.schemas import CheckInRecord, StudyTask, UserSettings
 
 
 class CalmspaceStorage:
-    def __init__(self):
-        # Maps session_id -> List[CheckInRecord]
-        self._checkins: dict[str, list[CheckInRecord]] = {}
-        # Maps session_id -> List[StudyTask]
-        self._tasks: dict[str, list[StudyTask]] = {}
-        # Maps session_id -> UserSettings
-        self._settings: dict[str, UserSettings] = {}
+    def __init__(self, db_path: str | None = None):
+        if db_path is None:
+            raw_url = os.getenv("DATABASE_URL", "sqlite:///./calmspace.db")
+            if raw_url.startswith("sqlite:///"):
+                db_path = raw_url.replace("sqlite:///", "")
+            else:
+                db_path = raw_url
+        self.db_path = db_path
+        self._local = threading.local()
+        self._init_db()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        if not hasattr(self._local, "conn") or self._local.conn is None:
+            conn = sqlite3.connect(
+                self.db_path,
+                timeout=30.0,
+                check_same_thread=False,
+            )
+            conn.row_factory = sqlite3.Row
+            # Enable WAL mode for high concurrency and resilience if not in-memory
+            if self.db_path != ":memory:":
+                try:
+                    conn.execute("PRAGMA journal_mode = WAL;")
+                    conn.execute("PRAGMA synchronous = NORMAL;")
+                except sqlite3.DatabaseError:
+                    pass
+            self._local.conn = conn
+        return self._local.conn
+
+    def _init_db(self):
+        """Create tables and indexes if they do not exist."""
+        conn = self._get_connection()
+        with conn:
+            # Check-ins table (NOTICE: NO reflection column! Reflections are NEVER persisted)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS checkins (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    mood INTEGER NOT NULL,
+                    stress INTEGER NOT NULL,
+                    sleep_hours REAL NOT NULL,
+                    route TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_checkins_session_time
+                ON checkins(session_id, timestamp);
+                """
+            )
+
+            # Study tasks table
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    estimated_minutes INTEGER NOT NULL,
+                    category TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_tasks_session
+                ON tasks(session_id, created_at DESC);
+                """
+            )
+
+            # User settings table
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    session_id TEXT PRIMARY KEY,
+                    nickname TEXT NOT NULL DEFAULT 'Student',
+                    break_reminders_enabled INTEGER NOT NULL DEFAULT 1,
+                    reminder_interval_minutes INTEGER NOT NULL DEFAULT 45,
+                    share_anonymous_analytics INTEGER NOT NULL DEFAULT 0,
+                    data_retention_days INTEGER NOT NULL DEFAULT 30
+                );
+                """
+            )
+
+    # --------------------------------------------------------------------------
+    # Settings Management (Session-Scoped)
+    # --------------------------------------------------------------------------
     def get_settings(self, session_id: str) -> UserSettings:
-        if session_id not in self._settings:
-            self._settings[session_id] = UserSettings()
-        return self._settings[session_id]
+        conn = self._get_connection()
+        row = conn.execute(
+            """
+            SELECT nickname, break_reminders_enabled, reminder_interval_minutes,
+                   share_anonymous_analytics, data_retention_days
+            FROM user_settings
+            WHERE session_id = ?;
+            """,
+            (session_id,),
+        ).fetchone()
+
+        if not row:
+            # Return defaults without persisting until user saves or customizes
+            return UserSettings()
+
+        return UserSettings(
+            nickname=row["nickname"],
+            break_reminders_enabled=bool(row["break_reminders_enabled"]),
+            reminder_interval_minutes=row["reminder_interval_minutes"],
+            share_anonymous_analytics=bool(row["share_anonymous_analytics"]),
+            data_retention_days=row["data_retention_days"],
+        )
 
     def update_settings(
         self, session_id: str, new_settings: UserSettings
     ) -> UserSettings:
-        self._settings[session_id] = new_settings
-        return self._settings[session_id]
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO user_settings (
+                    session_id, nickname, break_reminders_enabled,
+                    reminder_interval_minutes, share_anonymous_analytics, data_retention_days
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    nickname=excluded.nickname,
+                    break_reminders_enabled=excluded.break_reminders_enabled,
+                    reminder_interval_minutes=excluded.reminder_interval_minutes,
+                    share_anonymous_analytics=excluded.share_anonymous_analytics,
+                    data_retention_days=excluded.data_retention_days;
+                """,
+                (
+                    session_id,
+                    new_settings.nickname,
+                    1 if new_settings.break_reminders_enabled else 0,
+                    new_settings.reminder_interval_minutes,
+                    1 if new_settings.share_anonymous_analytics else 0,
+                    new_settings.data_retention_days,
+                ),
+            )
+        return new_settings
 
+    # --------------------------------------------------------------------------
+    # Check-In Records (Session-Scoped, No Reflection Persisted)
+    # --------------------------------------------------------------------------
     def add_checkin(
         self, session_id: str, mood: int, stress: int, sleep_hours: float, route: str
     ) -> CheckInRecord:
-        record = CheckInRecord(
-            id=str(uuid.uuid4()),
+        record_id = str(uuid.uuid4())
+        timestamp = datetime.now(UTC).isoformat()
+
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO checkins (id, session_id, timestamp, mood, stress, sleep_hours, route)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+                """,
+                (record_id, session_id, timestamp, mood, stress, sleep_hours, route),
+            )
+
+        return CheckInRecord(
+            id=record_id,
             session_id=session_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=timestamp,
             mood=mood,
             stress=stress,
             sleep_hours=sleep_hours,
             route=route,
         )
-        if session_id not in self._checkins:
-            self._checkins[session_id] = []
-        self._checkins[session_id].append(record)
-        return record
 
     def get_checkins(self, session_id: str) -> list[CheckInRecord]:
-        return self._checkins.get(session_id, [])
+        conn = self._get_connection()
+        rows = conn.execute(
+            """
+            SELECT id, session_id, timestamp, mood, stress, sleep_hours, route
+            FROM checkins
+            WHERE session_id = ?
+            ORDER BY timestamp ASC;
+            """,
+            (session_id,),
+        ).fetchall()
 
+        return [
+            CheckInRecord(
+                id=r["id"],
+                session_id=r["session_id"],
+                timestamp=r["timestamp"],
+                mood=r["mood"],
+                stress=r["stress"],
+                sleep_hours=r["sleep_hours"],
+                route=r["route"],
+            )
+            for r in rows
+        ]
+
+    # --------------------------------------------------------------------------
+    # Study Tasks (Session-Scoped)
+    # --------------------------------------------------------------------------
     def get_tasks(self, session_id: str) -> list[StudyTask]:
-        return self._tasks.get(session_id, [])
+        conn = self._get_connection()
+        rows = conn.execute(
+            """
+            SELECT id, title, estimated_minutes, category, completed, created_at
+            FROM tasks
+            WHERE session_id = ?
+            ORDER BY created_at DESC;
+            """,
+            (session_id,),
+        ).fetchall()
+
+        return [
+            StudyTask(
+                id=r["id"],
+                title=r["title"],
+                estimated_minutes=r["estimated_minutes"],
+                category=r["category"],
+                completed=bool(r["completed"]),
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
 
     def add_task(
         self, session_id: str, title: str, estimated_minutes: int, category: str
     ) -> StudyTask:
-        task = StudyTask(
-            id=str(uuid.uuid4()),
+        task_id = str(uuid.uuid4())
+        created_at = datetime.now(UTC).isoformat()
+
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO tasks (id, session_id, title, estimated_minutes, category, completed, created_at)
+                VALUES (?, ?, ?, ?, ?, 0, ?);
+                """,
+                (task_id, session_id, title, estimated_minutes, category, created_at),
+            )
+
+        return StudyTask(
+            id=task_id,
             title=title,
             estimated_minutes=estimated_minutes,
             category=category,
             completed=False,
-            created_at=datetime.now(UTC).isoformat(),
+            created_at=created_at,
         )
-        if session_id not in self._tasks:
-            self._tasks[session_id] = []
-        self._tasks[session_id].insert(0, task)
-        return task
 
     def toggle_task(self, session_id: str, task_id: str) -> StudyTask | None:
-        tasks = self._tasks.get(session_id, [])
-        for t in tasks:
-            if t.id == task_id:
-                t.completed = not t.completed
-                return t
-        return None
+        conn = self._get_connection()
+        with conn:
+            # Atomic session-scoped toggle
+            cursor = conn.execute(
+                """
+                UPDATE tasks
+                SET completed = CASE WHEN completed = 1 THEN 0 ELSE 1 END
+                WHERE id = ? AND session_id = ?;
+                """,
+                (task_id, session_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+
+        # Fetch and return updated task
+        row = conn.execute(
+            """
+            SELECT id, title, estimated_minutes, category, completed, created_at
+            FROM tasks
+            WHERE id = ? AND session_id = ?;
+            """,
+            (task_id, session_id),
+        ).fetchone()
+
+        if not row:
+            return None
+
+        return StudyTask(
+            id=row["id"],
+            title=row["title"],
+            estimated_minutes=row["estimated_minutes"],
+            category=row["category"],
+            completed=bool(row["completed"]),
+            created_at=row["created_at"],
+        )
 
     def delete_task(self, session_id: str, task_id: str) -> bool:
-        tasks = self._tasks.get(session_id, [])
-        initial_len = len(tasks)
-        self._tasks[session_id] = [t for t in tasks if t.id != task_id]
-        return len(self._tasks[session_id]) < initial_len
+        conn = self._get_connection()
+        with conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM tasks
+                WHERE id = ? AND session_id = ?;
+                """,
+                (task_id, session_id),
+            )
+            return cursor.rowcount > 0
 
+    # --------------------------------------------------------------------------
+    # Privacy Data Erasure (2-Step Data Deletion)
+    # --------------------------------------------------------------------------
     def delete_all_data(self, session_id: str) -> bool:
-        """Completely purges all data associated with the anonymous session"""
-        self._checkins.pop(session_id, None)
-        self._tasks.pop(session_id, None)
-        self._settings.pop(session_id, None)
+        """
+        Permanently purges all records associated with this session token across
+        all tables: check-in records, study tasks, and user settings.
+        """
+        conn = self._get_connection()
+        with conn:
+            conn.execute("DELETE FROM checkins WHERE session_id = ?;", (session_id,))
+            conn.execute("DELETE FROM tasks WHERE session_id = ?;", (session_id,))
+            conn.execute(
+                "DELETE FROM user_settings WHERE session_id = ?;", (session_id,)
+            )
         return True
 
+    def close(self):
+        """Close connection if open."""
+        if hasattr(self._local, "conn") and self._local.conn is not None:
+            self._local.conn.close()
+            self._local.conn = None
 
-# Singleton instance
+
+# Global singleton instance
 storage = CalmspaceStorage()
