@@ -18,7 +18,12 @@ venv/
 
 # Environment & logs
 .env
+.env.local
+.env.*.local
 *.log
+*.sqlite
+*.sqlite3
+*.db
 npm-debug.log*
 .coverage
 .pytest_cache/
