@@ -90,6 +90,19 @@ export const api = {
     return res.json();
   },
 
+  async updateTask(
+    taskId: string,
+    data: { title?: string; estimated_minutes?: number; category?: string }
+  ): Promise<StudyTask> {
+    const res = await fetch(`${API_BASE_URL}/planner/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: DEFAULT_HEADERS(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to update task');
+    return res.json();
+  },
+
   async deleteTask(taskId: string): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/planner/tasks/${taskId}`, {
       method: 'DELETE',
