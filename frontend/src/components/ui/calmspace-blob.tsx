@@ -1,10 +1,6 @@
-import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Wind, Smile, Moon } from 'lucide-react';
-import type { BlobExpression } from '../mascot/BlobScene';
-
-const BlobScene = lazy(() =>
-  import('../mascot/BlobScene').then((m) => ({ default: m.BlobScene }))
-);
+import { BlobScene, BlobExpression } from '../mascot/BlobScene';
 
 export interface CalmspaceBlobProps {
   expression?: BlobExpression;
@@ -37,6 +33,8 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
   const [internalBreathing, setInternalBreathing] = useState(false);
   const [internalReaction, setInternalReaction] = useState('Pleased to meet you');
 
+  // One revert timer, cleared on re-trigger and on unmount (no stacked timeouts, no
+  // state updates after unmount).
   const revertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRevert = () => {
     if (revertTimer.current) clearTimeout(revertTimer.current);
@@ -95,49 +93,44 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
     <div className={`relative w-full flex flex-col items-center ${className}`}>
       {/* Dynamic Accessible Reaction Pill */}
       {showReactionBadge && (
-        <div className="mb-3 transition-all duration-300" aria-live="polite">
-          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--color-surface)]/95 border border-[var(--color-border)] shadow-subtle text-sm font-medium text-[var(--color-primary)] backdrop-blur-none sm:backdrop-blur-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] animate-pulse" />
+        <div
+          className="mb-3 transition-all duration-300"
+          aria-live="polite"
+        >
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/95 border border-[#E8E6F1] shadow-subtle text-xs font-medium text-[#5554B8] backdrop-blur-none sm:backdrop-blur-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#5554B8] animate-pulse" />
             <span>{reactionMessage}</span>
           </span>
         </div>
       )}
 
-      {/* Lazy-Loaded Volumetric 3D Canvas Stage */}
+      {/* Volumetric 3D Canvas Stage */}
       <div className={`w-full ${heightClassName}`}>
-        <Suspense
-          fallback={
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-40 h-40 rounded-full bg-[var(--color-lavender-soft)] animate-pulse" />
-            </div>
-          }
-        >
-          <BlobScene
-            expression={activeExpression}
-            isCtaHovered={isCtaHovered}
-            isBreathingActive={isBreathing}
-            onBlobClick={handleBlobClick}
-          />
-        </Suspense>
+        <BlobScene
+          expression={activeExpression}
+          isCtaHovered={isCtaHovered}
+          isBreathingActive={isBreathing}
+          onBlobClick={handleBlobClick}
+        />
       </div>
 
       {/* Tactile Drag Hint */}
       <div className="mt-2 text-center pointer-events-none">
-        <span className="text-sm font-medium text-[var(--color-text-muted)] tracking-wide">
+        <span className="text-[11px] font-medium text-[#8480A2] tracking-wide">
           Tap or drag gently to interact
         </span>
       </div>
 
-      {/* Optional Embedded Interactive Controls */}
+      {/* Optional Embedded Interactive Controls with Proper Spacing */}
       {showControls && (
         <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-1">
           <button
             type="button"
             onClick={handleToggleBreathing}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer ${
               isBreathing
-                ? 'bg-[var(--color-primary-fill)] text-white shadow-soft ring-2 ring-[var(--color-primary)]/30 scale-102'
-                : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] border border-[var(--color-border)] shadow-xs hover:border-[var(--color-lavender-border)] active:scale-98'
+                ? 'bg-[#5554B8] text-white shadow-soft ring-2 ring-[#5554B8]/30 scale-102'
+                : 'bg-white text-[#625F78] hover:text-[#5554B8] border border-[#E8E6F1] shadow-xs hover:border-[#DCD9F5] active:scale-98'
             }`}
             aria-pressed={isBreathing}
           >
@@ -148,18 +141,18 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
           <button
             type="button"
             onClick={() => handleSelectExpression('curious', 'Curious about your day')}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] border border-[var(--color-border)] shadow-xs hover:border-[var(--color-lavender-border)] active:scale-98 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-white text-[#625F78] hover:text-[#5554B8] border border-[#E8E6F1] shadow-xs hover:border-[#DCD9F5] active:scale-98 transition-all cursor-pointer"
           >
-            <Smile className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+            <Smile className="w-3.5 h-3.5 text-[#5554B8]" />
             <span>Say hi</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleSelectExpression('resting', 'Resting peacefully')}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] border border-[var(--color-border)] shadow-xs hover:border-[var(--color-lavender-border)] active:scale-98 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-white text-[#625F78] hover:text-[#5554B8] border border-[#E8E6F1] shadow-xs hover:border-[#DCD9F5] active:scale-98 transition-all cursor-pointer"
           >
-            <Moon className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+            <Moon className="w-3.5 h-3.5 text-[#5554B8]" />
             <span>Rest</span>
           </button>
         </div>

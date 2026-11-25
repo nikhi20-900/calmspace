@@ -11,7 +11,6 @@
     background-color: var(--color-bg);
     color: var(--color-text-main);
     line-height: var(--line-height-body);
-    font-size: 16px; /* Preserve 1rem = 16px so Tailwind text-sm = 14px */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -20,10 +19,8 @@
     min-height: 100vh;
     margin: 0;
     padding: 0;
-    background-color: var(--color-bg);
-    color: var(--color-text-main);
-    font-size: var(--font-size-body-min); /* 14px body minimum */
-    line-height: var(--line-height-body);
+    background-color: #F7F6FB;
+    color: #25233B;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -31,12 +28,6 @@
     color: var(--color-text-main);
     font-weight: 600;
     letter-spacing: -0.015em;
-  }
-
-  /* Muted text at minimum 4.5:1 contrast */
-  .text-muted,
-  .text-text-muted {
-    color: var(--color-text-muted);
   }
 
   /* Accessible focus indicators */
@@ -57,10 +48,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-scrollbar);
+  background: #D8D5E5;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-hover);
+  background: #B6B2CB;
 }

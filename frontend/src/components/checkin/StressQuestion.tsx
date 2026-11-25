@@ -3,7 +3,7 @@ import { Slider } from '../ui/Slider';
 import { Activity } from 'lucide-react';
 
 export interface StressQuestionProps {
-  value: number | null;
+  value: number;
   onChange: (val: number) => void;
 }
 
@@ -26,25 +26,19 @@ export const StressQuestion: React.FC<StressQuestionProps> = ({ value, onChange 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-lg bg-[var(--color-amber-soft)] flex items-center justify-center text-[var(--color-amber-text)] shrink-0">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-[#F6E6CC] flex items-center justify-center text-[#7A4D05]">
           <Activity className="w-4 h-4" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-[var(--color-text-main)]">
+          <h2 className="text-lg font-semibold text-[#25233B]">
             What is your current stress level?
           </h2>
-          <p className="text-sm text-[var(--color-text-secondary)]">
+          <p className="text-xs text-[#625F78]">
             Be honest with where you are. There are no right or wrong answers.
           </p>
         </div>
       </div>
-
-      {value === null && (
-        <p className="text-sm font-medium text-[var(--color-amber-text)]" role="status">
-          Tap a rating below to continue.
-        </p>
-      )}
 
       <div className="pt-2">
         <Slider
@@ -52,7 +46,6 @@ export const StressQuestion: React.FC<StressQuestionProps> = ({ value, onChange 
           onChange={onChange}
           labels={labels}
           labelDescriptions={descriptions}
-          ariaLabel="Stress level scale from 1 (Very low) to 5 (Very high)"
         />
       </div>
     </div>

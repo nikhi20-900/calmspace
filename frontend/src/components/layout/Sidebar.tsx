@@ -29,23 +29,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSupportModal }) => {
 
   return (
     <aside
-      className="hidden md:flex flex-col w-64 border-r border-[var(--color-border)] bg-[var(--color-surface)] h-screen sticky top-0 shrink-0 select-none z-20"
+      className="hidden md:flex flex-col w-64 border-r border-[#E8E6F1] bg-white h-screen sticky top-0 shrink-0 select-none z-20"
       aria-label="Main Application Navigation"
     >
       {/* Brand Header */}
-      <div className="p-6 border-b border-[var(--color-border-light)]">
-        <NavLink
-          to="/app"
-          className="flex items-center gap-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] rounded-md"
-        >
-          <div className="w-10 h-10 rounded-xl bg-[var(--color-primary-fill)] flex items-center justify-center text-white shadow-soft transition-transform group-hover:scale-105 duration-200">
-            <Sparkles className="w-5 h-5 text-white" />
+      <div className="p-6 border-b border-[#F0EFF7]">
+        <NavLink to="/app" className="flex items-center gap-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] rounded-md">
+          <div className="w-10 h-10 rounded-xl bg-[#5554B8] flex items-center justify-center text-white shadow-soft transition-transform group-hover:scale-105 duration-200">
+            <Sparkles className="w-5 h-5 text-[#E9E7FB]" />
           </div>
           <div>
-            <span className="text-lg font-bold tracking-tight text-[var(--color-text-main)] block">
+            <span className="text-lg font-bold tracking-tight text-[#25233B] block">
               Calmspace
             </span>
-            <span className="text-sm text-[var(--color-text-secondary)] font-medium block">
+            <span className="text-xs text-[#625F78] font-medium block">
               Student Wellbeing
             </span>
           </div>
@@ -61,10 +58,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSupportModal }) => {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3.5 py-2.5 rounded-button text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 ${
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-button text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
                   isActive
-                    ? 'bg-[var(--color-lavender-soft)] text-[var(--color-primary)] font-semibold shadow-subtle'
-                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)] hover:bg-[var(--color-bg)]'
+                    ? 'bg-[#E9E7FB] text-[#5554B8] font-semibold shadow-subtle'
+                    : 'text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'
                 }`
               }
             >
@@ -73,38 +70,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSupportModal }) => {
             </NavLink>
           );
         })}
-
-        <div className="pt-2 border-t border-[var(--color-border-light)] mt-2">
-          <button
-            type="button"
-            onClick={openPrivacyModal}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-button text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)] hover:bg-[var(--color-bg)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-          >
-            <ShieldCheck className="w-4 h-4 shrink-0 text-[var(--color-sage-text)]" />
-            <span>Privacy Inventory</span>
-          </button>
-        </div>
       </nav>
 
       {/* Persistent Support Action */}
-      <div className="p-4 border-t border-[var(--color-border-light)] bg-[var(--color-bg)]/60">
-        <div className="p-3.5 rounded-card bg-[var(--color-surface)] border border-[var(--color-border)] shadow-subtle">
+      <div className="p-4 border-t border-[#F0EFF7] bg-[#F7F6FB]/60">
+        <div className="p-3.5 rounded-card bg-white border border-[#E8E6F1] shadow-subtle">
           <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+            <span className="w-2 h-2 rounded-full bg-[#5554B8] animate-pulse"></span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#625F78]">
               Human Support
             </span>
           </div>
-          <p className="text-sm text-[var(--color-text-secondary)] mb-3 leading-relaxed">
+          <p className="text-xs text-[#625F78] mb-3 leading-relaxed">
             Free, confidential support is always available whenever things feel heavy.
           </p>
           <button
             type="button"
             onClick={onOpenSupportModal}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 text-sm font-semibold rounded-button bg-[var(--color-primary-fill)] text-white hover:bg-[var(--color-primary-fill-hover)] active:bg-[var(--color-primary-fill-active)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-button bg-[#5554B8] text-white hover:bg-[#4645A7] active:bg-[#3D3C94] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle className="w-3.5 h-3.5" />
             <span>Need to talk to someone?</span>
+          </button>
+          <button
+            type="button"
+            onClick={openPrivacyModal}
+            className="w-full mt-2 flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-medium rounded-button border border-[#E8E6F1] bg-white text-[#625F78] hover:text-[#5554B8] hover:border-[#D5D1E5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-[#245532]" />
+            <span>Privacy & Data Inventory</span>
           </button>
         </div>
       </div>

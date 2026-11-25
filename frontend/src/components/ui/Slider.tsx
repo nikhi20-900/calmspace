@@ -1,8 +1,8 @@
-import React, { useRef } from 'react';
+import React from 'react';
 
 export interface SliderProps {
   id?: string;
-  value: number | null;
+  value: number;
   min?: number;
   max?: number;
   step?: number;
@@ -30,110 +30,76 @@ export const Slider: React.FC<SliderProps> = ({
   labelDescriptions,
   ariaLabel = 'Rating scale from 1 to 5',
 }) => {
-  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const steps: number[] = [];
   for (let i = min; i <= max; i += step) {
     steps.push(i);
   }
 
-  // null = nothing selected yet; 0 and out-of-range values are treated as unset
-  const hasSelection = value !== null && value >= min && value <= max;
-
-  const selectAndFocus = (targetVal: number) => {
-    onChange(targetVal);
-    const targetIdx = steps.indexOf(targetVal);
-    if (targetIdx >= 0) {
-      buttonRefs.current[targetIdx]?.focus();
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
       e.preventDefault();
-      const cur = hasSelection ? value! : min - step;
-      const nextVal = Math.min(max, cur + step);
-      selectAndFocus(nextVal);
+      if (value < max) onChange(Math.min(max, value + step));
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
       e.preventDefault();
-      const nextVal = hasSelection ? Math.max(min, value! - step) : min;
-      selectAndFocus(nextVal);
+      if (value > min) onChange(Math.max(min, value - step));
     } else if (e.key === 'Home') {
       e.preventDefault();
-      selectAndFocus(min);
+      onChange(min);
     } else if (e.key === 'End') {
       e.preventDefault();
-      selectAndFocus(max);
+      onChange(max);
     }
   };
 
   return (
     <div className="w-full space-y-4" id={id}>
-      {/* Rating buttons */}
+      {/* Slider buttons row for clear, accessible touch targets (min 44px) with roving tabindex */}
       <div
         className="grid grid-cols-5 gap-1.5 sm:gap-3"
         role="radiogroup"
         aria-label={ariaLabel}
         onKeyDown={handleKeyDown}
       >
-        {steps.map((num, idx) => {
-          const isSelected = hasSelection && value === num;
-          const isFocusable = hasSelection ? isSelected : idx === 0;
+        {steps.map((num) => {
+          const isSelected = value === num;
           return (
             <button
               key={num}
-              ref={(el) => {
-                buttonRefs.current[idx] = el;
-              }}
               type="button"
               role="radio"
               aria-checked={isSelected}
-              tabIndex={isFocusable ? 0 : -1}
+              tabIndex={isSelected ? 0 : -1}
               onClick={() => onChange(num)}
-              className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-button border text-center transition-all duration-200 min-h-[64px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 ${
+              className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-button border text-center transition-all duration-200 min-h-[56px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
                 isSelected
-                  ? 'bg-[var(--color-primary-fill)] text-white border-[var(--color-primary-fill)] shadow-sm'
-                  : 'bg-[var(--color-surface)] text-[var(--color-text-main)] border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-bg)]'
+                  ? 'bg-[#5554B8] text-white border-[#5554B8] shadow-sm font-semibold'
+                  : 'bg-white text-[#25233B] border-[#E8E6F1] hover:border-[#D5D1E5] hover:bg-[#F7F6FB]'
               }`}
             >
-              <span
-                className={`text-base font-bold ${
-                  isSelected ? 'text-white' : 'text-[var(--color-text-main)]'
-                }`}
-              >
+              <span className={`text-base font-bold ${isSelected ? 'text-white' : 'text-[#25233B]'}`}>
                 {num}
               </span>
-              {labels[num] && (
-                <span
-                  className={`text-xs sm:text-sm mt-0.5 font-medium leading-tight break-words text-center ${
-                    isSelected ? 'text-white/95' : 'text-[var(--color-text-secondary)]'
-                  }`}
-                >
-                  {labels[num]}
-                </span>
-              )}
+              <span
+                className={`text-[10px] sm:text-xs mt-0.5 font-medium leading-tight max-w-full text-center break-words ${
+                  isSelected ? 'text-[#E9E7FB]' : 'text-[#625F78]'
+                }`}
+              >
+                {labels[num] || ''}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Selection feedback — only shown once a value is chosen */}
-      <div className="text-center pt-1 min-h-[2.75rem]" aria-live="polite">
-        {hasSelection ? (
-          <>
-            <p className="text-sm font-medium text-[var(--color-text-main)]">
-              Selected:{' '}
-              <span className="font-bold text-[var(--color-primary)]">
-                {value} — {labels[value!]}
-              </span>
-            </p>
-            {labelDescriptions && labelDescriptions[value!] && (
-              <p className="text-sm text-[var(--color-text-secondary)] mt-1 max-w-md mx-auto leading-relaxed">
-                {labelDescriptions[value!]}
-              </p>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-[var(--color-text-muted)] italic">No rating selected yet</p>
+      {/* Selected label and description highlight */}
+      <div className="text-center pt-1" aria-live="polite">
+        <p className="text-sm font-medium text-[#25233B]">
+          Selected: <span className="font-semibold text-[#5554B8]">{value} — {labels[value]}</span>
+        </p>
+        {labelDescriptions && labelDescriptions[value] && (
+          <p className="text-xs text-[#625F78] mt-1 max-w-md mx-auto leading-relaxed">
+            {labelDescriptions[value]}
+          </p>
         )}
       </div>
     </div>

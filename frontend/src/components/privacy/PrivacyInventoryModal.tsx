@@ -361,7 +361,7 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
             tabIndex={0}
             className="space-y-3.5 focus:outline-none"
           >
-            <div className="p-4 rounded-card bg-[var(--color-surface-subtle)] border border-[var(--color-border)] space-y-3">
+            <div className="p-4 rounded-card bg-[#FAF9FD] border border-[var(--color-border)] space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-[var(--color-primary)] uppercase tracking-wider">
                 <Sparkles className="w-4 h-4" />
                 <span>Explicit Consent & Deterministic Safety Rules</span>
@@ -409,7 +409,7 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
             tabIndex={0}
             className="space-y-3.5 focus:outline-none"
           >
-            <div className="p-4 rounded-card bg-[var(--color-surface-subtle)] border border-[var(--color-border)] space-y-3">
+            <div className="p-4 rounded-card bg-[#FAF9FD] border border-[var(--color-border)] space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-[var(--color-primary)] uppercase tracking-wider">
                 <Lock className="w-4 h-4" />
                 <span>Session Isolation & Destruction Controls</span>
@@ -440,8 +440,8 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-danger-border)]">
-                  <div className="flex items-center gap-2 font-semibold text-[var(--color-danger-text)] mb-1">
+                <div className="p-3.5 rounded-lg bg-[var(--color-surface)] border border-red-200">
+                  <div className="flex items-center gap-2 font-semibold text-red-700 mb-1">
                     <Trash2 className="w-4 h-4" />
                     <span>Immediate Permanent Erasure (&ldquo;Delete All My Data&rdquo;)</span>
                   </div>

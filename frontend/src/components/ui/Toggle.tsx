@@ -20,9 +20,9 @@ export const Toggle: React.FC<ToggleProps> = ({
   return (
     <div className="flex items-start justify-between gap-4 py-2">
       <label htmlFor={id} className="cursor-pointer select-none">
-        <span className="block text-sm font-medium text-[var(--color-text-main)]">{label}</span>
+        <span className="block text-sm font-medium text-[#25233B]">{label}</span>
         {description && (
-          <span className="block text-sm text-[var(--color-text-secondary)] mt-0.5 leading-relaxed">
+          <span className="block text-xs text-[#625F78] mt-0.5 leading-relaxed">
             {description}
           </span>
         )}
@@ -35,8 +35,8 @@ export const Toggle: React.FC<ToggleProps> = ({
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-          checked ? 'bg-[var(--color-primary-fill)]' : 'bg-[var(--color-border-dark)]'
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+          checked ? 'bg-[#5554B8]' : 'bg-[#D4D0E3]'
         }`}
       >
         <span

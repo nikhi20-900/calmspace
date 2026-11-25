@@ -36,47 +36,47 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
                 key={contact.id}
                 className={`p-4 rounded-card border transition-all ${
                   contact.is_urgent
-                    ? 'bg-[var(--color-surface-subtle)] border-[var(--color-lavender-border)] shadow-subtle'
+                    ? 'bg-[#F9F8FD] border-[#5554B8]/30 shadow-subtle'
                     : isDemo
-                      ? 'bg-[var(--color-amber-light)] border-[var(--color-amber-border)]'
-                      : 'bg-[var(--color-surface)] border-[var(--color-border)]'
+                      ? 'bg-[#FFFDF9] border-[#F4DCCB]'
+                      : 'bg-white border-[#E8E6F1]'
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  <div className="space-y-1.5 max-w-md">
+                  <div className="space-y-1 max-w-md">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-[var(--color-text-main)]">
+                      <span className="text-sm font-semibold text-[#25233B]">
                         {contact.name}
                       </span>
                       <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
                           contact.is_urgent
-                            ? 'bg-[var(--color-urgent-bg)] text-[var(--color-urgent-text)]'
+                            ? 'bg-[#25233B] text-white'
                             : isDemo
-                              ? 'bg-[var(--color-amber-soft)] text-[var(--color-amber-text)] border border-[var(--color-amber-border)]'
-                              : 'bg-[var(--color-lavender-soft)] text-[var(--color-primary)]'
+                              ? 'bg-[#FBF0EA] text-[#7A4D05] border border-[#F4DCCB]'
+                              : 'bg-[#E9E7FB] text-[#5554B8]'
                         }`}
                       >
                         {contact.badge_label}
                       </span>
                       {isDemo && (
-                        <span className="text-xs font-semibold text-[var(--color-amber-text)] bg-[var(--color-amber-soft)] px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-semibold text-[#B24823] bg-[#FDEEE9] px-2 py-0.5 rounded-full">
                           Demo Template
                         </span>
                       )}
                     </div>
 
-                    <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                    <p className="text-xs text-[#625F78] leading-relaxed">
                       {contact.description}
                     </p>
 
-                    <div className="pt-1 flex items-center gap-4 text-sm text-[var(--color-text-secondary)] flex-wrap">
+                    <div className="pt-1 flex items-center gap-4 text-[11px] text-[#625F78] flex-wrap">
                       <span className="flex items-center gap-1 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                        <Clock className="w-3.5 h-3.5 text-[#5554B8]" />
                         {contact.hours}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Shield className="w-3.5 h-3.5 text-[var(--color-sage-text)]" />
+                        <Shield className="w-3.5 h-3.5 text-[#245532]" />
                         Verified: {contact.last_verified_date}
                       </span>
                       {contact.official_source_url && (
@@ -84,10 +84,10 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
                           href={contact.official_source_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[var(--color-primary)] hover:underline"
+                          className="inline-flex items-center gap-1 text-[#5554B8] hover:underline"
                         >
                           <span>{contact.verification_source}</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
                     </div>
@@ -99,17 +99,17 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
                       <button
                         type="button"
                         onClick={() => setDemoNoticeOpen(true)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-button bg-[var(--color-surface)] border border-[var(--color-border-dark)] text-[var(--color-text-main)] hover:bg-[var(--color-bg)]"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-button bg-white border border-[#D5D1E5] text-[#25233B] hover:bg-[#F7F6FB]"
                       >
-                        <Info className="w-4 h-4 text-[var(--color-primary)]" />
+                        <Info className="w-3.5 h-3.5 text-[#5554B8]" />
                         <span>Demo Details</span>
                       </button>
                     ) : (
                       <a
                         href={`tel:${contact.contact_number.replace(/\s+/g, '')}`}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-button bg-[var(--color-primary-fill)] text-white hover:bg-[var(--color-primary-fill-hover)] active:bg-[var(--color-primary-fill-active)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-button bg-[#5554B8] text-white hover:bg-[#4645A7] active:bg-[#3D3C94] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
                       >
-                        <Phone className="w-4 h-4" />
+                        <Phone className="w-3.5 h-3.5" />
                         <span>Call {contact.contact_number}</span>
                       </a>
                     )}
@@ -120,15 +120,15 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
           })}
         </div>
 
-        <div className="mt-5 p-3.5 rounded-card bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] leading-relaxed">
+        <div className="mt-5 p-3 rounded-card bg-[#F7F6FB] border border-[#E8E6F1] text-[11px] text-[#625F78] leading-relaxed">
           <p>
             <strong>Availability Note:</strong> Calmspace provides verified directory access and triage routing. Helplines and dispatch services are managed by external agencies; availability and outcomes are not guaranteed.
           </p>
         </div>
 
-        <div className="mt-5 pt-3.5 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-[var(--color-text-secondary)]">
+        <div className="mt-5 pt-3.5 border-t border-[#E8E6F1] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#625F78]">
           <span className="flex items-center gap-1.5">
-            <HeartHandshake className="w-4 h-4 text-[var(--color-primary)]" />
+            <HeartHandshake className="w-4 h-4 text-[#5554B8]" />
             <span>Rules decide safety. AI writes language. Humans help.</span>
           </span>
           <div className="flex items-center gap-4">
@@ -138,15 +138,15 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
                 onClose();
                 navigate('/support');
               }}
-              className="font-semibold text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
+              className="font-semibold text-[#5554B8] hover:underline inline-flex items-center gap-1"
             >
               <span>Full Support Directory</span>
-              <ExternalLink className="w-3.5 h-3.5" />
+              <ExternalLink className="w-3 h-3" />
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="font-medium text-[var(--color-text-main)] hover:underline"
+              className="font-medium text-[#25233B] hover:underline"
             >
               Close
             </button>
@@ -162,39 +162,41 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose }) =
         description="Important information regarding institutional campus support connections."
         maxWidth="md"
       >
-        <div className="space-y-4 text-sm text-[var(--color-text-main)] leading-relaxed">
-          <div className="p-3.5 rounded-card bg-[var(--color-amber-light)] border border-[var(--color-amber-border)] text-[var(--color-amber-text)] flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+        <div className="space-y-4 text-xs text-[#25233B] leading-relaxed">
+          <div className="p-3.5 rounded-card bg-[#FBF0EA] border border-[#F4DCCB] text-[#7A4D05] flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-[#B24823]" />
             <div>
-              <p className="font-semibold mb-0.5">Template Placeholder</p>
+              <p className="font-semibold text-sm mb-0.5 text-[#B24823]">
+                Template Placeholder
+              </p>
               <p>
                 This campus entry is a template placeholder. Calmspace does not dispatch student distress data without configured institutional webhooks.
               </p>
             </div>
           </div>
 
-          <p className="text-[var(--color-text-secondary)]">
+          <p className="text-[#625F78]">
             For live emergency or crisis assistance right now, please use the verified national helplines:
           </p>
 
-          <div className="p-4 rounded-card bg-[var(--color-lavender-soft)] border border-[var(--color-lavender-border)]">
-            <p className="font-semibold text-[var(--color-text-main)] mb-1">
+          <div className="p-4 rounded-card bg-[#E9E7FB] border border-[#D5D1E5]">
+            <p className="font-semibold text-sm text-[#25233B] mb-1">
               Tele-MANAS (Govt. of India)
             </p>
-            <p className="text-[var(--color-text-secondary)] mb-3">
+            <p className="text-[#625F78] mb-3">
               Toll-free, 24/7, multi-lingual support available in 20+ languages.
             </p>
             <a
               href="tel:14416"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-button bg-[var(--color-primary-fill)] text-white text-sm font-semibold hover:bg-[var(--color-primary-fill-hover)]"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-button bg-[#5554B8] text-white text-xs font-semibold hover:bg-[#4645A7]"
             >
-              <Phone className="w-4 h-4" />
+              <Phone className="w-3.5 h-3.5" />
               <span>Call 14416 Now</span>
             </a>
           </div>
         </div>
 
-        <div className="mt-5 pt-3 border-t border-[var(--color-border)] flex justify-end">
+        <div className="mt-5 pt-3 border-t border-[#E8E6F1] flex justify-end">
           <Button variant="secondary" size="sm" onClick={() => setDemoNoticeOpen(false)}>
             Close
           </Button>
