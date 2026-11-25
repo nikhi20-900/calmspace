@@ -294,16 +294,21 @@ export const CheckInResultPage: React.FC = () => {
             </Button>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-[#F0EFF7] flex items-center justify-between text-[11px] text-[#8E8AA7]">
-            <span>
-              AI generation is strictly disabled for high-risk evaluations. National helplines are verified against official government registries; campus entries are configurable demo placeholders.
-            </span>
-            <Link
-              to="/support"
-              className="font-medium text-[#5554B8] hover:underline"
-            >
-              View Full Support Directory →
-            </Link>
+          <div className="mt-4 pt-3 border-t border-[#F0EFF7] space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-[#8E8AA7]">
+              <span>
+                AI generation is strictly disabled for high-risk evaluations. National helplines are verified against official government registries; campus entries are configurable demo placeholders.
+              </span>
+              <Link
+                to="/support"
+                className="font-medium text-[#5554B8] hover:underline shrink-0"
+              >
+                View Full Support Directory →
+              </Link>
+            </div>
+            <p className="text-[10px] text-[#A29EBA] leading-relaxed">
+              <strong>Availability notice:</strong> Helplines and emergency dispatch are independently operated; Calmspace cannot guarantee response times, immediate availability, or clinical outcomes.
+            </p>
           </div>
         </div>
       </div>
