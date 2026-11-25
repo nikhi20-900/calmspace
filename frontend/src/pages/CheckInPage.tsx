@@ -60,9 +60,8 @@ export const CheckInPage: React.FC = () => {
           );
           setPriorTodayCheckin(todayEntries[0]);
         }
-      } catch (err) {
-        // Non-blocking history lookup
-        console.debug('Could not load checkin history for duplicate policy check:', err);
+      } catch {
+        console.debug('Check-in history lookup was unavailable.');
       }
     }
     checkPriorCheckins();
@@ -167,13 +166,10 @@ export const CheckInPage: React.FC = () => {
 
       // Navigate to results
       navigate('/checkin/result', { state: { result: response } });
-    } catch (err: any) {
-      console.error('Checkin submission error:', err);
+    } catch {
+      console.error('Check-in submission failed.');
       setIsNetworkError(true);
-      setErrorMsg(
-        err?.message ||
-          'Unable to submit check-in to server. Please check your connection and retry.'
-      );
+      setErrorMsg('Unable to submit check-in. Please check your connection and retry.');
     } finally {
       setIsSubmitting(false);
     }
@@ -184,8 +180,28 @@ export const CheckInPage: React.FC = () => {
       <PageHeader
         tag="Daily Wellbeing Check-in"
         title="A moment to pause with yourself"
-        description="Takes about 60 seconds. Rules decide your safety, reflection text is never saved to history, and you remain anonymous."
+        description="Takes about 60 seconds. Review how your information is used before you begin."
       />
+
+      <Card padding="md" className="mb-5 border border-[#D5D1E5] bg-[#F7F6FB]" role="note">
+        <h2 className="text-sm font-bold text-[#25233B] mb-2">Before you check in</h2>
+        <ul className="space-y-2 text-xs leading-relaxed text-[#625F78]">
+          <li>
+            Mood, stress, sleep, and the resulting safety route are associated with a random
+            browser session ID. This demo holds records in backend memory, clears them on a
+            backend restart, and removes check-ins older than 30 days on the next history or
+            check-in request.
+          </li>
+          <li>
+            Reflection is optional. Do not include your name, student number, contact details,
+            or other information that could identify you.
+          </li>
+          <li>
+            The session ID is not a secure login credential. Avoid using Calmspace on a shared
+            device until authenticated session controls are available.
+          </li>
+        </ul>
+      </Card>
 
       {/* Same-day duplicate policy notice banner */}
       {priorTodayCheckin && (
@@ -320,7 +336,7 @@ export const CheckInPage: React.FC = () => {
       {/* Privacy Footnote */}
       <div className="flex items-center justify-center gap-2 mt-6 text-xs text-[#625F78]">
         <ShieldCheck className="w-4 h-4 text-[#245532]" />
-        <span>Encrypted anonymous session. No clinical diagnosis.</span>
+        <span>Optional check-in. No clinical diagnosis.</span>
       </div>
     </div>
   );

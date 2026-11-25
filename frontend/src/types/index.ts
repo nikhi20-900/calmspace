@@ -84,6 +84,6 @@ export interface UserSettings {
   nickname: string;
   break_reminders_enabled: boolean;
   reminder_interval_minutes: number;
-  share_anonymous_analytics: boolean;
-  data_retention_days: number;
+  share_anonymous_analytics: false;
+  data_retention_days: 30;
 }

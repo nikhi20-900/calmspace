@@ -13,8 +13,12 @@ router = APIRouter(prefix="/api/planner", tags=["Study Planner"])
 
 
 @router.get("/tasks", response_model=list[StudyTask])
-async def list_tasks(x_session_id: str | None = Header("anonymous-default-session")):
-    session_id = x_session_id or "anonymous-default-session"
+async def list_tasks(
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
+):
+    session_id = x_session_id
     tasks = storage.get_tasks(session_id)
     if not tasks:
         # Provide welcoming starter tasks to inspire balance
@@ -31,9 +35,11 @@ async def list_tasks(x_session_id: str | None = Header("anonymous-default-sessio
 @router.post("/tasks", response_model=StudyTask)
 async def create_task(
     payload: StudyTaskCreate,
-    x_session_id: str | None = Header("anonymous-default-session"),
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    session_id = x_session_id or "anonymous-default-session"
+    session_id = x_session_id
     return storage.add_task(
         session_id=session_id,
         title=payload.title,
@@ -44,9 +50,12 @@ async def create_task(
 
 @router.patch("/tasks/{task_id}/toggle", response_model=StudyTask)
 async def toggle_task(
-    task_id: str, x_session_id: str | None = Header("anonymous-default-session")
+    task_id: str,
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    session_id = x_session_id or "anonymous-default-session"
+    session_id = x_session_id
     updated = storage.toggle_task(session_id, task_id)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -55,9 +64,12 @@ async def toggle_task(
 
 @router.delete("/tasks/{task_id}")
 async def delete_task(
-    task_id: str, x_session_id: str | None = Header("anonymous-default-session")
+    task_id: str,
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    session_id = x_session_id or "anonymous-default-session"
+    session_id = x_session_id
     success = storage.delete_task(session_id, task_id)
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")

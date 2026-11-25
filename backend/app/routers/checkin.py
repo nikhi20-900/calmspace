@@ -21,9 +21,11 @@ router = APIRouter(prefix="/api/checkin", tags=["Check-in"])
 @router.post("", response_model=CheckInResponse)
 async def submit_checkin(
     payload: CheckInRequest,
-    x_session_id: str | None = Header("anonymous-default-session"),
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    session_id = x_session_id or "anonymous-default-session"
+    session_id = x_session_id
 
     # 1. Fetch recent check-ins for trend-based safety checks
     recent_records = [
@@ -75,7 +77,9 @@ async def submit_checkin(
 
 @router.get("/history")
 async def get_checkin_history(
-    x_session_id: str | None = Header("anonymous-default-session"),
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    session_id = x_session_id or "anonymous-default-session"
+    session_id = x_session_id
     return storage.get_checkins(session_id)

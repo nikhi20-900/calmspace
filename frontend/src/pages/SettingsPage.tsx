@@ -9,23 +9,26 @@ import {
   ShieldCheck,
   Trash2,
   CheckCircle2,
-  KeyRound,
-  Info,
-  Sparkles,
 } from 'lucide-react';
-import { api, getAnonymousSessionId } from '../services/api';
+import { api, clearAnonymousSessionId } from '../services/api';
 import { UserSettings } from '../types';
 
 export const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsLoadFailed, setSettingsLoadFailed] = useState(false);
+  const [deletionPending, setDeletionPending] = useState(
+    () => sessionStorage.getItem('calmspace_data_deletion_pending') === 'true'
+  );
 
   // Deletion Dialog State (2-step confirmation)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletionSuccess, setDeletionSuccess] = useState(false);
+  const [deletionError, setDeletionError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadSettings() {
@@ -33,6 +36,8 @@ export const SettingsPage: React.FC = () => {
         const data = await api.getSettings();
         setSettings(data);
       } catch (e) {
+        setSettingsLoadFailed(true);
+        setSettingsError('Unable to load saved preferences. Reload this page before trying to save changes.');
         setSettings({
           nickname: 'Student',
           break_reminders_enabled: true,
@@ -50,22 +55,28 @@ export const SettingsPage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings) return;
+    setSettingsError(null);
     try {
       const updated = await api.updateSettings(settings);
       setSettings(updated);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      setSettingsError('Unable to save preferences. Your previous settings have not been confirmed.');
     }
   };
 
   const handleExecuteDelete = async () => {
     if (deleteConfirmationText !== 'DELETE') return;
     setIsDeleting(true);
+    setDeletionError(null);
     try {
       await api.deleteAllData();
+      clearAnonymousSessionId();
       sessionStorage.removeItem('calmspace_latest_checkin');
+      sessionStorage.removeItem('calmspace_high_risk_exited');
+      sessionStorage.removeItem('calmspace_data_deletion_pending');
+      setDeletionPending(false);
       setDeletionSuccess(true);
       setIsDeleteDialogOpen(false);
       setDeleteConfirmationText('');
@@ -77,8 +88,8 @@ export const SettingsPage: React.FC = () => {
         share_anonymous_analytics: false,
         data_retention_days: 30,
       });
-    } catch (e) {
-      console.error(e);
+    } catch {
+      setDeletionError('Deletion could not be confirmed. Your session data may still be present; retry when the service is available.');
     } finally {
       setIsDeleting(false);
     }
@@ -88,14 +99,12 @@ export const SettingsPage: React.FC = () => {
     return <LoadingState message="Loading your settings..." />;
   }
 
-  const anonymousId = getAnonymousSessionId();
-
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-2xl mx-auto">
       <PageHeader
         tag="Privacy & Settings"
         title="Privacy & Preferences"
-        description="Transparent controls over your data, anonymous session tokens, and local pacing reminders."
+        description="Transparent controls over this browser session's data and local pacing reminders."
       />
 
       {savedSuccess && (
@@ -108,25 +117,35 @@ export const SettingsPage: React.FC = () => {
       {deletionSuccess && (
         <div className="p-3.5 rounded-card bg-[#DCE9DF] border border-[#BCD4C3] text-[#245532] text-xs flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" />
-          <span>All check-ins, tasks, and stored data have been permanently erased.</span>
+          <span>Calmspace removed this session's check-ins, tasks, preferences, and saved browser response. External AI-provider retention, if applicable, is controlled by that provider.</span>
         </div>
       )}
 
-      {/* Anonymous Identity Card */}
+      {settingsError && (
+        <div className="p-3.5 rounded-card bg-rose-50 border border-rose-200 text-rose-800 text-xs" role="alert">
+          {settingsError}
+        </div>
+      )}
+
+      {(deletionPending || deletionError) && (
+        <div className="p-3.5 rounded-card bg-amber-50 border border-amber-200 text-amber-900 text-xs" role="alert">
+          {deletionError || 'A safe-exit deletion could not be confirmed. Your session data may still be present; use Delete all my data to retry.'}
+        </div>
+      )}
+
+      {/* Anonymous Session Disclosure */}
       <Card padding="lg" className="space-y-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-[#5554B8] uppercase tracking-wider">
-          <KeyRound className="w-4 h-4" />
-          <span>Anonymous Session</span>
+          <ShieldCheck className="w-4 h-4" />
+          <span>Browser Session</span>
         </div>
-        <h2 className="text-base font-bold text-[#25233B]">
-          Your Cryptographic Identity
-        </h2>
+        <h2 className="text-base font-bold text-[#25233B]">How this demo identifies a session</h2>
         <p className="text-xs text-[#625F78] leading-relaxed">
-          Calmspace does not require email addresses, student roll numbers, or Google logins. You are represented on this browser solely by an anonymous token:
+          Calmspace does not ask for an account, email address, or student number. This browser uses a random session ID to associate its data; it is not a secure login credential. Avoid shared devices and do not enter identifying details in nicknames, task titles, or reflections.
         </p>
-        <div className="p-3 bg-[#F7F6FB] rounded-input border border-[#E8E6F1] font-mono text-xs text-[#25233B] select-all">
-          {anonymousId}
-        </div>
+        <p className="text-xs text-[#625F78] leading-relaxed">
+          Authenticated session credentials and inactivity expiry are not implemented on this branch. Do not treat this demo as a secure private account.
+        </p>
       </Card>
 
       {/* User Preferences Form */}
@@ -139,12 +158,13 @@ export const SettingsPage: React.FC = () => {
             <input
               id="settings-nickname"
               type="text"
+              maxLength={60}
               value={settings.nickname}
               onChange={(e) => setSettings({ ...settings, nickname: e.target.value })}
               className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
             />
             <p className="text-[11px] text-[#625F78] mt-1">
-              Used strictly for warm dashboard greetings like "Good day, {settings.nickname}".
+              Used for dashboard greetings. Do not enter your real name or other identifying details.
             </p>
           </div>
 
@@ -157,17 +177,13 @@ export const SettingsPage: React.FC = () => {
               onChange={(checked) => setSettings({ ...settings, break_reminders_enabled: checked })}
             />
 
-            <Toggle
-              id="analytics-toggle"
-              label="Share Aggregated Anonymous Insights"
-              description="Allows aggregate anonymised trends to help improve campus wellbeing initiatives."
-              checked={settings.share_anonymous_analytics}
-              onChange={(checked) => setSettings({ ...settings, share_anonymous_analytics: checked })}
-            />
+            <p className="text-xs text-[#625F78] leading-relaxed">
+              <strong>Analytics:</strong> No analytics sharing is active in this demo. This preference is fixed off and no check-in data is sent for analytics.
+            </p>
           </div>
 
           <div className="pt-4 border-t border-[#F0EFF7] flex justify-end">
-            <Button type="submit" variant="primary" size="md">
+            <Button type="submit" variant="primary" size="md" disabled={settingsLoadFailed}>
               Save Preferences
             </Button>
           </div>
@@ -186,15 +202,15 @@ export const SettingsPage: React.FC = () => {
         <ul className="text-xs text-[#625F78] space-y-2 leading-relaxed">
           <li className="flex items-start gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-[#5554B8] mt-1.5 shrink-0" />
-            <span><strong>Reflection isolation:</strong> Optional written reflections are never persisted to database records.</span>
+            <span><strong>Reflection isolation:</strong> Optional reflections are not saved in Calmspace check-in records. They are evaluated by safety rules; if you opt in for a LOW or MEDIUM result and Google Gemini is configured, Gemini receives the text under its own data-use and retention terms.</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-[#5554B8] mt-1.5 shrink-0" />
-            <span><strong>No medical profiling:</strong> We never generate clinical diagnoses or share data with insurance or campus administrative records.</span>
+            <span><strong>Demo storage:</strong> Check-in ratings and routes are held in backend memory and clear on backend restart. Check-ins older than 30 days are removed on the next history or check-in request; HIGH-route records follow the same rule.</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-[#5554B8] mt-1.5 shrink-0" />
-            <span><strong>Rule-based routing:</strong> Safety escalation is governed by transparent rules, not unpredictable algorithms.</span>
+            <span><strong>No clinical diagnosis:</strong> Safety routing is rule-based. Nicknames, preferences, and planner tasks remain in backend memory until deleted or the backend restarts.</span>
           </li>
         </ul>
       </Card>
@@ -209,7 +225,7 @@ export const SettingsPage: React.FC = () => {
           Erase All Stored Data
         </h2>
         <p className="text-xs text-[#625F78] leading-relaxed">
-          Permanently remove your check-in ratings, study planner sessions, and personal preferences from this device and our servers. This action is irreversible.
+          Remove check-in ratings, study tasks, and preferences associated with this browser session from the current backend, and clear the saved browser response and session ID. This demo stores records in memory and clears them on backend restart. Data already sent to an external AI provider is governed by that provider. Secure credential revocation is not yet available.
         </p>
 
         <div className="pt-2">
@@ -229,12 +245,12 @@ export const SettingsPage: React.FC = () => {
       <Dialog
         isOpen={isDeleteDialogOpen}
         onClose={() => setIsDeleteDialogOpen(false)}
-        title="Permanently erase your wellbeing data?"
-        description="This will instantly wipe all historical check-in records, study planner tasks, and settings tied to your anonymous session. It cannot be undone."
+        title="Delete data for this browser session?"
+        description="This removes Calmspace records associated with this session. It cannot remove data already processed by an external AI provider."
       >
         <div className="space-y-4 mt-2">
           <p className="text-xs text-[#625F78]">
-            To confirm permanent deletion, please type <strong className="text-red-700">DELETE</strong> in the box below:
+            To confirm deletion from Calmspace, type <strong className="text-red-700">DELETE</strong> below. This cannot delete data already processed by an external AI provider.
           </p>
 
           <input
@@ -263,9 +279,12 @@ export const SettingsPage: React.FC = () => {
               onClick={handleExecuteDelete}
               className="bg-red-700 hover:bg-red-800"
             >
-              Confirm Permanent Erasure
+              Confirm Deletion
             </Button>
           </div>
+          {deletionError && (
+            <p className="text-xs text-red-700" role="alert">{deletionError}</p>
+          )}
         </div>
       </Dialog>
     </div>

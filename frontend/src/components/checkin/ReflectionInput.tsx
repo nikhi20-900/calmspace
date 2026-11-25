@@ -62,19 +62,26 @@ export const ReflectionInput: React.FC<ReflectionInputProps> = ({
         <div className="flex items-start gap-2 text-xs text-[#625F78]">
           <ShieldCheck className="w-4 h-4 text-[#245532] shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <strong className="text-[#25233B]">Privacy guarantee:</strong> Your reflection is completely optional and is never saved in your check-in history database. It is processed locally by deterministic safety rules to detect crisis indicators.
+            <strong className="text-[#25233B]">How this is used:</strong> Reflection is optional
+            and is not saved in Calmspace check-in records. Calmspace's rule-based safety
+            evaluator processes it whether or not you opt in. If the server is configured for
+            external AI (Google Gemini), your opted-in reflection is sent to the Gemini API only
+            for a LOW or MEDIUM result. The default mock provider does not send it externally.
+            Google's data-use and retention terms apply to text it processes; Calmspace cannot
+            control or delete provider-side data. HIGH-risk reflections are never sent to AI.
           </p>
         </div>
 
         <label className="flex items-start gap-3 p-2 rounded-lg hover:bg-white/70 transition-colors cursor-pointer select-none min-h-[44px]">
           <input
+            id="reflection-ai-consent"
             type="checkbox"
             checked={consent}
             onChange={(e) => onConsentChange(e.target.checked)}
             className="mt-1 h-4 w-4 rounded border-[#D5D1E5] text-[#5554B8] focus:ring-[#5554B8] cursor-pointer"
           />
           <span className="text-xs text-[#25233B] leading-relaxed">
-            I consent to allowing the supportive AI assistant to read this reflection to tailor my kind guidance message. (If left unchecked, your reflection is only evaluated by local rule-based safety checks and is never shared with external AI guidance models).
+            <strong>Optional:</strong> I agree to send this reflection to the configured AI provider for supportive guidance when my result is LOW or MEDIUM. Without this consent, my reflection is not sent to an AI provider. A HIGH-risk result always bypasses AI.
           </span>
         </label>
       </div>

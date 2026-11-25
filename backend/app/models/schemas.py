@@ -5,7 +5,7 @@ Strictly typed for privacy and safety integrity.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 RiskRoute = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -26,7 +26,7 @@ class CheckInRequest(BaseModel):
     reflection: str | None = Field(
         None, max_length=2000, description="Optional personal reflection"
     )
-    consent_ai_processing: bool = Field(
+    consent_ai_processing: StrictBool = Field(
         False, description="Explicit consent if reflection is evaluated for guidance"
     )
 
@@ -122,8 +122,8 @@ class StudyTaskCreate(BaseModel):
 
 
 class UserSettings(BaseModel):
-    nickname: str = "Student"
+    nickname: str = Field("Student", max_length=60)
     break_reminders_enabled: bool = True
     reminder_interval_minutes: int = 45
-    share_anonymous_analytics: bool = False
-    data_retention_days: int = 30
+    share_anonymous_analytics: Literal[False] = False
+    data_retention_days: Literal[30] = 30

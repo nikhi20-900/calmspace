@@ -18,7 +18,11 @@ import {
   ExternalLink,
   AlertTriangle,
 } from 'lucide-react';
-import { FALLBACK_SUPPORT_RESOURCES } from '../services/api';
+import {
+  api,
+  clearAnonymousSessionId,
+  FALLBACK_SUPPORT_RESOURCES,
+} from '../services/api';
 
 export const CheckInResultPage: React.FC = () => {
   const location = useLocation();
@@ -31,7 +35,7 @@ export const CheckInResultPage: React.FC = () => {
     const wasExited = sessionStorage.getItem('calmspace_high_risk_exited') === 'true';
     if (wasExited) {
       window.history.replaceState({}, '');
-      navigate('/', { replace: true });
+      navigate('/app', { replace: true });
       return;
     }
 
@@ -62,17 +66,21 @@ export const CheckInResultPage: React.FC = () => {
     : FALLBACK_SUPPORT_RESOURCES;
 
   /**
-   * Explicit Safe Exit Navigation Policy
-   * Enforces that exiting from a HIGH-route evaluation cleans up transient
-   * check-in session state and returns to the overview without triggering,
-   * prompting, or resuming any AI dialogue or conversation.
-   * Wipes window.history state so browser "Back" cannot reload the exited result.
+   * Start session deletion without delaying access to support or the overview.
+   * A failed request is surfaced on the Settings page so the user can retry.
    */
   const handleSafeExit = () => {
+    sessionStorage.setItem('calmspace_data_deletion_pending', 'true');
+    void api.deleteAllData().then(() => {
+      clearAnonymousSessionId();
+      sessionStorage.removeItem('calmspace_data_deletion_pending');
+    }).catch(() => {
+      sessionStorage.setItem('calmspace_data_deletion_pending', 'true');
+    });
     sessionStorage.removeItem('calmspace_latest_checkin');
     sessionStorage.setItem('calmspace_high_risk_exited', 'true');
     window.history.replaceState({}, '');
-    navigate('/', { replace: true, state: {} });
+    navigate('/app', { replace: true, state: {} });
   };
 
   // =========================================================================
@@ -278,8 +286,9 @@ export const CheckInResultPage: React.FC = () => {
                 <span>Safe Exit Policy</span>
               </h3>
               <p className="text-xs text-[#625F78] max-w-md">
-                Exiting closes this crisis evaluation and returns you to the overview. Calmspace will
-                never automatically resume an AI conversation.
+                Exiting immediately returns you to the overview and requests deletion of this
+                session's Calmspace data. If deletion fails, Settings will show a notice to retry.
+                Calmspace will never automatically resume an AI conversation.
               </p>
             </div>
 

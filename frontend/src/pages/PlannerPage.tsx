@@ -179,6 +179,9 @@ export const PlannerPage: React.FC = () => {
               <label htmlFor="task-title" className="block text-xs font-semibold text-[#625F78] mb-1">
                 What are you focusing on?
               </label>
+              <p className="text-[11px] text-[#625F78] mb-1">
+                Task titles are held in backend memory for this session. Avoid adding names or other identifying details.
+              </p>
               <input
                 id="task-title"
                 type="text"

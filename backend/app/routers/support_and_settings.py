@@ -19,28 +19,36 @@ async def list_support_resources():
 
 
 @settings_router.get("", response_model=UserSettings)
-async def get_settings(x_session_id: str | None = Header("anonymous-default-session")):
-    session_id = x_session_id or "anonymous-default-session"
+async def get_settings(
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
+):
+    session_id = x_session_id
     return storage.get_settings(session_id)
 
 
 @settings_router.put("", response_model=UserSettings)
 async def update_settings(
     settings: UserSettings,
-    x_session_id: str | None = Header("anonymous-default-session"),
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    session_id = x_session_id or "anonymous-default-session"
+    session_id = x_session_id
     return storage.update_settings(session_id, settings)
 
 
 @settings_router.delete("/data")
 async def delete_all_user_data(
-    x_session_id: str | None = Header("anonymous-default-session"),
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    """Completely and permanently purges all check-ins, tasks, and settings"""
-    session_id = x_session_id or "anonymous-default-session"
+    """Removes check-ins, tasks, and settings associated with the supplied session ID."""
+    session_id = x_session_id
     storage.delete_all_data(session_id)
     return {
         "status": "success",
-        "message": "All session data has been permanently deleted.",
+        "message": "Check-ins, tasks, and settings have been removed.",
     }

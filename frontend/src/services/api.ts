@@ -12,7 +12,7 @@ import { CANONICAL_SUPPORT_RESOURCES } from './supportResources';
 
 const API_BASE_URL = '/api';
 
-// Retrieve or generate anonymous UUID session token
+// Retrieve or generate the browser's session ID.
 export function getAnonymousSessionId(): string {
   let sessionId = localStorage.getItem('calmspace_anonymous_session_id');
   if (!sessionId) {
@@ -20,6 +20,10 @@ export function getAnonymousSessionId(): string {
     localStorage.setItem('calmspace_anonymous_session_id', sessionId);
   }
   return sessionId;
+}
+
+export function clearAnonymousSessionId(): void {
+  localStorage.removeItem('calmspace_anonymous_session_id');
 }
 
 const DEFAULT_HEADERS = () => ({
@@ -39,8 +43,7 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Failed to submit check-in');
+      throw new Error('Unable to submit check-in');
     }
     return res.json();
   },

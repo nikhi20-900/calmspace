@@ -3,12 +3,14 @@ Calmspace Safety & Backend Tests
 Verifies core safety rules, privacy retention, and routing.
 """
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
-from app.models.schemas import CheckInRequest
+from app.models.schemas import CheckInRequest, UserSettings
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import evaluate_wellbeing_route
 from app.services.storage import storage
@@ -93,6 +95,22 @@ def test_privacy_storage():
     storage.delete_all_data(session_id)
     assert len(storage.get_checkins(session_id)) == 0
     print("✓ Privacy data retention and full purge verified")
+
+
+def test_checkin_retention_removes_records_older_than_30_days():
+    session_id = "test-session-checkin-retention"
+    storage.delete_all_data(session_id)
+    expired = storage.add_checkin(
+        session_id, mood=2, stress=4, sleep_hours=5.0, route="MEDIUM"
+    )
+    current = storage.add_checkin(
+        session_id, mood=4, stress=2, sleep_hours=8.0, route="LOW"
+    )
+    expired.timestamp = (datetime.now(UTC) - timedelta(days=31)).isoformat()
+
+    assert storage.get_checkins(session_id) == [current]
+
+    storage.delete_all_data(session_id)
 
 
 def test_high_risk_data_retention_and_safe_exit_purge():
@@ -228,6 +246,19 @@ def test_reflection_length_and_consent_contracts():
     assert req.reflection is not None
     assert len(req.reflection) == 2000
 
+    # Consent is an explicit boolean, not a truthy/coercible value.
+    assert (
+        CheckInRequest(mood=3, stress=2, sleep_hours=7.0).consent_ai_processing is False
+    )
+    for malformed_consent in ("true", "false", 1, 0, None):
+        with pytest.raises(ValidationError):
+            CheckInRequest(
+                mood=3,
+                stress=2,
+                sleep_hours=7.0,
+                consent_ai_processing=malformed_consent,
+            )
+
     # 2. 2001 characters raises ValidationError
     with pytest.raises(ValidationError):
         CheckInRequest(
@@ -277,6 +308,118 @@ def test_reflection_length_and_consent_contracts():
     assert data_benign["guidance"] is not None
     assert data_benign["guidance"]["generated_by_ai"] is False
     assert data_benign["guidance"]["fallback_used"] is True
+
+    # Malformed consent is rejected before any check-in is persisted.
+    malformed = client.post(
+        "/api/checkin",
+        headers={"X-Session-ID": "test-session-malformed-consent"},
+        json={
+            "mood": 4,
+            "stress": 2,
+            "sleep_hours": 8.0,
+            "reflection": "Private text",
+            "consent_ai_processing": "true",
+        },
+    )
+    assert malformed.status_code == 422
+    assert storage.get_checkins("test-session-malformed-consent") == []
+
+
+def test_privacy_settings_are_fixed_and_bounded():
+    client = TestClient(app)
+    session_id = "test-session-privacy-settings"
+
+    invalid_analytics = client.put(
+        "/api/settings",
+        headers={"X-Session-ID": session_id},
+        json={"share_anonymous_analytics": True},
+    )
+    invalid_retention = client.put(
+        "/api/settings",
+        headers={"X-Session-ID": session_id},
+        json={"data_retention_days": 90},
+    )
+    invalid_nickname = client.put(
+        "/api/settings",
+        headers={"X-Session-ID": session_id},
+        json={"nickname": "n" * 61},
+    )
+
+    assert invalid_analytics.status_code == 422
+    assert invalid_retention.status_code == 422
+    assert invalid_nickname.status_code == 422
+    assert (
+        client.get("/api/settings", headers={"X-Session-ID": session_id}).json()[
+            "share_anonymous_analytics"
+        ]
+        is False
+    )
+    assert (
+        client.get("/api/settings", headers={"X-Session-ID": session_id}).json()[
+            "data_retention_days"
+        ]
+        == 30
+    )
+
+    storage.delete_all_data(session_id)
+
+
+def test_session_header_is_required_instead_of_using_shared_default():
+    client = TestClient(app)
+
+    for path in (
+        "/api/checkin/history",
+        "/api/insights",
+        "/api/planner/tasks",
+        "/api/settings",
+    ):
+        assert client.get(path).status_code == 422
+    assert (
+        client.get("/api/checkin/history", headers={"X-Session-ID": ""}).status_code
+        == 422
+    )
+    assert (
+        client.get("/api/checkin/history", headers={"X-Session-ID": " "}).status_code
+        == 422
+    )
+
+
+def test_delete_endpoint_removes_current_session_data():
+    client = TestClient(app)
+    session_id = "test-session-delete-success"
+    storage.add_checkin(session_id, mood=2, stress=3, sleep_hours=6.0, route="MEDIUM")
+    storage.add_task(session_id, "Review notes", 25, "Study")
+    storage.update_settings(
+        session_id,
+        UserSettings(
+            nickname="Test",
+            break_reminders_enabled=False,
+            reminder_interval_minutes=30,
+        ),
+    )
+
+    response = client.delete("/api/settings/data", headers={"X-Session-ID": session_id})
+
+    assert response.status_code == 200
+    assert storage.get_checkins(session_id) == []
+    assert storage.get_tasks(session_id) == []
+    assert storage.get_settings(session_id).nickname == "Student"
+
+
+def test_delete_endpoint_does_not_report_success_when_purge_fails(monkeypatch):
+    def fail_delete(_session_id):
+        raise RuntimeError("synthetic delete failure")
+
+    monkeypatch.setattr(storage, "delete_all_data", fail_delete)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.delete(
+        "/api/settings/data",
+        headers={"X-Session-ID": "test-session-delete-failure"},
+    )
+
+    assert response.status_code == 500
+    assert "success" not in response.text.lower()
 
 
 def test_insights_endpoint_contracts():

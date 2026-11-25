@@ -1,15 +1,17 @@
 """
 Privacy-First Storage Engine
 Key Principles:
-1. Student data is indexed solely by an anonymous session ID (UUID). No names, student IDs or emails required.
+1. In-memory app data is indexed by a browser-provided session ID; it is not an authentication credential.
 2. Reflection text is NEVER persisted in check-in records.
-3. Provides full data wipe on request ("Delete all my data").
+3. Supports removing app records associated with a session ID on request.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.models.schemas import CheckInRecord, StudyTask, UserSettings
+
+CHECKIN_RETENTION_DAYS = 30
 
 
 class CalmspaceStorage:
@@ -35,6 +37,7 @@ class CalmspaceStorage:
     def add_checkin(
         self, session_id: str, mood: int, stress: int, sleep_hours: float, route: str
     ) -> CheckInRecord:
+        self.purge_expired_checkins()
         record = CheckInRecord(
             id=str(uuid.uuid4()),
             session_id=session_id,
@@ -50,7 +53,21 @@ class CalmspaceStorage:
         return record
 
     def get_checkins(self, session_id: str) -> list[CheckInRecord]:
+        self.purge_expired_checkins()
         return self._checkins.get(session_id, [])
+
+    def purge_expired_checkins(self) -> None:
+        cutoff = datetime.now(UTC) - timedelta(days=CHECKIN_RETENTION_DAYS)
+        for session_id, records in list(self._checkins.items()):
+            retained = [
+                record
+                for record in records
+                if datetime.fromisoformat(record.timestamp) >= cutoff
+            ]
+            if retained:
+                self._checkins[session_id] = retained
+            else:
+                self._checkins.pop(session_id, None)
 
     def get_tasks(self, session_id: str) -> list[StudyTask]:
         return self._tasks.get(session_id, [])
@@ -86,7 +103,7 @@ class CalmspaceStorage:
         return len(self._tasks[session_id]) < initial_len
 
     def delete_all_data(self, session_id: str) -> bool:
-        """Completely purges all data associated with the anonymous session"""
+        """Removes in-memory app records associated with the session ID."""
         self._checkins.pop(session_id, None)
         self._tasks.pop(session_id, None)
         self._settings.pop(session_id, None)

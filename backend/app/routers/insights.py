@@ -16,9 +16,12 @@ router = APIRouter(prefix="/api/insights", tags=["Insights"])
 
 @router.get("", response_model=InsightSummary)
 async def get_insights(
-    days: int = 7, x_session_id: str | None = Header("anonymous-default-session")
+    days: int = 7,
+    x_session_id: str = Header(
+        ..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$"
+    ),
 ):
-    session_id = x_session_id or "anonymous-default-session"
+    session_id = x_session_id
     all_checkins = storage.get_checkins(session_id)
 
     if not all_checkins:
