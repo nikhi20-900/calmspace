@@ -225,9 +225,9 @@ def test_support_resources():
         assert r.contact_number, f"Missing contact number on {r.name}"
         assert r.is_active is True, f"Resource {r.name} must be active by default"
         if not r.is_demo_placeholder:
-            assert r.official_source_url and r.official_source_url.startswith("https://"), (
-                f"Verified contact {r.name} must have a secure official source URL"
-            )
+            assert r.official_source_url and r.official_source_url.startswith(
+                "https://"
+            ), f"Verified contact {r.name} must have a secure official source URL"
 
     # 6. Active/disabled filtering via API
     try:
