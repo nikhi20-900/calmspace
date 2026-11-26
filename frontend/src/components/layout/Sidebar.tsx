@@ -10,12 +10,14 @@ import {
   HelpCircle,
   Sparkles,
 } from 'lucide-react';
+import { usePrivacyModal } from '../../context/PrivacyModalContext';
 
 export interface SidebarProps {
   onOpenSupportModal: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenSupportModal }) => {
+  const { openPrivacyModal } = usePrivacyModal();
   const navItems = [
     { to: '/app', label: 'Overview', icon: LayoutDashboard },
     { to: '/checkin', label: 'Daily Check-in', icon: HeartPulse },
@@ -89,6 +91,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSupportModal }) => {
           >
             <HelpCircle className="w-3.5 h-3.5" />
             <span>Need to talk to someone?</span>
+          </button>
+          <button
+            type="button"
+            onClick={openPrivacyModal}
+            className="w-full mt-2 flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-medium rounded-button border border-[#E8E6F1] bg-white text-[#625F78] hover:text-[#5554B8] hover:border-[#D5D1E5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-[#245532]" />
+            <span>Privacy & Data Inventory</span>
           </button>
         </div>
       </div>

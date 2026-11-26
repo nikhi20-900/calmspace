@@ -9,29 +9,32 @@ import { InsightsPage } from './pages/InsightsPage';
 import { PlannerPage } from './pages/PlannerPage';
 import { SupportNetworkPage } from './pages/SupportNetworkPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { PrivacyModalProvider } from './context/PrivacyModalContext';
 
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Landing Page at root */}
-        <Route path="/" element={<LandingPage />} />
+      <PrivacyModalProvider>
+        <Routes>
+          {/* Landing Page at root */}
+          <Route path="/" element={<LandingPage />} />
 
-        {/* Core Student Application Routes */}
-        <Route element={<AppLayout />}>
-          <Route path="/app" element={<OverviewPage />} />
-          <Route path="/overview" element={<Navigate to="/app" replace />} />
-          <Route path="/checkin" element={<CheckInPage />} />
-          <Route path="/checkin/result" element={<CheckInResultPage />} />
-          <Route path="/insights" element={<InsightsPage />} />
-          <Route path="/planner" element={<PlannerPage />} />
-          <Route path="/support" element={<SupportNetworkPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
+          {/* Core Student Application Routes */}
+          <Route element={<AppLayout />}>
+            <Route path="/app" element={<OverviewPage />} />
+            <Route path="/overview" element={<Navigate to="/app" replace />} />
+            <Route path="/checkin" element={<CheckInPage />} />
+            <Route path="/checkin/result" element={<CheckInResultPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
+            <Route path="/planner" element={<PlannerPage />} />
+            <Route path="/support" element={<SupportNetworkPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
 
-        {/* Fallback route */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Fallback route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </PrivacyModalProvider>
     </BrowserRouter>
   );
 };

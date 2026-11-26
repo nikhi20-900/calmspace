@@ -11,28 +11,43 @@ import {
   CheckCircle2,
   KeyRound,
   Info,
-  Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { api, getAnonymousSessionId } from '../services/api';
 import { UserSettings } from '../types';
+import { usePrivacyModal } from '../context/PrivacyModalContext';
+
+const RETENTION_OPTIONS = [
+  { days: 14, label: '14 Days', desc: 'Minimal retention' },
+  { days: 30, label: '30 Days', desc: 'Standard (Default)' },
+  { days: 60, label: '60 Days', desc: 'Extended term' },
+  { days: 90, label: '90 Days', desc: 'Full semester' },
+] as const;
 
 export const SettingsPage: React.FC = () => {
+  const { openPrivacyModal } = usePrivacyModal();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Deletion Dialog State (2-step confirmation)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletionSuccess, setDeletionSuccess] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadSettings() {
       try {
         const data = await api.getSettings();
-        setSettings(data);
-      } catch (e) {
+        setSettings({
+          ...data,
+          data_retention_days: data.data_retention_days ?? 30,
+        });
+      } catch {
         setSettings({
           nickname: 'Student',
           break_reminders_enabled: true,
@@ -50,26 +65,31 @@ export const SettingsPage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings) return;
+    setIsSaving(true);
+    setSaveError(null);
     try {
       const updated = await api.updateSettings(settings);
       setSettings(updated);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setSaveError(e?.message || 'Failed to update preferences. Please check your connection and retry.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleExecuteDelete = async () => {
     if (deleteConfirmationText !== 'DELETE') return;
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       await api.deleteAllData();
       sessionStorage.removeItem('calmspace_latest_checkin');
       setDeletionSuccess(true);
       setIsDeleteDialogOpen(false);
       setDeleteConfirmationText('');
-      // Reload settings state
       setSettings({
         nickname: 'Student',
         break_reminders_enabled: true,
@@ -77,8 +97,11 @@ export const SettingsPage: React.FC = () => {
         share_anonymous_analytics: false,
         data_retention_days: 30,
       });
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('Data erasure error:', e);
+      setDeleteError(
+        e?.message || 'Unable to erase data from the server. Please check your connection and retry.'
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -100,15 +123,45 @@ export const SettingsPage: React.FC = () => {
 
       {savedSuccess && (
         <div className="p-3.5 rounded-card bg-[#DCE9DF] border border-[#BCD4C3] text-[#245532] text-xs flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" />
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>Preferences updated successfully.</span>
+        </div>
+      )}
+
+      {saveError && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-card bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{saveError}</span>
         </div>
       )}
 
       {deletionSuccess && (
         <div className="p-3.5 rounded-card bg-[#DCE9DF] border border-[#BCD4C3] text-[#245532] text-xs flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" />
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>All check-ins, tasks, and stored data have been permanently erased.</span>
+        </div>
+      )}
+
+      {deleteError && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-card bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{deleteError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleExecuteDelete}
+            disabled={isDeleting}
+            className="font-semibold underline hover:no-underline text-rose-700 shrink-0"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -124,7 +177,7 @@ export const SettingsPage: React.FC = () => {
         <p className="text-xs text-[#625F78] leading-relaxed">
           Calmspace does not require email addresses, student roll numbers, or Google logins. You are represented on this browser solely by an anonymous token:
         </p>
-        <div className="p-3 bg-[#F7F6FB] rounded-input border border-[#E8E6F1] font-mono text-xs text-[#25233B] select-all">
+        <div className="p-3 bg-[#F7F6FB] rounded-input border border-[#E8E6F1] font-mono text-xs text-[#25233B] select-all break-all">
           {anonymousId}
         </div>
       </Card>
@@ -133,26 +186,72 @@ export const SettingsPage: React.FC = () => {
       <Card padding="lg">
         <form onSubmit={handleSave} className="space-y-6">
           <div>
-            <label htmlFor="settings-nickname" className="block text-xs font-semibold text-[#625F78] mb-1">
+            <label htmlFor="settings-nickname" className="block text-xs font-semibold text-[#625F78] mb-1.5">
               Your Preferred Nickname
             </label>
             <input
               id="settings-nickname"
               type="text"
+              maxLength={60}
               value={settings.nickname}
               onChange={(e) => setSettings({ ...settings, nickname: e.target.value })}
               className="w-full px-3.5 py-2.5 rounded-input border border-[#E8E6F1] text-sm text-[#25233B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+              placeholder="e.g. Student"
             />
-            <p className="text-[11px] text-[#625F78] mt-1">
-              Used strictly for warm dashboard greetings like "Good day, {settings.nickname}".
+            <p className="text-[11px] text-[#8E8AA7] mt-1">
+              Used strictly for friendly greetings in your local browser dashboard.
+            </p>
+          </div>
+
+          {/* Configurable Rolling Data Retention Period */}
+          <div className="pt-4 border-t border-[#F0EFF7] space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-[#625F78] mb-1">
+                Data Retention Window
+              </label>
+              <p className="text-[11px] text-[#8E8AA7] leading-relaxed">
+                Choose how long your check-in history is kept before being automatically pruned from the server.
+              </p>
+            </div>
+
+            <div
+              role="radiogroup"
+              aria-label="Data retention window"
+              className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+            >
+              {RETENTION_OPTIONS.map((opt) => {
+                const isSelected = settings.data_retention_days === opt.days;
+                return (
+                  <button
+                    key={opt.days}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() =>
+                      setSettings({ ...settings, data_retention_days: opt.days })
+                    }
+                    className={`p-3 rounded-input border text-left transition-all min-h-[52px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                      isSelected
+                        ? 'bg-[#E9E7FB] border-[#5554B8] text-[#5554B8] shadow-subtle'
+                        : 'bg-white border-[#E8E6F1] text-[#625F78] hover:border-[#D5D1E5] hover:text-[#25233B]'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold">{opt.label}</span>
+                    <span className="block text-[11px] opacity-80 mt-0.5">{opt.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-md border border-[#E8E6F1]">
+              🕒 <strong>Automated pruning:</strong> Check-ins older than {settings.data_retention_days} days are automatically and permanently pruned on each request boundary.
             </p>
           </div>
 
           <div className="pt-4 border-t border-[#F0EFF7] space-y-4">
             <Toggle
-              id="reminders-toggle"
-              label="In-App Pacing Reminders"
-              description="Surface subtle break suggestions when working in the study planner."
+              id="reminder-toggle"
+              label="Breather & Study Pacing Prompts"
+              description="Gentle, local in-app pauses while study planner sessions are open."
               checked={settings.break_reminders_enabled}
               onChange={(checked) => setSettings({ ...settings, break_reminders_enabled: checked })}
             />
@@ -167,7 +266,7 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="pt-4 border-t border-[#F0EFF7] flex justify-end">
-            <Button type="submit" variant="primary" size="md">
+            <Button type="submit" variant="primary" size="md" isLoading={isSaving}>
               Save Preferences
             </Button>
           </div>
@@ -175,7 +274,7 @@ export const SettingsPage: React.FC = () => {
       </Card>
 
       {/* Data Retention & Privacy Principles */}
-      <Card padding="lg" className="space-y-3 bg-[#FAF9FD]">
+      <Card padding="lg" className="space-y-4 bg-[#FAF9FD]">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#245532]">
           <ShieldCheck className="w-4 h-4" />
           <span>Our Privacy Commitment</span>
@@ -197,6 +296,18 @@ export const SettingsPage: React.FC = () => {
             <span><strong>Rule-based routing:</strong> Safety escalation is governed by transparent rules, not unpredictable algorithms.</span>
           </li>
         </ul>
+
+        <div className="pt-3 border-t border-[#E8E6F1]/80">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={openPrivacyModal}
+            leftIcon={<ShieldCheck className="w-4 h-4 text-[#245532]" />}
+          >
+            Inspect Complete Privacy & Data Inventory
+          </Button>
+        </div>
       </Card>
 
       {/* Destructive Action Section: Delete All My Data */}
@@ -233,6 +344,16 @@ export const SettingsPage: React.FC = () => {
         description="This will instantly wipe all historical check-in records, study planner tasks, and settings tied to your anonymous session. It cannot be undone."
       >
         <div className="space-y-4 mt-2">
+          {deleteError && (
+            <div
+              role="alert"
+              className="p-3 rounded-button bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{deleteError}</span>
+            </div>
+          )}
+
           <p className="text-xs text-[#625F78]">
             To confirm permanent deletion, please type <strong className="text-red-700">DELETE</strong> in the box below:
           </p>
@@ -261,7 +382,7 @@ export const SettingsPage: React.FC = () => {
               isLoading={isDeleting}
               disabled={deleteConfirmationText !== 'DELETE'}
               onClick={handleExecuteDelete}
-              className="bg-red-700 hover:bg-red-800"
+              className="bg-red-700 hover:bg-red-800 text-white"
             >
               Confirm Permanent Erasure
             </Button>

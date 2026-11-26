@@ -58,56 +58,6 @@ export const InsightsPage: React.FC = () => {
     fetchInsights();
   }, [fetchInsights]);
 
-  // Loading State
-  if (loading) {
-    return <LoadingState message="Compiling your personal insights..." />;
-  }
-
-  // Error State
-  if (loadError) {
-    return (
-      <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-4xl mx-auto">
-        <PageHeader
-          tag="Personal Wellbeing Analytics"
-          title="Understanding your rhythm"
-          description="Reflective patterns over time. Never medical diagnoses — strictly supportive observations."
-        />
-
-        <Card padding="lg" className="text-center py-12 space-y-4">
-          <div className="w-12 h-12 rounded-full bg-[#FDEEE9] flex items-center justify-center text-[#B24823] mx-auto">
-            <AlertCircle className="w-6 h-6" />
-          </div>
-          <div className="space-y-1.5 max-w-md mx-auto">
-            <h2 className="text-lg font-bold text-[#25233B]">
-              Unable to load your insights
-            </h2>
-            <p className="text-xs sm:text-sm text-[#625F78] leading-relaxed">
-              We couldn&apos;t reach the server to compile your trend charts. Your check-in records remain safe.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={fetchInsights}
-              leftIcon={<RefreshCw className="w-4 h-4" />}
-            >
-              Try Again
-            </Button>
-            <Link to="/checkin">
-              <Button variant="outline" size="sm" leftIcon={<HeartPulse className="w-4 h-4" />}>
-                Daily Check-in
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  const hasData = Boolean(insights && insights.check_in_count > 0);
-  const isSmallSample = Boolean(insights && insights.check_in_count > 0 && insights.check_in_count < 3);
-
   // Join disparate series into stable date-keyed rows rather than assuming matching array indexes
   const tableRows = useMemo(() => {
     if (!insights) return [];
@@ -171,6 +121,56 @@ export const InsightsPage: React.FC = () => {
     return Array.from(dayMap.values());
   }, [insights]);
 
+  // Loading State
+  if (loading) {
+    return <LoadingState message="Compiling your personal insights..." />;
+  }
+
+  // Error State
+  if (loadError) {
+    return (
+      <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-4xl mx-auto">
+        <PageHeader
+          tag="Personal Wellbeing Analytics"
+          title="Understanding your rhythm"
+          description="Reflective patterns over time. Never medical diagnoses — strictly supportive observations."
+        />
+
+        <Card padding="lg" className="text-center py-12 space-y-4">
+          <div className="w-12 h-12 rounded-full bg-[#FDEEE9] flex items-center justify-center text-[#B24823] mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5 max-w-md mx-auto">
+            <h2 className="text-lg font-bold text-[#25233B]">
+              Unable to load your insights
+            </h2>
+            <p className="text-xs sm:text-sm text-[#625F78] leading-relaxed">
+              We couldn&apos;t reach the server to compile your trend charts. Your check-in records remain safe.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={fetchInsights}
+              leftIcon={<RefreshCw className="w-4 h-4" />}
+            >
+              Try Again
+            </Button>
+            <Link to="/checkin">
+              <Button variant="outline" size="sm" leftIcon={<HeartPulse className="w-4 h-4" />}>
+                Daily Check-in
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const hasData = Boolean(insights && insights.check_in_count > 0);
+  const isSmallSample = Boolean(insights && insights.check_in_count > 0 && insights.check_in_count < 3);
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in pb-12">
       {/* Header and Time-Range Filter */}
@@ -193,11 +193,10 @@ export const InsightsPage: React.FC = () => {
               type="button"
               onClick={() => setDays(d)}
               aria-pressed={days === d}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-button transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
-                days === d
-                  ? 'bg-[#5554B8] text-white shadow-xs'
-                  : 'text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'
-              }`}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-button transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${days === d
+                ? 'bg-[#5554B8] text-white shadow-xs'
+                : 'text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'
+                }`}
             >
               {d} Days
             </button>

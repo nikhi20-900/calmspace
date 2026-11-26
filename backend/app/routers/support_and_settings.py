@@ -30,7 +30,9 @@ async def update_settings(
     x_session_id: str | None = Header("anonymous-default-session"),
 ):
     session_id = x_session_id or "anonymous-default-session"
-    return storage.update_settings(session_id, settings)
+    updated = storage.update_settings(session_id, settings)
+    storage.cleanup_expired_records(session_id)
+    return updated
 
 
 @settings_router.delete("/data")

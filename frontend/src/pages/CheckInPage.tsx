@@ -9,6 +9,7 @@ import { SleepQuestion } from '../components/checkin/SleepQuestion';
 import { ReflectionInput } from '../components/checkin/ReflectionInput';
 import { api } from '../services/api';
 import { CheckInRecord } from '../types';
+import { usePrivacyModal } from '../context/PrivacyModalContext';
 import {
   ArrowLeft,
   ArrowRight,
@@ -21,6 +22,7 @@ import {
 
 export const CheckInPage: React.FC = () => {
   const navigate = useNavigate();
+  const { openPrivacyModal } = usePrivacyModal();
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 4;
 
@@ -139,10 +141,9 @@ export const CheckInPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    // 1. Validate inputs thoroughly in React
-    const validationError = validateCurrentInputs();
-    if (validationError) {
-      setErrorMsg(validationError);
+    const validationErr = validateCurrentInputs();
+    if (validationErr) {
+      setErrorMsg(validationErr);
       return;
     }
 
@@ -155,24 +156,19 @@ export const CheckInPage: React.FC = () => {
         mood,
         stress,
         sleep_hours: sleepHours,
-        reflection: reflection.trim() || undefined,
+        reflection: reflection.trim() ? reflection.trim() : undefined,
         consent_ai_processing: consentAi,
       });
 
-      // Clear any prior safe-exit flag for this fresh check-in submission
-      sessionStorage.removeItem('calmspace_high_risk_exited');
-
-      // Save latest check-in response in sessionStorage for reload resilience
+      // Cache the latest response locally in sessionStorage to power immediate result page rendering
       sessionStorage.setItem('calmspace_latest_checkin', JSON.stringify(response));
-
-      // Navigate to results
-      navigate('/checkin/result', { state: { result: response } });
+      navigate('/checkin/result');
     } catch (err: any) {
-      console.error('Checkin submission error:', err);
+      console.error('Check-in submission failed:', err);
       setIsNetworkError(true);
       setErrorMsg(
         err?.message ||
-          'Unable to submit check-in to server. Please check your connection and retry.'
+          'Unable to reach the wellbeing evaluation service. Please verify your connection and retry.'
       );
     } finally {
       setIsSubmitting(false);
@@ -180,17 +176,17 @@ export const CheckInPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-xl mx-auto px-3 sm:px-6 py-2 sm:py-6">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-xl mx-auto">
       <PageHeader
-        tag="Daily Wellbeing Check-in"
-        title="A moment to pause with yourself"
-        description="Takes about 60 seconds. Rules decide your safety, reflection text is never saved to history, and you remain anonymous."
+        tag="Daily Check-in"
+        title="How are you arriving today?"
+        description="Takes about 60 seconds. Rules decide your safety, reflection text is never saved to your check-in history, and you remain anonymous."
       />
 
-      {/* Same-day duplicate policy notice banner */}
+      {/* Same-day duplicate check-in notice */}
       {priorTodayCheckin && (
         <div
-          className="mb-4 p-3.5 rounded-card bg-[#F0EFFC] border border-[#D5D1E5] text-xs text-[#25233B] flex items-start gap-2.5 animate-fade-in"
+          className="p-3.5 rounded-card bg-[#F0EFFC] border border-[#D5D1E5] text-xs text-[#25233B] flex items-start gap-2.5 animate-fade-in"
           role="status"
         >
           <Info className="w-4 h-4 text-[#5554B8] shrink-0 mt-0.5" />
@@ -318,9 +314,17 @@ export const CheckInPage: React.FC = () => {
       </Card>
 
       {/* Privacy Footnote */}
-      <div className="flex items-center justify-center gap-2 mt-6 text-xs text-[#625F78]">
+      <div className="flex items-center justify-center gap-2 mt-6 text-xs text-[#625F78] flex-wrap">
         <ShieldCheck className="w-4 h-4 text-[#245532]" />
         <span>Encrypted anonymous session. No clinical diagnosis.</span>
+        <span>·</span>
+        <button
+          type="button"
+          onClick={openPrivacyModal}
+          className="text-[#5554B8] font-medium hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#5554B8] rounded"
+        >
+          Privacy & Data Inventory
+        </button>
       </div>
     </div>
   );

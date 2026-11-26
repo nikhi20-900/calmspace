@@ -1,8 +1,10 @@
 import React from 'react';
 import { Lock, KeyRound, EyeOff, Trash2, Sparkles, ShieldCheck } from 'lucide-react';
 import { ScrollStagger, ScrollStaggerItem } from './ScrollReveal';
+import { usePrivacyModal } from '../../context/PrivacyModalContext';
 
 export const PrivacySection: React.FC = () => {
+  const { openPrivacyModal } = usePrivacyModal();
   const privacyPillars = [
     {
       icon: KeyRound,
@@ -71,12 +73,20 @@ export const PrivacySection: React.FC = () => {
           })}
         </ScrollStagger>
 
-        {/* Zero Tracker Guarantee Badge */}
-        <div className="mt-12 text-center">
+        {/* Zero Tracker Guarantee Badge & Modal Trigger */}
+        <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
           <div className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-white border border-[#E8E6F1] shadow-xs text-xs font-medium text-[#25233B]">
             <ShieldCheck className="w-5 h-5 text-[#34A853]" />
             <span>No third-party trackers, no cookies, and no runtime font CDN requests.</span>
           </div>
+          <button
+            type="button"
+            onClick={openPrivacyModal}
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#E9E7FB] hover:bg-[#DCD8F7] text-[#5554B8] text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+          >
+            <ShieldCheck className="w-4 h-4 text-[#245532]" />
+            <span>Inspect Complete Data Inventory</span>
+          </button>
         </div>
       </div>
     </section>

@@ -12,12 +12,14 @@ import {
   HelpCircle,
   Sparkles,
 } from 'lucide-react';
+import { usePrivacyModal } from '../../context/PrivacyModalContext';
 
 export interface MobileNavigationProps {
   onOpenSupportModal: () => void;
 }
 
 export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSupportModal }) => {
+  const { openPrivacyModal } = usePrivacyModal();
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -265,6 +267,17 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
                   >
                     <HelpCircle className="w-4 h-4" />
                     <span>Need to talk to someone?</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      openPrivacyModal();
+                    }}
+                    className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 text-xs font-medium rounded-button border border-[#E8E6F1] bg-white text-[#625F78] hover:text-[#5554B8] hover:border-[#D5D1E5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-[#245532]" />
+                    <span>Privacy & Data Inventory</span>
                   </button>
                 </div>
               </div>

@@ -29,8 +29,10 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 import { InsightSummary, CheckInRecord, UserSettings } from '../types';
+import { usePrivacyModal } from '../context/PrivacyModalContext';
 
 export const OverviewPage: React.FC = () => {
+  const { openPrivacyModal } = usePrivacyModal();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [history, setHistory] = useState<CheckInRecord[]>([]);
@@ -408,6 +410,20 @@ export const OverviewPage: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Privacy Footnote */}
+      <div className="flex items-center justify-center gap-2 pt-4 pb-2 text-xs text-[#625F78]">
+        <ShieldCheck className="w-4 h-4 text-[#245532]" />
+        <span>Anonymous cryptographic session.</span>
+        <span>·</span>
+        <button
+          type="button"
+          onClick={openPrivacyModal}
+          className="text-[#5554B8] font-medium hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#5554B8] rounded"
+        >
+          Privacy & Data Inventory
+        </button>
+      </div>
     </div>
   );
 };

@@ -4,16 +4,22 @@ Rule-based safety routing, verified human-support escalation, and supportive lan
 """
 
 import os
+import sys
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.core.config import load_local_env
 from app.routers.checkin import router as checkin_router
 from app.routers.insights import router as insights_router
 from app.routers.planner import router as planner_router
 from app.routers.support_and_settings import settings_router, support_router
+
+if "pytest" not in sys.modules:
+    load_local_env()
 
 app = FastAPI(
     title="Calmspace API",
@@ -40,6 +46,21 @@ app.include_router(insights_router)
 app.include_router(planner_router)
 app.include_router(support_router)
 app.include_router(settings_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Sanitize validation error responses:
+    Strips raw input fields from Pydantic validation errors so that private reflection
+    strings are NEVER echoed back in 422 HTTP responses.
+    """
+    sanitized_errors = []
+    for err in exc.errors():
+        err_copy = dict(err)
+        err_copy.pop("input", None)
+        sanitized_errors.append(err_copy)
+    return JSONResponse(status_code=422, content={"detail": sanitized_errors})
 
 
 @app.get("/api/health")

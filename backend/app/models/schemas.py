@@ -5,7 +5,7 @@ Strictly typed for privacy and safety integrity.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
 RiskRoute = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -26,7 +26,7 @@ class CheckInRequest(BaseModel):
     reflection: str | None = Field(
         None, max_length=2000, description="Optional personal reflection"
     )
-    consent_ai_processing: bool = Field(
+    consent_ai_processing: StrictBool = Field(
         False, description="Explicit consent if reflection is evaluated for guidance"
     )
 
@@ -134,3 +134,14 @@ class UserSettings(BaseModel):
     reminder_interval_minutes: int = 45
     share_anonymous_analytics: bool = False
     data_retention_days: int = 30
+
+    @field_validator("data_retention_days", mode="before")
+    @classmethod
+    def validate_retention_days(cls, v: int | None) -> int:
+        try:
+            val = int(v)  # type: ignore[arg-type]
+            if val not in (14, 30, 60, 90):
+                return 30
+            return val
+        except (ValueError, TypeError):
+            return 30
