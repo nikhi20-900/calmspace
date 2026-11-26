@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: calmspace-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/ready
+    disk:
+      name: calmspace-sqlite-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: CALMSPACE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: sqlite:////data/calmspace.db
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CALMSPACE_AI_PROVIDER
+        value: mock
+      - key: CALMSPACE_AI_MODEL
+        value: gemini-1.5-flash
+      - key: CALMSPACE_AI_API_KEY
+        sync: false
+      - key: CALMSPACE_AI_ENABLED
+        value: "true"
+      - key: CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER
+        value: "true"
+
+  - type: web
+    name: calmspace-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false

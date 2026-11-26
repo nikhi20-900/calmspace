@@ -10,7 +10,32 @@ import {
 
 import { CANONICAL_SUPPORT_RESOURCES } from './supportResources';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const REQUEST_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Request timed out. Please verify your connection and retry.');
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function formatErrorMessage(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const firstMsg = detail[0]?.msg;
+    if (typeof firstMsg === 'string' && firstMsg.trim()) return firstMsg;
+  }
+  return fallback;
+}
 
 // Retrieve or generate anonymous UUID session token
 export function getAnonymousSessionId(): string {
@@ -33,14 +58,14 @@ export const FALLBACK_SUPPORT_RESOURCES: SupportContact[] = CANONICAL_SUPPORT_RE
 export const api = {
   // Check-in endpoints
   async submitCheckIn(data: CheckInRequest): Promise<CheckInResponse> {
-    const res = await fetch(`${API_BASE_URL}/checkin`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/checkin`, {
       method: 'POST',
       headers: DEFAULT_HEADERS(),
       body: JSON.stringify(data),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Failed to submit check-in');
+      throw new Error(formatErrorMessage(err.detail, 'Failed to submit check-in'));
     }
     return res.json();
   },
