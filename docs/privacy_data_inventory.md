@@ -1,114 +1,59 @@
-# Calmspace Data Inventory & Privacy Disclosure Specification (Issue #11)
+# Calmspace Data Inventory & Privacy Specification (Issue #10 & Issue #11)
 
-> **Document Status**: Reconciled Draft — Database-dependent items held pending Roushan's (@roushan-23) Issue #10 implementation.  
-> **Safety Boundary**: `backend/app/services/safety_evaluator.py` remains strictly immutable.  
+> **Document Status**: Implemented & Verified (SQLite WAL Storage + Automated Retention + Canary Leak Suite)  
+> **Safety Boundary**: `backend/app/services/safety_evaluator.py` remains immutable (Git blob SHA `8f5e2e984c4ab41212a74a16158200b2c7a126b2`).  
 > **Guiding Principle**: *"Rules decide safety. AI writes the language. Humans help. Privacy by default."*
 
 ---
 
-## 1. Reconciled Data Inventory
+## 1. Implemented Data Inventory (SQLite WAL Schema)
 
-Calmspace enforces strict data minimization. We do not collect real names, email addresses, student IDs, phone numbers, or IP addresses.
+Calmspace enforces strict data minimization. We do not collect real names, email addresses, university roll numbers, phone numbers, or IP addresses. Persistent storage lives in SQLite (`backend/app/services/storage.py`, WAL mode enabled).
 
 ### 1.1 Field-by-Field Inventory Matrix
 
-| Field Name | Entity / Table | Type | Purpose | Stored On Server? | Access Scope | Retention Lifetime |
+| Field Name | SQLite Table | Type | Purpose | Stored On Server? | Access Scope | Retention Lifetime |
 |---|---|---|---|---|---|---|
-| `session_id` | `anonymous_sessions` | UUIDv4 | Anonymous session partition key | Yes (DB PK) | Client & Server | Pending approval: 60d or 90d inactivity expiry* |
-| `token_hash` | `anonymous_sessions` | VARCHAR(64) | Verifies Bearer secret credential | Yes (Hashed) | Server internal | Deleted/revoked upon session purge or expiry* |
-| `mood` | `check_ins` | Integer (1–5) | Daily mood tracking & trend graphs | Yes (DB) | Authenticated session | Rolling retention (default 30d)* |
-| `stress` | `check_ins` | Integer (1–5) | Stress load tracking & safety evaluation | Yes (DB) | Authenticated session | Rolling retention (default 30d)* |
-| `sleep_hours` | `check_ins` | Float (0.0–24.0) | Rest tracking & restorative sleep insights | Yes (DB) | Authenticated session | Rolling retention (default 30d)* |
-| `route` | `check_ins` | Enum (`LOW`, `MEDIUM`, `HIGH`) | Deterministic safety classification | Yes (DB) | Authenticated session | Rolling retention (default 30d)* |
-| **`reflection`** | *N/A (Transient)* | Text ($\le$ 2,000 chars) | Crisis keyword detection & opt-in AI guidance | **NO (NEVER PERSISTED)** | Volatile request scope only | Not saved to DB or logs; subject to standard runtime GC lifecycle |
-| `title`, `category`, `estimated_minutes` | `study_tasks` | String, Integer | Study planner task management | Yes (DB) | Authenticated session | Until checked off, expired, or deleted* |
-| `completed` | `study_tasks` | Boolean | Task completion indicator | Yes (DB) | Authenticated session | Until deleted or session purged* |
-| `nickname` | `user_settings` | String ($\le$ 60 chars) | Friendly dashboard greeting (non-identifying) | Yes (DB) | Authenticated session | Until updated, expired, or deleted* |
-| `break_reminders_enabled` | `user_settings` | Boolean | In-app study pacing toggle | Yes (DB) | Authenticated session | Until updated, expired, or deleted* |
-| `data_retention_days` | `user_settings` | Integer (14, 30, 60, or 90) | Student-chosen rolling retention window | Yes (DB) | Authenticated session | Pending approval: default 30d; choices 14/30/60/90d* |
-
-*\* Items marked with an asterisk depend on Issue #10 schema sign-off by Roushan (@roushan-23).*
+| `session_id` | `checkins`, `tasks`, `user_settings` | `TEXT` (Client UUID) | Anonymous session partition key (`X-Session-ID`) | Yes (DB Column / PK) | Client & Server (`WHERE session_id = ?`) | Deleted when all check-ins/tasks/settings are purged |
+| `id`, `timestamp` | `checkins` | `TEXT` (UUID, UTC ISO-8601) | Check-in entry ID and chronological ordering | Yes (DB) | Session-scoped (`WHERE session_id = ?`) | Configurable rolling window: `14`, `30` (default), `60`, or `90` days |
+| `mood` | `checkins` | `INTEGER` (1–5) | Daily mood rating & insight trend graphs | Yes (DB) | Session-scoped | Rolling window (`14/30/60/90`d) or immediate purge |
+| `stress` | `checkins` | `INTEGER` (1–5) | Stress rating & deterministic safety evaluation | Yes (DB) | Session-scoped | Rolling window (`14/30/60/90`d) or immediate purge |
+| `sleep_hours` | `checkins` | `REAL` (0.0–24.0) | Rest duration & sleep pattern insights | Yes (DB) | Session-scoped | Rolling window (`14/30/60/90`d) or immediate purge |
+| `route` | `checkins` | `TEXT` (`LOW`, `MEDIUM`, `HIGH`) | Deterministic safety classification | Yes (DB) | Session-scoped | Rolling window (`14/30/60/90`d) or immediate purge |
+| **`reflection`** | *N/A (Transient)* | `TEXT` ($\le$ 2,000 chars) | Crisis keyword evaluation & opt-in AI guidance | **NO (NEVER PERSISTED)** | Volatile request memory only | Zero DB storage; excluded from logs, stdout/stderr, and 422 responses |
+| `id`, `title`, `category`, `estimated_minutes`, `completed`, `created_at` | `tasks` | `TEXT`, `INTEGER` | Study-life balance planner task management | Yes (DB) | Session-scoped | Until deleted by student or purged via `DELETE /api/settings/data` |
+| `nickname` | `user_settings` | `TEXT` ($\le$ 60 chars) | Optional dashboard greeting (non-identifying) | Yes (DB) | Session-scoped | Until updated or purged via `DELETE /api/settings/data` |
+| `break_reminders_enabled`, `reminder_interval_minutes` | `user_settings` | `INTEGER` (bool), `INTEGER` | In-app study pacing preferences | Yes (DB) | Session-scoped | Until updated or purged via `DELETE /api/settings/data` |
+| `share_anonymous_analytics` | `user_settings` | `INTEGER` (bool, default `0`) | Opt-in anonymous trend preference | Yes (DB) | Session-scoped | Until updated or purged via `DELETE /api/settings/data` |
+| `data_retention_days` | `user_settings` | `INTEGER` (`14`, `30`, `60`, or `90`) | Student-selected rolling check-in retention window | Yes (DB, default `30`) | Session-scoped | Enforced by `cleanup_expired_records(session_id)` at API boundaries |
 
 ---
 
-## 2. Finalized Privacy Disclosure Copy
+## 2. Privacy Guarantees, Disclosures & Known Limitations
 
-### 2.1 Pre-Check-in Disclosure (Shown on Check-in Overview)
-> *"Takes about 60 seconds. Rules decide your safety, reflection text is never saved to your check-in history, and you remain anonymous."*
+### 2.1 Pre-Check-in & Point-of-Collection Consent
+- **Pre-Check-in Disclosure (`CheckInPage.tsx`)**: Explains that check-ins take ~60 seconds, rules decide safety, reflection text is never saved, and users remain anonymous, with direct modal access to the Data Inventory (`PrivacyInventoryModal.tsx`).
+- **Explicit Consent Enforcement (`StrictBool`)**: `consent_ai_processing` defaults to `false` on every check-in. `CheckInRequest` enforces Pydantic `StrictBool`, rejecting coerced strings/integers (`"true"`, `1`) with HTTP `422` without invoking AI.
+- **HIGH-Route Zero-Call Guarantee**: Check-ins classified as `HIGH` unconditionally bypass AI (`guidance = None`, 0 provider calls).
+- **Sanitized Error Responses**: A custom `RequestValidationError` handler in `backend/app/main.py` strips raw `input` fields from HTTP `422` responses so private reflections are never echoed back.
 
-### 2.2 Point-of-Collection AI Consent Disclosure (Reflection Textarea)
-- **Privacy Guarantee Notice**:
-  > *"Privacy guarantee: Your reflection is completely optional and is never saved in your check-in history database. It is processed locally by deterministic safety rules to detect crisis indicators."*
-- **Explicit Consent Checkbox (Default: `false` / Unchecked)**:
-  > *"I consent to allowing the supportive AI assistant to read this reflection to tailor my kind guidance message. (If left unchecked, your reflection is only evaluated by local rule-based safety checks and is never shared with external AI guidance models)."*
-- **Third-Party Provider & Operational Limitations Notice**:
-  > *"When you opt in, your reflection is sent over an encrypted channel to the Google Gemini API solely for real-time supportive message generation. It is not stored in Calmspace databases, though external API processing may be subject to the provider's transient gateway policies."*
+### 2.2 Retention & Deletion Mechanics
+- **Automated Request-Boundary Pruning**: `storage.cleanup_expired_records(session_id)` reads the session's `data_retention_days` (`14`, `30`, `60`, or `90`; invalid inputs coerce to `30`) and atomically deletes `checkins` strictly older than `now - retention_days` (`strftime(...) < cutoff`) across `POST /api/checkin`, `GET /api/checkin/history`, `GET /api/insights`, `compute_session_insights`, and `PUT /api/settings`.
+- **High-Route Record Handling**: `HIGH`-route check-in rows store only numeric scores, `route="HIGH"`, and `timestamp` (never reflection text) under the exact same configurable retention window and immediate deletion controls.
+- **Transactional 2-Step Deletion (`DELETE /api/settings/data`)**: Deletes all `checkins`, `tasks`, and `user_settings` rows matching `session_id` in a single atomic SQLite transaction. If deletion fails, `SettingsPage.tsx` preserves the confirmation dialog, displays a failure alert with a Retry control, and never reports false success.
+- **High-Risk Safe Exit**: Clicking *"Safe Exit to Overview"* removes `calmspace_latest_checkin`, sets `calmspace_high_risk_exited`, clears router history state, and navigates home without prompting or resuming AI dialogue.
 
-### 2.3 Settings & Data Erasure Disclosure (Settings Page)
-- **Cryptographic Anonymous Session Disclosure**:
-  > *"Calmspace does not require email addresses, student roll numbers, or university logins. You are represented on this browser solely by an anonymous cryptographic token."*
-- **Destructive Erasure Disclosure ("Delete all my data")**:
-  > *"Permanently remove your check-in ratings, study planner tasks, and personal preferences from this device and our live database servers. This action is irreversible and immediately invalidates your session credentials (routine cloud infrastructure backups expire separately per host lifecycle)."*
-
----
-
-## 3. Consent, Retention & Deletion Test Specifications
-
-These 7 test scenarios define the automated verification criteria for Issue #11 once aligned with Issue #10's schema:
-
-### Test Case 1: Unconsented Reflection AI Exclusion
-- **Action**: Check-in submitted with `reflection="I am stressed"` and `consent_ai_processing=False`.
-- **Assertion**:
-  - Request to AI provider adapter has call count `0`.
-  - Check-in response contains approved fallback message (`fallback_used=True`, `generated_by_ai=False`).
-  - Stored check-in record in DB has no reflection attribute or column.
-
-### Test Case 2: Consented Reflection Non-Persistence
-- **Action**: Check-in submitted with `reflection="Good day"` and `consent_ai_processing=True`.
-- **Assertion**:
-  - Provider receives reflection text.
-  - Check-in record written to DB strictly contains `mood`, `stress`, `sleep_hours`, `route`.
-  - Database table query verifies zero reflection text was written.
-
-### Test Case 3: High-Route Reflection Non-Persistence & AI Bypass
-- **Action**: Check-in submitted with acute crisis statement and `consent_ai_processing=True`.
-- **Assertion**:
-  - Safety evaluator routes to `HIGH`.
-  - AI provider call count is strictly `0` (zero-call guarantee).
-  - DB record has `route="HIGH"` and zero reflection text.
-
-### Test Case 4: High-Route Safe-Exit Purge
-- **Action**: From a `HIGH` result page, trigger *"Safe Exit"*.
-- **Assertion**:
-  - All check-in entries for that session are purged from the database.
-  - Client storage (`localStorage`, `sessionStorage`, browser history state) is wiped.
-
-### Test Case 5: Sentinel Text Leak Detection in Logs & Traces
-- **Action**: Submit check-ins containing a unique synthetic canary string (`SENTINEL_CANARY_REFLECT_992`).
-- **Assertion**:
-  - Inspect server application logs, error tracebacks, and stdout/stderr.
-  - Assert `SENTINEL_CANARY_REFLECT_992` is strictly absent from all logged outputs.
-
-### Test Case 6: Cross-Session Data Isolation (Negative Access)
-- **Action**: Session A attempts to fetch `/api/checkin/history` or `/api/planner/tasks` using Session B's `session_id` without Session B's Bearer token.
-- **Assertion**:
-  - Endpoint returns `401 Unauthorized` or `403 Forbidden`.
-  - Zero records belonging to Session B are returned or modified.
-
-### Test Case 7: Session Deletion & Credential Invalidation
-- **Action**: Authenticated call to `DELETE /api/settings/data`.
-- **Assertion**:
-  - All check-ins, study tasks, and user settings for that session are permanently erased.
-  - Any partial DB deletion error returns a failure status rather than reporting success.
-  - Subsequent requests with the deleted credential return `401 Unauthorized` (or `410 Gone` per approved revocation contract).
+### 2.3 Remaining Architectural Limitations (Honest Scope)
+1. **Relational Isolation vs. Authenticated Ownership**: Because Calmspace deliberately collects no emails, logins, or passwords, the browser-generated `X-Session-ID` UUID acts as an unauthenticated partition key. Server queries enforce `WHERE session_id = ?`, preventing cross-session enumeration, but a party who obtains another user's exact UUID can read or delete that session's records. Adding signed session tokens or server-issued hashed credentials would be required if multi-device or threat-resistant authentication is added later.
+2. **External Provider Policies**: When a student explicitly opts in on `LOW`/`MEDIUM` routes and `CALMSPACE_AI_PROVIDER=gemini` is configured, reflections are transmitted over TLS (`x-goog-api-key` header) to Google Gemini for real-time generation; external provider gateway retention is outside Calmspace's control.
+3. **Infrastructure Backups**: Deletion immediately purges live SQLite tables (`checkins`, `tasks`, `user_settings`); any host-level snapshots or backups follow the deployment host's separate lifecycle.
 
 ---
 
-## 4. Coordination Checklist (Pending Issue #10 Implementation)
+## 3. Automated Verification Coverage
 
-- [ ] Roushan confirms Supabase/PostgreSQL and migration strategy.
-- [ ] Agree on 60-day or 90-day session inactivity expiry.
-- [ ] Approve 30-day default and permitted retention choices (`14, 30, 60, 90` days).
-- [ ] Agree on HIGH-route retention and Safe Exit behavior.
-- [ ] Finalize authenticated deletion and revocation contract (hard-delete `anonymous_sessions` row vs. temporary soft-revoke tombstone).
-- [ ] Align Issue #11 tests with the actual Issue #10 schema.
+All privacy, retention, isolation, and canary leak assertions are verified in the backend test suite:
+
+- `backend/tests/test_retention.py` (12 tests): Exact UTC cutoff boundaries, 14/30/60/90-day enforcement, invalid retention coercion to 30, schema migration, concurrency integrity (`PRAGMA integrity_check`), cross-session pruning isolation, and FastAPI request-boundary integration.
+- `backend/tests/test_canary_leakage.py` (16 tests): `SENTINEL_CANARY_REFLECT_*` leak assertions across `caplog`, `capsys`, tracebacks, provider timeout/401/unexpected errors, sanitized `422` validation errors, malformed `StrictBool` consent rejection, `500` responses, SQLite schema/row inspection, HIGH-route zero-call guarantee, cross-session negative access, and Safe Exit failure honesty.
+- `backend/tests/test_storage_persistence.py` (5 tests) & `backend/tests/test_ai_guidance.py` (29 tests): Persistence across restarts, session isolation, prompt minimization, and fail-closed fallback behavior.

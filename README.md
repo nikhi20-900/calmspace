@@ -86,13 +86,14 @@ The application is organized around a simple journey:
 | Area | Purpose | Status |
 |---|---|---|
 | **Interactive landing page** | Introduces the Calmspace experience with 3D mascot | Implemented |
-| **Daily check-in** | Guided mood, stress, and sleep check-in | Implemented |
-| **Safety evaluation** | Deterministic wellbeing routing engine | Implemented |
-| **Application shell** | Responsive navigation and student dashboard | Implemented |
-| **Wellbeing insights** | Accessible Recharts visualisations and summaries | In progress (Issue #8) |
-| **Study-life planner** | Intentional pacing and task planning | Planned / assigned (Issue #9) |
-| **Support network** | Human support access and directory management | Implemented (directory integration: Issue #12) |
-| **Privacy settings** | Preferences, consent controls, and data erasure | Dependent on backend persistence (Issue #10, #11) |
+| **Daily check-in** | Guided mood, stress, sleep, and opt-in reflection flow | Implemented (Issue #6) |
+| **Safety evaluation** | Deterministic multilingual wellbeing routing engine | Implemented (Issue #2, #3, #13) |
+| **Application shell** | Responsive navigation and student dashboard | Implemented (Issue #7) |
+| **Wellbeing insights** | Accessible Recharts visualizations, tables, and summaries | Implemented (Issue #8, #14) |
+| **Study-life planner** | Task CRUD, 5-min breather timer, and in-app pacing | Implemented (Issue #9) |
+| **Support network** | Verified helpline directory and high-risk triage | Implemented (Issue #4, #12) |
+| **Privacy & retention** | Data inventory modal, 14/30/60/90d pruning, atomic wipe | Implemented (Issue #10, #11) |
+| **Deployment & hosting** | Production hosting configuration and health verification | In progress (Issue #15) |
 
 ---
 
@@ -128,26 +129,26 @@ flowchart TD
     HUMAN --> RESULT
     RESULT --> FE
 
-    API <--> DB["Persistence Layer"]
-    DB --> SESSION["Anonymous Sessions"]
-    DB --> HISTORY["Check-in Data"]
+    API <--> DB["SQLite Persistence (WAL Mode)"]
+    DB --> SESSION["Anonymous UUID Scoping (X-Session-ID)"]
+    DB --> HISTORY["Numeric Check-ins, Tasks & Settings"]
 ```
 
-> *Conceptual system view. Persistence and session components are subject to the backend implementation and integration status.*
+> *Database records are scoped per anonymous client UUID (`WHERE session_id = ?`). See [docs/privacy_data_inventory.md](docs/privacy_data_inventory.md) for relational isolation vs. authenticated ownership boundaries.*
 
 ### Technology Stack
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | React 19, TypeScript, Vite |
+| **Frontend** | React 18 (`^18.3.1`), TypeScript (`^5.7.2`), Vite (`^6.0.7`) |
 | **Styling** | Tailwind CSS, CSS design tokens |
 | **Visualization** | Recharts |
 | **Interactive graphics** | Three.js, custom GLSL |
-| **Backend** | Python, FastAPI |
-| **Validation** | Pydantic |
-| **AI integration** | Provider abstraction and fallback architecture |
-| **Testing** | Pytest, Playwright, Vitest / Vite build checks |
-| **Persistence** | PostgreSQL / Supabase workstream |
+| **Backend** | Python, FastAPI, Uvicorn |
+| **Validation** | Pydantic (`StrictBool`, bounded numeric validators) |
+| **AI integration** | `mock` and `gemini` (`x-goog-api-key`) provider adapters with fail-closed fallback |
+| **Testing & Lint** | Pytest (256 backend tests), Ruff, TypeScript (`tsc`) & Vite build |
+| **Persistence** | SQLite with WAL mode (`backend/app/services/storage.py`) |
 
 ---
 
@@ -237,24 +238,31 @@ Calmspace is designed to make human support easy to reach from every screen.
 Calmspace is being developed incrementally. The following statuses distinguish completed work from active assignments and future scope:
 
 ### Implemented
-- Interactive Three.js mascot and editorial landing experience.
-- Guided daily check-in flow with single-step focus.
-- Deterministic safety evaluation and high-risk routing engine.
-- 156-test deterministic safety & routing suite (`backend/tests/test_safety_routing_suite.py`).
-- AI provider abstraction and fallback architecture.
-- Verified support directory and immediate crisis modal.
-- Application shell, responsive navigation, and student dashboard (PR #26 merged; Issue #7 closed).
+- Interactive Three.js mascot and editorial landing experience (Issue #18 / #28).
+- Guided daily check-in flow with single-step focus and same-day update notice (Issue #6).
+- Deterministic safety evaluation, multilingual crisis corpus (English, Devanagari, Hinglish), and 256-test automated backend suite (`test_safety_routing_suite.py`, `test_safety_corpus.py`, `test_safety_engine.py`, `test_ai_guidance.py`, `test_analytics.py`, `test_retention.py`, `test_canary_leakage.py`, `test_storage_persistence.py`, `test_backend.py`).
+- AI provider abstraction (`mock` / `gemini`), `StrictBool` consent enforcement, output validator, and fail-closed fallback (Issue #5).
+- Verified support directory, `is_active` filtering, official source provenance, and high-risk Safe Exit triage (Issue #4, #12).
+- Application shell, responsive navigation, student dashboard, accessible Insights charts/tables, and Study-Life Balance Planner with 5-minute breather timer (Issue #7, #8, #9, #14).
+- SQLite WAL persistence, configurable `14/30/60/90`-day automated retention pruning, `PrivacyInventoryModal`, `422` validation input sanitization, atomic `DELETE /api/settings/data`, and sentinel-canary leak tests (Issue #10, #11).
+- End-to-end hackathon demo script (`docs/demo_journey.md`) (Issue #16).
 
-### In Progress
-- **Issue #8** — Accessible wellbeing insights, Recharts visualisations, filters, and non-diagnostic summaries.
-- **Issue #10** — Backend persistence, PostgreSQL / Supabase schema, and anonymous-session storage (owned by backend workstream).
+### Remaining / In Progress
+- **Issue #15** — Deployment hardening, production environment/secrets verification, and live demo hosting (`roushan-23`, `mu368651-eng`).
+- **Issue #17** — Final documentation consistency review (this guide and `docs/`).
 
-### Planned / Coordinated
-- **Issue #9** — Study-life balance planner and in-app pacing reminders.
-- **Issue #11** — Privacy disclosures, consent management, retention policies, and deletion coordination.
-- **Issue #12** — Support access and campus institutional support integration.
-- **Issue #14** — Privacy-preserving aggregated student analytics.
-- **Issue #15** — Docker containerization and production deployment.
+### Documentation Index
+
+| Guide | Scope |
+|---|---|
+| [Architecture & Boundaries](docs/architecture.md) | Module ownership, safety bypass diagram, SQLite session model |
+| [API Contracts](docs/api_contracts.md) | Endpoints, headers, validation rules, error schemas |
+| [Privacy & Data Inventory](docs/privacy_data_inventory.md) | Field-level inventory, retention pruning, deletion & limitations |
+| [AI Support Service](docs/ai_support_service.md) | Consent, prompt isolation, rate limits, fallback rules |
+| [Safety Corpus](docs/safety_corpus.md) | Multilingual crisis patterns and negation rules |
+| [High-Risk Escalation](docs/high_risk_escalation.md) | Crisis UI, Safe Exit policy, helpline provenance |
+| [Demo Journey](docs/demo_journey.md) | 3–5 minute presentation walkthrough and synthetic personas |
+| [DB Architecture Proposal](docs/database_architecture_issue_10.md) | Historical PostgreSQL/Supabase design proposal (current MVP runs SQLite WAL) |
 
 ---
 
@@ -266,7 +274,7 @@ Clear ownership keeps the project maintainable and prevents accidental changes t
 |---|---|---|
 | **UI/UX and application experience** | **Nikhil Chhetri** — [@nikhi20-900](https://github.com/nikhi20-900) | Design system, React application shell, responsive navigation, check-in experience, insights UI |
 | **Safety & Risk Engine** | **Nikhil Chhetri** — [@nikhi20-900](https://github.com/nikhi20-900) | Deterministic safety logic ownership, crisis precedence, regression coverage, AI-bypass contracts |
-| **Database and anonymous sessions** | **Roushan** — [@roushan-23](https://github.com/roushan-23) | PostgreSQL/Supabase, session persistence, token handling, database isolation |
+| **Database and anonymous sessions** | **Roushan** — [@roushan-23](https://github.com/roushan-23) | SQLite WAL persistence (`storage.py`), session isolation (`WHERE session_id = ?`), data erasure, analytics, and deployment coordination |
 | **AI integration** | **AI workstream** | Provider integration, prompt contracts, fallback behavior, resilience |
 | **Support directory** | **Institutional / support workstream** | Contact verification, campus resources, safe support access |
 
@@ -286,36 +294,43 @@ Clear ownership keeps the project maintainable and prevents accidental changes t
 calmspace/
 ├── backend/
 │   ├── app/
-│   │   ├── models/              # Pydantic schemas
-│   │   ├── routers/             # API endpoints (checkin, insights, planner, support)
+│   │   ├── core/config.py           # Environment config & .env loader
+│   │   ├── models/schemas.py        # Pydantic contracts (StrictBool consent, retention bounds)
+│   │   ├── routers/                 # API endpoints (checkin, insights, planner, support_and_settings)
 │   │   ├── services/
 │   │   │   ├── safety_evaluator.py  # PROTECTED (Immutable risk engine)
 │   │   │   ├── ai_guidance.py       # Supportive AI guidance & fallbacks
+│   │   │   ├── ai_validation.py     # Prompt safety & output schema validation
+│   │   │   ├── ai_providers/        # Mock & Gemini REST adapters
+│   │   │   ├── analytics.py         # Non-diagnostic session insight aggregation
 │   │   │   ├── support_directory.py # Verified support directory
-│   │   │   └── storage.py           # Ephemeral storage foundation
-│   │   └── main.py              # FastAPI application entry point
-│   ├── tests/                   # Automated safety, corpus, and routing suites
+│   │   │   └── storage.py           # SQLite WAL persistence & automated retention pruning
+│   │   └── main.py                  # FastAPI entry point & 422 sanitization handler
+│   ├── tests/                       # 256 tests (safety, corpus, AI, analytics, retention, canary, persistence)
 │   ├── requirements.txt
 │   └── pytest.ini
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── landing/         # Editorial landing page sections
-│   │   │   ├── layout/          # AppLayout, Sidebar, MobileNavigation, SupportModal
-│   │   │   ├── checkin/         # Mood, stress, sleep, and reflection steps
-│   │   │   ├── mascot/          # 3D interactive lavender character
-│   │   │   └── ui/              # Button, Card, Badge, Slider, Dialog primitives
-│   │   ├── pages/               # LandingPage, OverviewPage, CheckInPage, InsightsPage, etc.
-│   │   ├── services/            # API client and canonical support directory
-│   │   ├── styles/              # Design tokens, typography, and animations
-│   │   ├── types/               # TypeScript interfaces
-│   │   ├── App.tsx              # React router routing
+│   │   │   ├── landing/             # Editorial landing page sections
+│   │   │   ├── layout/              # AppLayout, Sidebar, MobileNavigation, SupportModal
+│   │   │   ├── checkin/             # Mood, stress, sleep, and reflection steps
+│   │   │   ├── planner/             # BreatherTimer and pacing components
+│   │   │   ├── privacy/             # PrivacyInventoryModal
+│   │   │   ├── mascot/              # 3D interactive lavender character
+│   │   │   └── ui/                  # Button, Card, Badge, Slider, Dialog primitives
+│   │   ├── context/                 # PrivacyModalContext
+│   │   ├── pages/                   # Landing, Overview, CheckIn, CheckInResult, Insights, Planner, Support, Settings
+│   │   ├── services/                # API client and canonical fallback support directory
+│   │   ├── styles/                  # Design tokens, typography, and animations
+│   │   ├── types/                   # TypeScript interfaces
+│   │   ├── App.tsx                  # React Router routes & modal provider
 │   │   └── main.tsx
 │   ├── package.json
 │   └── vite.config.ts
 │
-├── docs/                        # Architectural specifications, privacy inventories, and safety corpus
+├── docs/                            # Architecture, API contracts, privacy inventory, safety & demo guides
 └── package.json
 ```
 
@@ -348,27 +363,43 @@ PYTHONPATH=backend python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000 
 - API Base: `http://127.0.0.1:8000`
 - Interactive API Documentation: `http://127.0.0.1:8000/docs`
 
-### 2. Frontend Setup
+### 2. Environment Configuration
+
+Use placeholders only (`backend/app/.env` is loaded automatically outside pytest; never commit secrets):
+
+| Variable | Scope | Default | Purpose |
+|---|---|---|---|
+| `DATABASE_URL` | Backend | `sqlite:///./calmspace.db` | SQLite database path |
+| `CORS_ORIGINS` | Backend | `*` | Comma-separated allowed frontend origins in production |
+| `CALMSPACE_ENV` | Backend | `development` | Set to `production` for production rate-limiter guard |
+| `CALMSPACE_AI_PROVIDER` | Backend | `mock` | `mock` (offline deterministic) or `gemini` |
+| `CALMSPACE_AI_API_KEY` / `GEMINI_API_KEY` | Backend | `None` | Required when `CALMSPACE_AI_PROVIDER=gemini` |
+| `CALMSPACE_AI_MODEL` | Backend | `gemini-1.5-flash` | Gemini model identifier |
+| `CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER` | Backend | `true` (dev) / `false` (prod) | Explicit opt-in for single-worker rate limiting in production |
+| `VITE_API_BASE_URL` | Frontend | `/api` | Backend base URL (`vite.config.ts` proxies `/api` to `:8000` in dev) |
+
+### 3. Frontend Setup
 
 In a separate terminal:
 
 ```bash
 npm --prefix frontend install
-npm --prefix frontend run dev
+npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ```
 
-Open the local development URL printed by Vite (typically `http://localhost:5173` or `http://localhost:3000`).
+Open `http://127.0.0.1:5173` (running `npm --prefix frontend run dev` without flags uses port `3000` per `frontend/vite.config.ts`).
 
-### 3. Production Build
+### 4. Production Build & CI Verification
 
 ```bash
+# Frontend TypeScript check & Vite bundle
 npm --prefix frontend run build
-```
 
-### 4. Running Backend Tests
-
-```bash
-cd backend && pytest tests
+# Backend lint, formatting, and full 256-test suite with safety evaluator coverage
+cd backend
+ruff format --check .
+ruff check .
+pytest -v --cov=app.services.safety_evaluator --cov-report=term-missing
 ```
 
 ---
