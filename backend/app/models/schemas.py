@@ -5,7 +5,7 @@ Strictly typed for privacy and safety integrity.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
 RiskRoute = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -26,7 +26,7 @@ class CheckInRequest(BaseModel):
     reflection: str | None = Field(
         None, max_length=2000, description="Optional personal reflection"
     )
-    consent_ai_processing: bool = Field(
+    consent_ai_processing: StrictBool = Field(
         False, description="Explicit consent if reflection is evaluated for guidance"
     )
 

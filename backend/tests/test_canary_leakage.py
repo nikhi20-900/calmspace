@@ -283,6 +283,42 @@ def test_canary_malformed_request_error_response(client, caplog, capsys):
     assert canary not in err
 
 
+def test_malformed_consent_rejected_without_ai_or_leakage(
+    client, monkeypatch, caplog, capsys
+):
+    """Non-boolean consent values (e.g., 'true', 1) must be rejected and never call AI or leak reflection."""
+    canary = "SENTINEL_CANARY_MALFORMED_CONSENT_708"
+    ai_calls = []
+
+    def spy_guidance(*args, **kwargs):
+        ai_calls.append(kwargs)
+
+    monkeypatch.setattr(
+        "app.routers.checkin.generate_supportive_guidance", spy_guidance
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        for bad_consent in ("true", "yes", 1):
+            res = client.post(
+                "/api/checkin",
+                json={
+                    "mood": 4,
+                    "stress": 2,
+                    "sleep_hours": 8.0,
+                    "reflection": canary,
+                    "consent_ai_processing": bad_consent,
+                },
+            )
+            assert res.status_code == 422
+            assert canary not in res.text
+
+    out, err = capsys.readouterr()
+    assert len(ai_calls) == 0
+    assert canary not in caplog.text
+    assert canary not in out
+    assert canary not in err
+
+
 def test_canary_backend_exception_handling(client, monkeypatch, caplog, capsys):
     """Simulated internal backend crash during check-in must not leak canary in 500 error or traceback."""
     canary = "SENTINEL_CANARY_REFLECT_BACKEND_ERR_808"
