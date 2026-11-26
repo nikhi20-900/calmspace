@@ -117,6 +117,12 @@ class CalmspaceStorage:
                     "ALTER TABLE user_settings ADD COLUMN data_retention_days INTEGER NOT NULL DEFAULT 30;"
                 )
 
+    def check_health(self) -> bool:
+        """Verify database connectivity without reading or exposing any user data."""
+        conn = self._get_connection()
+        conn.execute("SELECT 1;").fetchone()
+        return True
+
     # --------------------------------------------------------------------------
     # Settings Management (Session-Scoped)
     # --------------------------------------------------------------------------
