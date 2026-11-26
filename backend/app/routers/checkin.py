@@ -7,8 +7,9 @@ Enforces:
 4. Support contacts returned for all routes (highlighting urgent for High route).
 """
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends
 
+from app.core.session import require_session_id
 from app.models.schemas import CheckInRequest, CheckInResponse
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import evaluate_wellbeing_route
@@ -21,9 +22,8 @@ router = APIRouter(prefix="/api/checkin", tags=["Check-in"])
 @router.post("", response_model=CheckInResponse)
 async def submit_checkin(
     payload: CheckInRequest,
-    x_session_id: str | None = Header("anonymous-default-session"),
+    session_id: str = Depends(require_session_id),
 ):
-    session_id = x_session_id or "anonymous-default-session"
 
     # 0. Automatically prune expired records per session's retention policy
     storage.cleanup_expired_records(session_id)
@@ -78,8 +78,7 @@ async def submit_checkin(
 
 @router.get("/history")
 async def get_checkin_history(
-    x_session_id: str | None = Header("anonymous-default-session"),
+    session_id: str = Depends(require_session_id),
 ):
-    session_id = x_session_id or "anonymous-default-session"
     storage.cleanup_expired_records(session_id)
     return storage.get_checkins(session_id)

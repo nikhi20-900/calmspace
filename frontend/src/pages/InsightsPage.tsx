@@ -307,15 +307,17 @@ export const InsightsPage: React.FC = () => {
             </div>
           </Card>
 
+          {/* Consistent chart grid keeps single-entry datasets compact and readable. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5 items-stretch">
           {/* Metric 1: Mood Evolution Chart */}
-          <Card padding="lg" className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-[#F0EFF7]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#E9E7FB] flex items-center justify-center text-[#5554B8]">
+          <Card padding="md" className="h-full min-w-0 flex flex-col gap-3">
+            <div className="flex flex-col gap-2 pb-2 border-b border-[#F0EFF7]">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-[#E9E7FB] flex items-center justify-center text-[#5554B8] shrink-0">
                   <Smile className="w-4 h-4" />
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#25233B]">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-bold leading-snug text-[#25233B]">
                     Mood Evolution (1 to 5)
                   </h3>
                   <p className="text-xs text-[#625F78]">
@@ -325,22 +327,22 @@ export const InsightsPage: React.FC = () => {
               </div>
 
               {/* Non-color-only legend */}
-              <div className="flex items-center gap-2 text-xs text-[#625F78] self-start sm:self-auto">
+              <div className="flex items-center gap-2 text-xs text-[#625F78]">
                 <span className="inline-block w-3 h-3 rounded-full bg-[#5554B8]" aria-hidden="true" />
-                <span>Solid line with circles (Mood rating)</span>
+                <span>Mood rating</span>
               </div>
             </div>
 
             {/* Accompanying plain text summary */}
-            <p className="text-xs text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-              <strong>Mood Summary:</strong> Over the last {days} days, your self-reported mood averaged {insights?.average_mood} out of 5 across {insights?.check_in_count} check-in entries.
+            <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
+              <strong>Mood Summary:</strong> Average {insights?.average_mood} out of 5 across {insights?.check_in_count} {insights?.check_in_count === 1 ? 'check-in' : 'check-ins'} in the last {days} days.
             </p>
 
-            <div className="h-60 w-full pt-2">
+            <div className="h-48 w-full mt-auto pt-1">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={insights?.mood_trend}
-                  margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+                  margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
                   <XAxis
@@ -376,7 +378,7 @@ export const InsightsPage: React.FC = () => {
                     dataKey="mood"
                     name="Mood Score"
                     stroke="#5554B8"
-                    strokeWidth={2.5}
+                    strokeWidth={(insights?.mood_trend?.length ?? 0) > 1 ? 2.5 : 0}
                     connectNulls={false}
                     dot={{ r: 5, fill: '#5554B8', stroke: '#FFFFFF', strokeWidth: 2 }}
                     activeDot={{ r: 7, stroke: '#5554B8', strokeWidth: 2, fill: '#FFFFFF' }}
@@ -386,17 +388,15 @@ export const InsightsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Metrics 2 & 3: Sleep & Stress side-by-side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sleep Rest Chart */}
-            <Card padding="lg" className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-[#F0EFF7]">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#DCE9DF] flex items-center justify-center text-[#245532]">
+            <Card padding="md" className="h-full min-w-0 flex flex-col gap-3">
+              <div className="flex flex-col gap-2 pb-2 border-b border-[#F0EFF7]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#DCE9DF] flex items-center justify-center text-[#245532] shrink-0">
                     <Moon className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-[#25233B]">
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-bold leading-snug text-[#25233B]">
                       Sleep Duration (Hours)
                     </h3>
                     <p className="text-xs text-[#625F78]">
@@ -406,22 +406,22 @@ export const InsightsPage: React.FC = () => {
                 </div>
 
                 {/* Non-color-only legend */}
-                <div className="flex items-center gap-1.5 text-xs text-[#625F78] self-start sm:self-auto">
+                <div className="flex items-center gap-1.5 text-xs text-[#625F78]">
                   <span className="inline-block w-3 h-3 bg-[#245532] rounded-xs" aria-hidden="true" />
-                  <span>Vertical bars (Hours)</span>
+                  <span>Sleep duration</span>
                 </div>
               </div>
 
               {/* Accompanying plain text summary */}
-              <p className="text-xs text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-                <strong>Sleep Summary:</strong> You logged an average of {insights?.average_sleep} hours of sleep nightly across this tracking window (7h reference line provided for visual orientation).
+              <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
+                <strong>Sleep Summary:</strong> Average nightly rest was {insights?.average_sleep} hours over the last {days} days. The dashed line marks 7 hours.
               </p>
 
-              <div className="h-52 w-full pt-2">
+              <div className="h-48 w-full mt-auto pt-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={insights?.sleep_trend}
-                    margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+                    margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
                     <XAxis
@@ -464,6 +464,7 @@ export const InsightsPage: React.FC = () => {
                       dataKey="sleep"
                       name="Hours Slept"
                       fill="#245532"
+                      maxBarSize={40}
                       radius={[6, 6, 0, 0]}
                     />
                   </BarChart>
@@ -472,14 +473,14 @@ export const InsightsPage: React.FC = () => {
             </Card>
 
             {/* Academic Stress Load Chart */}
-            <Card padding="lg" className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-[#F0EFF7]">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#F6E6CC] flex items-center justify-center text-[#7A4D05]">
+            <Card padding="md" className="h-full min-w-0 flex flex-col gap-3">
+              <div className="flex flex-col gap-2 pb-2 border-b border-[#F0EFF7]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#F6E6CC] flex items-center justify-center text-[#7A4D05] shrink-0">
                     <Activity className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-[#25233B]">
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-bold leading-snug text-[#25233B]">
                       Academic Stress Load (1 to 5)
                     </h3>
                     <p className="text-xs text-[#625F78]">
@@ -489,22 +490,22 @@ export const InsightsPage: React.FC = () => {
                 </div>
 
                 {/* Non-color-only legend */}
-                <div className="flex items-center gap-1.5 text-xs text-[#625F78] self-start sm:self-auto">
+                <div className="flex items-center gap-1.5 text-xs text-[#625F78]">
                   <span className="inline-block w-3 h-1 bg-[#7A4D05] border-t border-dashed border-[#7A4D05]" aria-hidden="true" />
-                  <span>Dashed line with squares (Stress)</span>
+                  <span>Stress rating</span>
                 </div>
               </div>
 
               {/* Accompanying plain text summary */}
-              <p className="text-xs text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-                <strong>Stress Summary:</strong> Academic and workload pressure averaged {insights?.average_stress} out of 5 over the active {days}-day tracking window.
+              <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
+                <strong>Stress Summary:</strong> Average load was {insights?.average_stress} out of 5 over the last {days} days.
               </p>
 
-              <div className="h-52 w-full pt-2">
+              <div className="h-48 w-full mt-auto pt-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={insights?.stress_trend}
-                    margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+                    margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
                     <XAxis
@@ -538,7 +539,7 @@ export const InsightsPage: React.FC = () => {
                       dataKey="stress"
                       name="Stress Rating"
                       stroke="#7A4D05"
-                      strokeWidth={2.5}
+                      strokeWidth={(insights?.stress_trend?.length ?? 0) > 1 ? 2.5 : 0}
                       strokeDasharray="6 4"
                       connectNulls={false}
                       dot={{ r: 5, fill: '#FFFFFF', stroke: '#7A4D05', strokeWidth: 2 }}

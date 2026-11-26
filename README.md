@@ -391,7 +391,7 @@ calmspace/
 │   │       ├── analytics.py         # Session-scoped non-diagnostic trend aggregation
 │   │       ├── support_directory.py # Verified helpline & demo campus resource registry
 │   │       └── storage.py           # SQLite WAL engine, pruning & atomic deletion
-│   └── tests/                       # 262 automated tests across 10 test modules
+│   └── tests/                       # 270 automated tests across 12 test modules
 ├── frontend/
 │   ├── Dockerfile                   # Multi-stage Node 20 build -> Nginx 1.27 static/proxy server
 │   ├── nginx.conf                   # Security headers, /api proxy & SPA routing
@@ -458,7 +458,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ### 4. Local CI Parity Verification
 
 ```bash
-# Backend formatting, linting, and 262-test suite with safety evaluator coverage
+# Backend formatting, linting, and 270-test suite with safety evaluator coverage
 cd backend
 ruff format --check .
 ruff check .

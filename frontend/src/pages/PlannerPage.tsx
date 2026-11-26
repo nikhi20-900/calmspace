@@ -38,6 +38,7 @@ const STARTER_PROMPTS = [
 export const PlannerPage: React.FC = () => {
   const [tasks, setTasks] = useState<StudyTask[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
 
   // Filter states
@@ -73,6 +74,10 @@ export const PlannerPage: React.FC = () => {
 
         if (taskList.status === 'fulfilled') {
           setTasks(taskList.value);
+        } else {
+          setActionError(
+            'Unable to load your saved study tasks from the server. Please check your connection and refresh.'
+          );
         }
         if (userSettings.status === 'fulfilled') {
           setSettings(userSettings.value);
@@ -110,6 +115,7 @@ export const PlannerPage: React.FC = () => {
     e.preventDefault();
     if (!title.trim()) return;
     setIsCreating(true);
+    setActionError(null);
     try {
       const newTask = await api.createTask({
         title: title.trim(),
@@ -119,19 +125,10 @@ export const PlannerPage: React.FC = () => {
       setTasks((prev) => [newTask, ...prev]);
       setTitle('');
       setShowAddForm(false);
-    } catch {
-      // Graceful local creation fallback if offline/mock
-      const localTask: StudyTask = {
-        id: 'local-' + Date.now(),
-        title: title.trim(),
-        estimated_minutes: estimatedMinutes,
-        category,
-        completed: false,
-        created_at: new Date().toISOString(),
-      };
-      setTasks((prev) => [localTask, ...prev]);
-      setTitle('');
-      setShowAddForm(false);
+    } catch (err: any) {
+      setActionError(
+        err?.message || 'Unable to save study session to the server. Please try again.'
+      );
     } finally {
       setIsCreating(false);
     }
@@ -139,40 +136,48 @@ export const PlannerPage: React.FC = () => {
 
   // 1-Click starter prompt handler
   const handleAddStarter = async (starter: (typeof STARTER_PROMPTS)[number]) => {
+    setActionError(null);
     try {
       const newTask = await api.createTask(starter);
       setTasks((prev) => [newTask, ...prev]);
-    } catch {
-      const localTask: StudyTask = {
-        id: 'local-' + Date.now(),
-        ...starter,
-        completed: false,
-        created_at: new Date().toISOString(),
-      };
-      setTasks((prev) => [localTask, ...prev]);
+    } catch (err: any) {
+      setActionError(
+        err?.message || 'Unable to add starter session to the server. Please try again.'
+      );
     }
   };
 
   // Toggle task completion
   const handleToggle = async (taskId: string) => {
-    // Optimistic toggle
+    setActionError(null);
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
     );
     try {
       await api.toggleTask(taskId);
-    } catch {
-      // Kept in optimistic state for resilience
+    } catch (err: any) {
+      // Revert optimistic toggle if backend persistence fails
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
+      );
+      setActionError(
+        err?.message || 'Unable to update task completion on the server. Please try again.'
+      );
     }
   };
 
   // Delete task
   const handleDelete = async (taskId: string) => {
+    setActionError(null);
+    const previousTasks = tasks;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     try {
       await api.deleteTask(taskId);
-    } catch {
-      // Kept in optimistic state
+    } catch (err: any) {
+      setTasks(previousTasks);
+      setActionError(
+        err?.message || 'Unable to delete task from the server. Please try again.'
+      );
     }
   };
 
@@ -191,27 +196,22 @@ export const PlannerPage: React.FC = () => {
     if (!editingTask || !editTitle.trim()) return;
 
     setIsSavingEdit(true);
+    setEditNotice(null);
+    setActionError(null);
     const updatedPayload = {
       title: editTitle.trim(),
       estimated_minutes: editMinutes,
       category: editCategory,
     };
 
-    // Apply update to local state
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === editingTask.id ? { ...t, ...updatedPayload } : t
-      )
-    );
-
     try {
-      // Attempt backend PATCH /api/planner/tasks/{id}
-      await api.updateTask(editingTask.id, updatedPayload);
+      const saved = await api.updateTask(editingTask.id, updatedPayload);
+      setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? saved : t)));
       setEditingTask(null);
-    } catch {
-      // Coordinate with Roushan: Backend PATCH endpoint pending integration
-      // Retain optimistic UI state and close modal cleanly
-      setEditingTask(null);
+    } catch (err: any) {
+      setEditNotice(
+        err?.message || 'Unable to save changes to the server. Please check your connection and try again.'
+      );
     } finally {
       setIsSavingEdit(false);
     }
@@ -258,6 +258,26 @@ export const PlannerPage: React.FC = () => {
           {showAddForm ? 'Close Form' : 'Add Study Session'}
         </Button>
       </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-card bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            aria-label="Dismiss planner error"
+            className="p-1 rounded hover:bg-rose-100 text-rose-700"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Stage 3: In-App Foreground Pacing Prompt (Dismissible, Foreground Only) */}
       {isPromptVisible && (

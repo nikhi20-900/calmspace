@@ -3,8 +3,9 @@ Support Network & Settings Routers
 Provides verified human support resources and privacy data management.
 """
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends
 
+from app.core.session import require_session_id
 from app.models.schemas import SupportContact, UserSettings
 from app.services.storage import storage
 from app.services.support_directory import get_support_directory
@@ -19,17 +20,15 @@ async def list_support_resources():
 
 
 @settings_router.get("", response_model=UserSettings)
-async def get_settings(x_session_id: str | None = Header("anonymous-default-session")):
-    session_id = x_session_id or "anonymous-default-session"
+async def get_settings(session_id: str = Depends(require_session_id)):
     return storage.get_settings(session_id)
 
 
 @settings_router.put("", response_model=UserSettings)
 async def update_settings(
     settings: UserSettings,
-    x_session_id: str | None = Header("anonymous-default-session"),
+    session_id: str = Depends(require_session_id),
 ):
-    session_id = x_session_id or "anonymous-default-session"
     updated = storage.update_settings(session_id, settings)
     storage.cleanup_expired_records(session_id)
     return updated
@@ -37,10 +36,9 @@ async def update_settings(
 
 @settings_router.delete("/data")
 async def delete_all_user_data(
-    x_session_id: str | None = Header("anonymous-default-session"),
+    session_id: str = Depends(require_session_id),
 ):
     """Completely and permanently purges all check-ins, tasks, and settings"""
-    session_id = x_session_id or "anonymous-default-session"
     storage.delete_all_data(session_id)
     return {
         "status": "success",

@@ -121,17 +121,35 @@ class StudyTaskCreate(BaseModel):
     estimated_minutes: int = Field(25, ge=5, le=240)
     category: str = "Study"
 
+    @field_validator("title")
+    @classmethod
+    def validate_non_blank_title(cls, v: str) -> str:
+        stripped = v.strip()
+        if len(stripped) < 2:
+            raise ValueError("Task title must contain at least 2 non-space characters.")
+        return stripped
+
 
 class StudyTaskUpdate(BaseModel):
     title: str | None = Field(None, min_length=2, max_length=120)
     estimated_minutes: int | None = Field(None, ge=5, le=240)
     category: str | None = None
 
+    @field_validator("title")
+    @classmethod
+    def validate_optional_non_blank_title(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        stripped = v.strip()
+        if len(stripped) < 2:
+            raise ValueError("Task title must contain at least 2 non-space characters.")
+        return stripped
+
 
 class UserSettings(BaseModel):
-    nickname: str = "Student"
+    nickname: str = Field("Student", max_length=60)
     break_reminders_enabled: bool = True
-    reminder_interval_minutes: int = 45
+    reminder_interval_minutes: int = Field(45, ge=5, le=240)
     share_anonymous_analytics: bool = False
     data_retention_days: int = 30
 
