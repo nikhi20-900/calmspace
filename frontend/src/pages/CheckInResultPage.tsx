@@ -393,7 +393,7 @@ export const CheckInResultPage: React.FC = () => {
           <Button
             variant="primary"
             size="md"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/app')}
             rightIcon={<ArrowRight className="w-4 h-4" />}
           >
             Return to Overview

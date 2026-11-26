@@ -162,6 +162,7 @@ export const CheckInPage: React.FC = () => {
 
       // Cache the latest response locally in sessionStorage to power immediate result page rendering
       sessionStorage.setItem('calmspace_latest_checkin', JSON.stringify(response));
+      sessionStorage.removeItem('calmspace_high_risk_exited');
       navigate('/checkin/result');
     } catch (err: any) {
       console.error('Check-in submission failed:', err);

@@ -28,6 +28,7 @@ export const SettingsPage: React.FC = () => {
   const { openPrivacyModal } = usePrivacyModal();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -47,7 +48,11 @@ export const SettingsPage: React.FC = () => {
           ...data,
           data_retention_days: data.data_retention_days ?? 30,
         });
-      } catch {
+      } catch (err: any) {
+        setLoadError(
+          err?.message ||
+            'Could not load your saved settings from the server. Showing defaults; saving will still attempt to update the server.'
+        );
         setSettings({
           nickname: 'Student',
           break_reminders_enabled: true,
@@ -120,6 +125,16 @@ export const SettingsPage: React.FC = () => {
         title="Privacy & Preferences"
         description="Transparent controls over your data, anonymous session tokens, and local pacing reminders."
       />
+
+      {loadError && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-card bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{loadError}</span>
+        </div>
+      )}
 
       {savedSuccess && (
         <div className="p-3.5 rounded-card bg-[#DCE9DF] border border-[#BCD4C3] text-[#245532] text-xs flex items-center gap-2">

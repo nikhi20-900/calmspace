@@ -264,6 +264,7 @@ def test_canary_malformed_request_error_response(client, caplog, capsys):
         # Exceeds 2000 character maximum limit to trigger RequestValidationError
         res = client.post(
             "/api/checkin",
+            headers={"X-Session-ID": "canary-session-1"},
             json={
                 "mood": 4,
                 "stress": 2,
@@ -301,6 +302,7 @@ def test_malformed_consent_rejected_without_ai_or_leakage(
         for bad_consent in ("true", "yes", 1):
             res = client.post(
                 "/api/checkin",
+                headers={"X-Session-ID": "canary-session-2"},
                 json={
                     "mood": 4,
                     "stress": 2,
@@ -332,6 +334,7 @@ def test_canary_backend_exception_handling(client, monkeypatch, caplog, capsys):
         try:
             res = client.post(
                 "/api/checkin",
+                headers={"X-Session-ID": "canary-session-3"},
                 json={
                     "mood": 4,
                     "stress": 2,

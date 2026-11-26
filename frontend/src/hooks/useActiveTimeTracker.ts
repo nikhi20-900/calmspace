@@ -60,14 +60,7 @@ export function useActiveTimeTracker({
 
       if (elapsedSec >= 1) {
         lastTickTimeRef.current = now;
-        setAccumulatedSeconds((prev) => {
-          const updated = prev + elapsedSec;
-          if (updated >= thresholdSeconds && !isPromptVisible && !isDismissed) {
-            setIsPromptVisible(true);
-            onPrompt?.();
-          }
-          return updated;
-        });
+        setAccumulatedSeconds((prev) => prev + elapsedSec);
       }
     }, 1000);
 
@@ -75,7 +68,20 @@ export function useActiveTimeTracker({
       if (intervalId) clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [enabled, isDismissed, thresholdSeconds, isPromptVisible, onPrompt]);
+  }, [enabled, isDismissed, thresholdSeconds]);
+
+  // Trigger pacing prompt via effect rather than inside a state updater
+  useEffect(() => {
+    if (
+      enabled &&
+      !isDismissed &&
+      !isPromptVisible &&
+      accumulatedSeconds >= thresholdSeconds
+    ) {
+      setIsPromptVisible(true);
+      onPrompt?.();
+    }
+  }, [accumulatedSeconds, enabled, isDismissed, isPromptVisible, onPrompt, thresholdSeconds]);
 
   const dismissPrompt = useCallback(() => {
     setIsPromptVisible(false);

@@ -446,7 +446,7 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
                     <span>Immediate Permanent Erasure (&ldquo;Delete All My Data&rdquo;)</span>
                   </div>
                   <p>
-                    In Settings, you can trigger irreversible two-step deletion. This permanently deletes your check-in history, study tasks, and settings from database tables and invalidates your session credentials immediately.
+                    In Settings, you can trigger irreversible two-step deletion. This permanently deletes your check-in history, study tasks, and settings from database tables and clears your active local check-in cache.
                   </p>
                 </div>
 

@@ -104,18 +104,45 @@ class CalmspaceStorage:
                     break_reminders_enabled INTEGER NOT NULL DEFAULT 1,
                     reminder_interval_minutes INTEGER NOT NULL DEFAULT 45,
                     share_anonymous_analytics INTEGER NOT NULL DEFAULT 0,
-                    data_retention_days INTEGER NOT NULL DEFAULT 30
+                    data_retention_days INTEGER NOT NULL DEFAULT 30,
+                    planner_seeded INTEGER NOT NULL DEFAULT 0
                 );
                 """
             )
 
-            # Defensive migration: Ensure data_retention_days column exists in user_settings if created by older schema
+            # Defensive migrations for older local SQLite schemas
             cursor = conn.execute("PRAGMA table_info(user_settings);")
             columns = [row[1] for row in cursor.fetchall()]
             if columns and "data_retention_days" not in columns:
                 conn.execute(
                     "ALTER TABLE user_settings ADD COLUMN data_retention_days INTEGER NOT NULL DEFAULT 30;"
                 )
+            if columns and "planner_seeded" not in columns:
+                conn.execute(
+                    "ALTER TABLE user_settings ADD COLUMN planner_seeded INTEGER NOT NULL DEFAULT 0;"
+                )
+
+    def has_planner_seeded(self, session_id: str) -> bool:
+        """Return True if starter planner tasks were already seeded for this session."""
+        conn = self._get_connection()
+        row = conn.execute(
+            "SELECT planner_seeded FROM user_settings WHERE session_id = ?;",
+            (session_id,),
+        ).fetchone()
+        return bool(row and row["planner_seeded"])
+
+    def mark_planner_seeded(self, session_id: str) -> None:
+        """Persist that initial starter planner tasks were provided for this session."""
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO user_settings (session_id, planner_seeded)
+                VALUES (?, 1)
+                ON CONFLICT(session_id) DO UPDATE SET planner_seeded = 1;
+                """,
+                (session_id,),
+            )
 
     def check_health(self) -> bool:
         """Verify database connectivity without reading or exposing any user data."""

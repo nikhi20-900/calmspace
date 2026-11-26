@@ -71,7 +71,7 @@ export const api = {
   },
 
   async getCheckInHistory(): Promise<CheckInRecord[]> {
-    const res = await fetch(`${API_BASE_URL}/checkin/history`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/checkin/history`, {
       headers: DEFAULT_HEADERS(),
     });
     if (!res.ok) throw new Error('Failed to fetch check-in history');
@@ -80,7 +80,7 @@ export const api = {
 
   // Insights
   async getInsights(days = 7): Promise<InsightSummary> {
-    const res = await fetch(`${API_BASE_URL}/insights?days=${days}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/insights?days=${days}`, {
       headers: DEFAULT_HEADERS(),
     });
     if (!res.ok) throw new Error('Failed to fetch insights');
@@ -89,7 +89,7 @@ export const api = {
 
   // Study planner
   async getTasks(): Promise<StudyTask[]> {
-    const res = await fetch(`${API_BASE_URL}/planner/tasks`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/planner/tasks`, {
       headers: DEFAULT_HEADERS(),
     });
     if (!res.ok) throw new Error('Failed to fetch tasks');
@@ -97,17 +97,20 @@ export const api = {
   },
 
   async createTask(data: { title: string; estimated_minutes: number; category: string }): Promise<StudyTask> {
-    const res = await fetch(`${API_BASE_URL}/planner/tasks`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/planner/tasks`, {
       method: 'POST',
       headers: DEFAULT_HEADERS(),
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to create task');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatErrorMessage(err.detail, 'Failed to create task'));
+    }
     return res.json();
   },
 
   async toggleTask(taskId: string): Promise<StudyTask> {
-    const res = await fetch(`${API_BASE_URL}/planner/tasks/${taskId}/toggle`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/planner/tasks/${taskId}/toggle`, {
       method: 'PATCH',
       headers: DEFAULT_HEADERS(),
     });
@@ -119,17 +122,20 @@ export const api = {
     taskId: string,
     data: { title?: string; estimated_minutes?: number; category?: string }
   ): Promise<StudyTask> {
-    const res = await fetch(`${API_BASE_URL}/planner/tasks/${taskId}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/planner/tasks/${taskId}`, {
       method: 'PATCH',
       headers: DEFAULT_HEADERS(),
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to update task');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatErrorMessage(err.detail, 'Failed to update task'));
+    }
     return res.json();
   },
 
   async deleteTask(taskId: string): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/planner/tasks/${taskId}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/planner/tasks/${taskId}`, {
       method: 'DELETE',
       headers: DEFAULT_HEADERS(),
     });
@@ -138,20 +144,16 @@ export const api = {
 
   // Support
   async getSupportResources(): Promise<SupportContact[]> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/support/resources`, {
-        headers: DEFAULT_HEADERS(),
-      });
-      if (!res.ok) return FALLBACK_SUPPORT_RESOURCES;
-      return res.json();
-    } catch {
-      return FALLBACK_SUPPORT_RESOURCES;
-    }
+    const res = await fetchWithTimeout(`${API_BASE_URL}/support/resources`, {
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch support resources');
+    return res.json();
   },
 
   // Settings
   async getSettings(): Promise<UserSettings> {
-    const res = await fetch(`${API_BASE_URL}/settings`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/settings`, {
       headers: DEFAULT_HEADERS(),
     });
     if (!res.ok) throw new Error('Failed to fetch settings');
@@ -159,17 +161,20 @@ export const api = {
   },
 
   async updateSettings(settings: UserSettings): Promise<UserSettings> {
-    const res = await fetch(`${API_BASE_URL}/settings`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/settings`, {
       method: 'PUT',
       headers: DEFAULT_HEADERS(),
       body: JSON.stringify(settings),
     });
-    if (!res.ok) throw new Error('Failed to update settings');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatErrorMessage(err.detail, 'Failed to update settings'));
+    }
     return res.json();
   },
 
   async deleteAllData(): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/settings/data`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/settings/data`, {
       method: 'DELETE',
       headers: DEFAULT_HEADERS(),
     });
