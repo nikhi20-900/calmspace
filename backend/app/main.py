@@ -4,8 +4,9 @@ Rule-based safety routing, verified human-support escalation, and supportive lan
 """
 
 import os
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -69,17 +70,28 @@ if os.path.exists(frontend_dist):
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Allow API routes and documentation to be handled by FastAPI
-        if full_path.startswith("api/") or full_path in [
-            "docs",
-            "redoc",
-            "openapi.json",
-        ]:
-            return None
-        file_path = os.path.join(frontend_dist, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+        # Keep unknown API routes as API 404s instead of returning `null` or the SPA.
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        if full_path in {"docs", "redoc", "openapi.json"}:
+            raise HTTPException(status_code=404, detail="Not found")
+
+        build_root = Path(frontend_dist).resolve()
+        requested_path = (build_root / full_path).resolve()
+
+        # resolve() also follows symlinks, so this rejects both traversal and links
+        # that point outside the frontend build directory.
+        try:
+            requested_path.relative_to(build_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Not found") from exc
+
+        if requested_path.is_file():
+            return FileResponse(requested_path)
+
+        # A valid client-side route has no corresponding file and receives the SPA.
+        return FileResponse(build_root / "index.html")
 
 
 if __name__ == "__main__":
