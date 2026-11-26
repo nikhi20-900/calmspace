@@ -68,3 +68,11 @@ def test_unknown_api_routes_return_404_not_spa(tmp_path, monkeypatch):
 
     assert response.status_code == 404
     assert "Calmspace" not in response.text
+
+
+def test_missing_frontend_build_directory_returns_404(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "frontend_dist", str(tmp_path / "missing-dist"))
+
+    response = TestClient(main.app).get("/checkin/result")
+
+    assert response.status_code == 404

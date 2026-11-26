@@ -179,30 +179,37 @@ if os.path.exists(frontend_dist):
     if os.path.exists(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        # Keep unknown API routes as API 404s instead of returning `null` or the SPA.
-        if full_path == "api" or full_path.startswith("api/"):
-            raise HTTPException(status_code=404, detail="Not found")
 
-        if full_path in {"docs", "redoc", "openapi.json"}:
-            raise HTTPException(status_code=404, detail="Not found")
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Keep unknown API routes as API 404s instead of returning `null` or the SPA.
+    if full_path == "api" or full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
 
-        build_root = Path(frontend_dist).resolve()
-        requested_path = (build_root / full_path).resolve()
+    if full_path in {"docs", "redoc", "openapi.json"}:
+        raise HTTPException(status_code=404, detail="Not found")
 
-        # resolve() also follows symlinks, so this rejects both traversal and links
-        # that point outside the frontend build directory.
-        try:
-            requested_path.relative_to(build_root)
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail="Not found") from exc
+    if not os.path.exists(frontend_dist):
+        raise HTTPException(status_code=404, detail="Not found")
 
-        if requested_path.is_file():
-            return FileResponse(requested_path)
+    build_root = Path(frontend_dist).resolve()
+    requested_path = (build_root / full_path).resolve()
 
-        # A valid client-side route has no corresponding file and receives the SPA.
-        return FileResponse(build_root / "index.html")
+    # resolve() also follows symlinks, so this rejects both traversal and links
+    # that point outside the frontend build directory.
+    try:
+        requested_path.relative_to(build_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Not found") from exc
+
+    if requested_path.is_file():
+        return FileResponse(requested_path)
+
+    # A valid client-side route has no corresponding file and receives the SPA.
+    index_path = build_root / "index.html"
+    if not index_path.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(index_path)
 
 
 if __name__ == "__main__":

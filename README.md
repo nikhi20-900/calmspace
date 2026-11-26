@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB?style=flat-square" alt="Frontend: React 18 + TypeScript" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square" alt="Backend: FastAPI" />
   <img src="https://img.shields.io/badge/Persistence-SQLite%20WAL-003B57?style=flat-square" alt="Persistence: SQLite WAL" />
-  <img src="https://img.shields.io/badge/Backend%20Tests-262%20Passing-245532?style=flat-square" alt="Backend Tests: 262 Passing" />
+  <img src="https://img.shields.io/badge/Backend%20Tests-271%20Passing-245532?style=flat-square" alt="Backend Tests: 271 Passing" />
   <img src="https://img.shields.io/badge/Safety%20Engine-98%25%20Coverage-5554B8?style=flat-square" alt="Safety Engine: 98% Coverage" />
 </p>
 
@@ -142,7 +142,7 @@ flowchart TD
 | **Backend** | Python 3.12+, FastAPI (`>=0.110.0`), Uvicorn (`>=0.28.0`), Pydantic (`>=2.6.0`) |
 | **Persistence** | SQLite in WAL mode (`calmspace.db`, `backend/app/services/storage.py`) |
 | **AI Providers** | `mock` (offline deterministic default) and `gemini` (`x-goog-api-key` header) with fail-closed fallback |
-| **Quality & CI** | Pytest (`262` passing tests), `pytest-cov` (`98%` on `safety_evaluator.py`), Ruff lint/format, `tsc && vite build` |
+| **Quality & CI** | Pytest (`271` passing tests), `pytest-cov` (`98%` on `safety_evaluator.py`), Ruff lint/format, `tsc && vite build` |
 
 ---
 
@@ -330,11 +330,10 @@ flowchart LR
 ### Explicit Architectural & Repository Limitations (Honest Scope)
 
 1. **SQLite MVP vs. Proposed PostgreSQL/Supabase**: Current persistence uses single-node SQLite in WAL mode (`calmspace.db`), not PostgreSQL/Supabase (`docs/database_architecture_issue_10.md` documents the earlier multi-user PostgreSQL proposal).
-2. **`X-Session-ID` Is Relational Isolation, Not Cryptographic Authentication**: Every query filters by `WHERE session_id = ?`, preventing cross-session data leaks for normal clients, but client-supplied UUIDs lack signed JWTs or hashed secrets. Anyone possessing another browser's exact UUID string can access that session.
+2. **`X-Session-ID` Is Relational Isolation, Not Cryptographic Authentication**: Requests without a valid `X-Session-ID` header (`^[A-Za-z0-9._-]+$`, 1–128 chars) are rejected with HTTP `422`, and every query filters by `WHERE session_id = ?` to isolate normal clients, but client-supplied UUIDs lack signed JWTs or hashed secrets. Anyone possessing another browser's exact UUID string can access that session.
 3. **Retention Cleanup Prunes `checkins` Only**: Automated request-boundary pruning deletes expired rows in `checkins`; `tasks` and `user_settings` remain until removed individually or via `DELETE /api/settings/data`.
 4. **Deletion Does Not Cryptographically Revoke Browser UUIDs**: `DELETE /api/settings/data` atomically purges all DB rows (`checkins`, `tasks`, `user_settings`) for `session_id`, but reusing the same client UUID starts a new empty session.
 5. **Campus Support Is a Labeled Demo Placeholder**: The institutional campus entry has `is_demo_placeholder: true` and `official_source_url: null` until configured by a university clinic.
-6. **Root `LICENSE` File Missing**: `package.json` declares `"license": "MIT"`, though a root `LICENSE` file has not yet been committed.
 
 ---
 
@@ -391,7 +390,7 @@ calmspace/
 │   │       ├── analytics.py         # Session-scoped non-diagnostic trend aggregation
 │   │       ├── support_directory.py # Verified helpline & demo campus resource registry
 │   │       └── storage.py           # SQLite WAL engine, pruning & atomic deletion
-│   └── tests/                       # 270 automated tests across 12 test modules
+│   └── tests/                       # 271 automated tests across 12 test modules
 ├── frontend/
 │   ├── Dockerfile                   # Multi-stage Node 20 build -> Nginx 1.27 static/proxy server
 │   ├── nginx.conf                   # Security headers, /api proxy & SPA routing
@@ -458,7 +457,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ### 4. Local CI Parity Verification
 
 ```bash
-# Backend formatting, linting, and 270-test suite with safety evaluator coverage
+# Backend formatting, linting, and 271-test suite with safety evaluator coverage
 cd backend
 ruff format --check .
 ruff check .
