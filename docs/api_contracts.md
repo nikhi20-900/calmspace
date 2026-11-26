@@ -56,8 +56,8 @@ All endpoints exchange JSON data unless otherwise specified.
 - `mood`: Integer `1` to `5` (`1`: Very low, `5`: Great).
 - `stress`: Integer `1` to `5` (`1`: Very low, `5`: Very high).
 - `sleep_hours`: Float `0.0` to `24.0` (must be finite, not NaN/Infinity).
-- `reflection`: Optional string, max 1500 chars. **Never stored in persistent history.**
-- `consent_ai_processing`: Boolean. If `false`, reflection text is not passed to AI provider.
+- `reflection`: Optional string, max 2000 chars. **Never stored in persistent history.**
+- `consent_ai_processing`: Strict boolean (`StrictBool`). Non-boolean values (e.g., `"true"`, `1`) are rejected with `422` (raw `input` fields are stripped from `422` error bodies). If `false`, reflection text is not passed to AI provider.
 
 - **Response** (`CheckInResponse`): `200 OK`
 ```json
@@ -176,7 +176,7 @@ All endpoints exchange JSON data unless otherwise specified.
 - **Toggle Task Completion**: `PATCH /api/planner/tasks/{task_id}/toggle`
   - Response: `StudyTask`
 - **Delete Task**: `DELETE /api/planner/tasks/{task_id}`
-  - Response: `{"status": "success", "message": "Task deleted."}`
+  - Response: `{"message": "Task removed"}` (`404` if not found in session)
 
 ---
 
