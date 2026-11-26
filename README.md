@@ -3,7 +3,7 @@
 > **A quieter space to check in with yourself.**
 
 <p align="center">
-  <img src="docs/assets/calmspace_mascot.jpg" alt="Calmspace 3D Mascot — You are doing your best" width="480" style="border-radius: 20px;" />
+  <img src="docs/assets/calmspace_mascot.jpg" alt="Calmspace 3D Mascot — You are doing your best" width="480" />
 </p>
 
 <p align="center">
@@ -14,9 +14,20 @@
   <img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB?style=flat-square" alt="Frontend: React 18 + TypeScript" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square" alt="Backend: FastAPI" />
   <img src="https://img.shields.io/badge/Persistence-SQLite%20WAL-003B57?style=flat-square" alt="Persistence: SQLite WAL" />
-  <img src="https://img.shields.io/badge/Backend%20Tests-262%20Passing-245532?style=flat-square" alt="Backend Tests: 262 Passing" />
+  <img src="https://img.shields.io/badge/Backend%20Tests-270%20Passing-245532?style=flat-square" alt="Backend Tests: 270 Passing" />
   <img src="https://img.shields.io/badge/Safety%20Engine-98%25%20Coverage-5554B8?style=flat-square" alt="Safety Engine: 98% Coverage" />
 </p>
+
+- **What Calmspace does:** Guided daily mood, stress, and sleep check-ins, non-diagnostic wellbeing insights, a study-life planner with a 5-minute breather timer, and instant human-support triage.
+- **How safety & privacy differ:** Safety classification runs in a pure deterministic Python engine ([`safety_evaluator.py`](backend/app/services/safety_evaluator.py)) with **zero AI calls on `HIGH` risk**, **zero database persistence of reflection text**, strict opt-in AI consent (`StrictBool`), and `14/30/60/90`-day automated pruning.
+
+> [!NOTE]
+> **Demo Scope & MVP Boundaries (What Is Live vs. Simulated / Pending):**
+> - **Default `mock` AI mode:** `CALMSPACE_AI_PROVIDER` defaults to `mock` (offline deterministic guidance). Enabling live Gemini requires setting `CALMSPACE_AI_PROVIDER=gemini`, configuring `CALMSPACE_AI_API_KEY` (or `GEMINI_API_KEY`) on the backend, and granting per-request `consent_ai_processing: true` on `LOW`/`MEDIUM` check-ins.
+> - **Single-node SQLite architecture:** State persists in SQLite WAL (`calmspace.db`) partitioned by an unauthenticated `X-Session-ID` header (`WHERE session_id = ?`), not PostgreSQL/Supabase.
+> - **Single-worker rate-limiter constraint:** `AIRateLimiter` is process-local in-memory, so container and Render configs run `--workers 1` (`CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER=true`); multi-worker scaling requires a shared store (e.g., Redis).
+> - **Campus Counselling is a demo placeholder:** Flagged `is_demo_placeholder: true` (`official_source_url: null`) until configured by an institution; national helplines (`14416`, `112`, Vandrevala, iCALL) are verified.
+> - **Live hosting pending (Issue #15):** Docker/Render deployment configs and `/api/ready` are merged on `main`; public live hosting and persistent-disk restart verification remain open under **Issue #15**.
 
 ---
 
@@ -90,7 +101,7 @@ Typography pairs **Cabinet Grotesk** (display headings) with **Satoshi** (body U
 ## 03 — Student Experience Flow
 
 ```mermaid
-flowchart LR
+flowchart TD
     A["Landing Experience (/)<br/>3D Lavender Mascot"] --> B["Dashboard Overview (/app)<br/>Recent Summary & Privacy Modal"]
     B --> C["Daily Check-In (/checkin)<br/>Mood -> Stress -> Sleep -> Optional Reflection"]
     C --> D{"Backend Safety Route<br/>(safety_evaluator.py)"}
@@ -98,7 +109,7 @@ flowchart LR
     D -->|"HIGH / CRISIS"| F["Calm Crisis Escalation (/checkin/result)<br/>Zero AI Calls + Tele-MANAS 14416 / 112"]
     E --> G["Wellbeing Insights (/insights)<br/>Recharts + Accessible Data Table"]
     E --> H["Study Planner (/planner)<br/>Tasks + 5-Min Breather Timer"]
-    F --> I["Safe Exit to Overview<br/>Clears Session Result & History State"]
+    F --> I["Safe Exit ('Safe Exit to Overview' Button)<br/>Navigates to Home (/) & Clears Result/History State"]
     B --> J["Support Network (/support)<br/>Verified Helplines & Campus Notice"]
     B --> K["Privacy & Settings (/settings)<br/>14/30/60/90d Retention + 2-Step Wipe"]
 ```
@@ -111,25 +122,25 @@ Calmspace strictly isolates the React frontend, FastAPI API routers, pure determ
 
 ```mermaid
 flowchart TD
-    Browser["React 18 + TypeScript + Vite SPA<br/>(X-Session-ID UUID in localStorage)"] -->|HTTPS / Reverse Proxy JSON| API["FastAPI App (backend/app/main.py)<br/>CORS Guard + 422 Input Sanitizer + SQLite Handler"]
+    Browser["React 18 + TypeScript + Vite SPA<br/>(X-Session-ID 'student-{8-hex}' in localStorage)"] -->|"HTTPS / Reverse Proxy JSON"| API["FastAPI App (backend/app/main.py)<br/>CORS Guard + 422 Input Sanitizer + SQLite Handler"]
 
     API --> R1["checkin.py<br/>POST /api/checkin<br/>GET /api/checkin/history"]
     API --> R2["insights.py<br/>GET /api/insights"]
     API --> R3["planner.py<br/>CRUD /api/planner/tasks"]
     API --> R4["support_and_settings.py<br/>GET /api/support/resources<br/>GET/PUT /api/settings<br/>DELETE /api/settings/data"]
-    API --> R5["Health & Readiness<br/>GET /api/health & GET /api/ready"]
+    API --> R5["Health & Readiness<br/>GET /api/health (stateless)<br/>GET /api/ready (DB + AI mode)"]
 
-    R1 -->|"1. Prune expired checkins"| DB[("SQLite WAL Database<br/>backend/app/services/storage.py")]
+    R1 -->|"1. Prune expired & read last 5 checkins"| DB[("SQLite WAL Database<br/>backend/app/services/storage.py")]
     R1 -->|"2. Pure evaluation (Zero I/O)"| Safety["Protected Safety Evaluator<br/>backend/app/services/safety_evaluator.py<br/>SHA: 8f5e2e98..."]
     R1 -->|"3. Persist numeric scores only"| DB
-    R1 -->|"4. LOW/MEDIUM + StrictBool consent"| AI["AI Guidance Service<br/>(Mock / Gemini + Output Validator)"]
+    R1 -->|"4. LOW/MEDIUM (ai_eligible = True)"| AI["AI Guidance Service (ai_guidance.py)<br/>StrictBool Consent -> Mock/Gemini<br/>Unconsented/Failure -> Deterministic Fallback"]
     R1 -->|"5. Verified contacts"| Sup["support_directory.py"]
 
     R2 -->|"Prune + aggregate metrics"| Analytics["analytics.py"]
     Analytics --> DB
     R3 --> DB
     R4 --> DB
-    R5 --> DB
+    R5 -->|"GET /api/ready (SELECT 1)"| DB
 ```
 
 ### Technology Stack (Verified Against Manifests)
@@ -142,7 +153,7 @@ flowchart TD
 | **Backend** | Python 3.12+, FastAPI (`>=0.110.0`), Uvicorn (`>=0.28.0`), Pydantic (`>=2.6.0`) |
 | **Persistence** | SQLite in WAL mode (`calmspace.db`, `backend/app/services/storage.py`) |
 | **AI Providers** | `mock` (offline deterministic default) and `gemini` (`x-goog-api-key` header) with fail-closed fallback |
-| **Quality & CI** | Pytest (`262` passing tests), `pytest-cov` (`98%` on `safety_evaluator.py`), Ruff lint/format, `tsc && vite build` |
+| **Quality & CI** | Pytest (`270` passing tests), `pytest-cov` (`98%` on `safety_evaluator.py`), Ruff lint/format, `tsc && vite build` |
 
 ---
 
@@ -156,25 +167,25 @@ The safety evaluator is a **pure synchronous Python function** with zero network
 ```mermaid
 flowchart TD
     In["CheckInRequest<br/>mood 1..5, stress 1..5, sleep 0..24, reflection <= 2000, StrictBool consent"] --> Valid{"Valid Schema?"}
-    Valid -->|No| Err422["HTTP 422 Sanitized JSON<br/>(Raw reflection 'input' stripped)"]
-    Valid -->|Yes| Idiom["Mask Benign Idioms<br/>('dead tired', 'killing it', 'has has ke mar gaya')"]
+    Valid -->|"No"| Err422["HTTP 422 Sanitized JSON<br/>(Raw reflection 'input' stripped)"]
+    Valid -->|"Yes"| Idiom["Mask Benign Idioms<br/>('dead tired', 'killing it', 'has has ke mar gaya')"]
 
     Idiom --> CrisisScan["Scan Multilingual Crisis Patterns<br/>(English, Hinglish, Devanagari Hindi)"]
     CrisisScan --> Guards{"Sentence/Clause Guards:<br/>Academic Quote OR Negation?"}
-    Guards -->|"Isolated Academic / Negated"| Distress["Scan Broader Distress (+1 pt)<br/>+ Quantitative Score (Mood, Stress, Sleep, Consecutive Low Mood)"]
-    Guards -->|"Genuine Acute Signal"| HighOverride["crisis_flag = True (+10 pts)"]
+    Guards -->|"Isolated Academic / Negated"| Distress["Scan Broader Distress (+1 pt)<br/>+ Quantitative Score (Mood, Stress, Sleep, 3x Low Mood)<br/>(mood == 1 or stress == 5 also sets crisis_flag = True)"]
+    Guards -->|"Genuine Acute Signal"| HighOverride["crisis_flag = True (Immediate Override)<br/>(RULE_CRISIS_OVERRIDE excluded from cumulative_score)"]
 
     HighOverride --> RouteDecision
-    Distress --> RouteDecision{"Route Decision<br/>(Score & Crisis Flag)"}
+    Distress --> RouteDecision{"Route Decision<br/>(cumulative_score & crisis_flag)"}
 
-    RouteDecision -->|"Score >= 5 OR crisis_flag"| High["HIGH Route<br/>ai_eligible = False -> 0 AI Calls<br/>Urgent Helplines + Safe Exit"]
-    RouteDecision -->|"Score 2..4"| Med["MEDIUM Route<br/>ai_eligible = True"]
-    RouteDecision -->|"Score <= 1"| Low["LOW Route<br/>ai_eligible = True"]
+    RouteDecision -->|"cumulative_score >= 5 OR crisis_flag"| High["HIGH Route<br/>ai_eligible = False -> 0 AI Calls<br/>Urgent Helplines + Safe Exit"]
+    RouteDecision -->|"cumulative_score 2..4"| Med["MEDIUM Route<br/>ai_eligible = True"]
+    RouteDecision -->|"cumulative_score <= 1"| Low["LOW Route<br/>ai_eligible = True"]
 
-    Med --> Consent{"consent_ai_processing === True<br/>AND provider healthy?"}
+    Med --> Consent{"consent_ai_processing == True<br/>AND AI enabled & within rate limit?"}
     Low --> Consent
-    Consent -->|No| Fallback["Approved Deterministic Fallback<br/>(generated_by_ai = False)"]
-    Consent -->|Yes| Prompt["Untrusted Reflection Tag Isolation<br/>+ Output Schema/Safety Validator"]
+    Consent -->|"No"| Fallback["Approved Deterministic Fallback<br/>(generated_by_ai = False)"]
+    Consent -->|"Yes"| Prompt["Untrusted Reflection Tag Isolation<br/>+ Mock / Gemini Provider + Output Validator"]
     Prompt -->|"Pass"| AIGuidance["Supportive Guidance<br/>(generated_by_ai = True)"]
     Prompt -->|"Timeout / Auth / Unsafe Output"| Fallback
 ```
@@ -191,10 +202,10 @@ sequenceDiagram
     actor Student as Student Browser
     participant FE as React Client
     participant API as FastAPI Backend
-    participant DB as SQLite WAL (calmspace.db)
-    participant AI as Gemini API (Optional)
+    participant DB as SQLite WAL
+    participant AI as AI Provider (Mock / Gemini)
 
-    Note over Student,FE: Browser generates anonymous UUID in localStorage (X-Session-ID)
+    Note over Student,FE: Client generates 'student-{8-hex}' in localStorage (X-Session-ID)
     Student->>FE: Submit mood, stress, sleep, reflection + consent (default OFF)
     FE->>API: POST /api/checkin (Header: X-Session-ID, Body: consent_ai_processing)
     API->>DB: cleanup_expired_records(session_id) -> Prune checkins older than 14/30/60/90d
@@ -204,11 +215,11 @@ sequenceDiagram
 
     alt route == HIGH
         API-->>FE: CheckInResponse (guidance = null, verified urgent contacts)
-    else route in (LOW, MEDIUM) and consent_ai_processing === true
-        API->>AI: Minimal metrics + reflection over TLS (x-goog-api-key header, no session_id)
+    else route in (LOW, MEDIUM) and consent_ai_processing == true
+        API->>AI: Minimal metrics + untrusted reflection (Gemini uses TLS x-goog-api-key; no session_id)
         AI-->>API: JSON response -> validate_ai_guidance_output()
         API-->>FE: CheckInResponse (AI guidance or safe fallback)
-    else unconsented or AI disabled/failed
+    else unconsented, disabled, rate-limited, or failed
         API-->>FE: CheckInResponse (deterministic fallback guidance)
     end
 
@@ -217,7 +228,7 @@ sequenceDiagram
     FE->>API: DELETE /api/settings/data (Header: X-Session-ID)
     API->>DB: Atomic Transaction: DELETE FROM checkins, tasks, user_settings WHERE session_id = ?
     API-->>FE: 200 OK (Frontend clears cached result; failure triggers Retry alert)
-    Note over FE,DB: Note: Client UUID is not server-revoked; reusing UUID starts a fresh empty session
+    Note over FE,DB: Client token is not server-revoked; reusing it starts a fresh empty session
 ```
 
 ### Key Privacy & Retention Guarantees (Verified by Automated Tests)
@@ -232,12 +243,12 @@ sequenceDiagram
 
 ## 07 — SQLite Data Model (ER Diagram)
 
-All application state lives in three SQLite tables (`backend/app/services/storage.py`, WAL mode enabled). Rows are partitioned logically by the client-supplied `session_id` string (`WHERE session_id = ?`).
+SQLite persists **only three tables** (`checkins`, `tasks`, `user_settings`) in `backend/app/services/storage.py` with WAL mode enabled. In the diagram below, `CLIENT_X_SESSION_ID` represents the **virtual client-supplied `X-Session-ID` HTTP request header** used as an unauthenticated partition key (`WHERE session_id = ?`) — **not** a fourth SQLite table.
 
 ```mermaid
 erDiagram
-    ANONYMOUS_CLIENT_SESSION {
-        string session_id "Client-supplied X-Session-ID UUID (unauthenticated partition key)"
+    CLIENT_X_SESSION_ID {
+        string session_id "Virtual HTTP Header ('student-{8-hex}') — NOT a SQLite table"
     }
 
     CHECKINS {
@@ -269,9 +280,9 @@ erDiagram
         integer data_retention_days "14 | 30 | 60 | 90 (default 30)"
     }
 
-    ANONYMOUS_CLIENT_SESSION ||--o{ CHECKINS : "partitions via X-Session-ID"
-    ANONYMOUS_CLIENT_SESSION ||--o{ TASKS : "partitions via X-Session-ID"
-    ANONYMOUS_CLIENT_SESSION ||--o| USER_SETTINGS : "stores preferences"
+    CLIENT_X_SESSION_ID ||--o{ CHECKINS : "partitions via header (not FK)"
+    CLIENT_X_SESSION_ID ||--o{ TASKS : "partitions via header (not FK)"
+    CLIENT_X_SESSION_ID ||--o| USER_SETTINGS : "partitions via header (not FK)"
 ```
 
 ---
@@ -281,7 +292,7 @@ erDiagram
 Every support resource rendered in `SupportModal`, `/support`, and `CheckInResultPage` originates from the central canonical directory (`backend/app/services/support_directory.py`), with `is_active: false` entries strictly excluded.
 
 ```mermaid
-flowchart LR
+flowchart TD
     Dir["GET /api/support/resources<br/>(active_only = True)"] --> Official["Verified National & NGO Helplines<br/>(Official Source URL + Audit Date)"]
     Dir --> Demo["Campus Counselling Placeholder<br/>(is_demo_placeholder = True, official_source_url = null)"]
     Official --> Tel["Direct tel: Action Links<br/>(14416, 112, +91 9999 666 555, 022-25521111)"]
@@ -303,15 +314,23 @@ flowchart LR
 Deployment containers, production CORS guards, `/api/ready`, and `VITE_API_BASE_URL` support are merged on `main` (PR #37). Live public hosting remains tracked under **Issue #15**.
 
 ```mermaid
-flowchart LR
-    User["Student Browser (HTTPS)"] --> FEHost["Frontend Static / Nginx Host<br/>(frontend/Dockerfile or Render Static)<br/>VITE_API_BASE_URL=https://api.../api"]
-    FEHost -->|"Explicit HTTPS CORS Origin Only"| BEHost["FastAPI Backend (Single Worker)<br/>(backend/Dockerfile --workers 1)<br/>CALMSPACE_ENV=production"]
+flowchart TD
+    User["Student Browser (HTTPS)"]
+
+    User -->|"Render Static Site (render.yaml)<br/>Loads React SPA Assets"| RenderFE["Render Static Frontend<br/>VITE_API_BASE_URL=https://api.../api"]
+    User -->|"Render Direct API Calls<br/>(Explicit HTTPS CORS_ORIGINS Only)"| BEHost["FastAPI Backend (Single Worker)<br/>backend/Dockerfile (--workers 1)<br/>CALMSPACE_ENV=production"]
+
+    User -->|"Docker Compose (docker-compose.yml :8080)"| Nginx["Frontend Nginx Container<br/>(frontend/Dockerfile + nginx.conf)<br/>VITE_API_BASE_URL=/api"]
+    Nginx -->|"Same-Origin Reverse Proxy (/api/ -> :8000)"| BEHost
+
     BEHost --> Disk[("Persistent Volume (/data/calmspace.db)<br/>SQLite WAL Mode")]
     BEHost -.->|"Optional Opt-In TLS Header<br/>(x-goog-api-key secret)"| Gemini["Google Gemini REST API"]
 ```
 
-- **Readiness Endpoint**: `GET /api/ready` runs `SELECT 1` via `storage.check_health()` and returns non-secret AI status (`mock`, `gemini`, `disabled`, or `fallback`), returning `503` without paths or credentials if SQLite fails.
-- **No Streamlit**: Deployment manifests (`docker-compose.yml`, `render.yaml`, `Dockerfile`s) exclusively package React + FastAPI.
+- **Two Supported Topologies:** In **Render** (`render.yaml`), the browser loads static assets from the frontend host and sends API requests directly to the FastAPI backend over HTTPS using `VITE_API_BASE_URL` and explicit `CORS_ORIGINS` (wildcard `*` rejected in production). In **Docker Compose** (`docker-compose.yml` + `frontend/nginx.conf`), Nginx serves the SPA on port `8080` and reverse-proxies `/api/` to `backend:8000` on the same origin.
+- **Single-Worker Constraint (`--workers 1`):** Both `backend/Dockerfile` and `render.yaml` run Uvicorn with `--workers 1` because SQLite WAL locking and the in-memory `AIRateLimiter` are process-local.
+- **Readiness Endpoint:** `GET /api/ready` runs `SELECT 1` via `storage.check_health()` and returns non-secret AI status (`mock`, `gemini`, `disabled`, or `fallback`), returning `503` without paths or credentials if SQLite fails.
+- **No Streamlit:** Deployment manifests (`docker-compose.yml`, `render.yaml`, `Dockerfile`s) exclusively package React + FastAPI.
 
 ---
 
@@ -329,12 +348,13 @@ flowchart LR
 
 ### Explicit Architectural & Repository Limitations (Honest Scope)
 
-1. **SQLite MVP vs. Proposed PostgreSQL/Supabase**: Current persistence uses single-node SQLite in WAL mode (`calmspace.db`), not PostgreSQL/Supabase (`docs/database_architecture_issue_10.md` documents the earlier multi-user PostgreSQL proposal).
-2. **`X-Session-ID` Is Relational Isolation, Not Cryptographic Authentication**: Every query filters by `WHERE session_id = ?`, preventing cross-session data leaks for normal clients, but client-supplied UUIDs lack signed JWTs or hashed secrets. Anyone possessing another browser's exact UUID string can access that session.
-3. **Retention Cleanup Prunes `checkins` Only**: Automated request-boundary pruning deletes expired rows in `checkins`; `tasks` and `user_settings` remain until removed individually or via `DELETE /api/settings/data`.
-4. **Deletion Does Not Cryptographically Revoke Browser UUIDs**: `DELETE /api/settings/data` atomically purges all DB rows (`checkins`, `tasks`, `user_settings`) for `session_id`, but reusing the same client UUID starts a new empty session.
-5. **Campus Support Is a Labeled Demo Placeholder**: The institutional campus entry has `is_demo_placeholder: true` and `official_source_url: null` until configured by a university clinic.
-6. **Root `LICENSE` File Missing**: `package.json` declares `"license": "MIT"`, though a root `LICENSE` file has not yet been committed.
+1. **Default `mock` AI Provider vs. Live Gemini**: `CALMSPACE_AI_PROVIDER` defaults to `mock`, which returns offline deterministic supportive responses. Live Gemini generation requires setting `CALMSPACE_AI_PROVIDER=gemini`, configuring `CALMSPACE_AI_API_KEY` (or `GEMINI_API_KEY`) in backend environment secrets, and receiving explicit per-check-in `consent_ai_processing: true` on `LOW`/`MEDIUM` routes.
+2. **Single-Worker Process-Local Rate Limiter (`--workers 1`)**: `AIRateLimiter` (`backend/app/services/ai_guidance.py`) stores per-minute and daily counters in process memory. In `production` mode, `CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER` defaults to `false` (failing closed to fallback unless explicitly set to `true` for a single-worker `--workers 1` deployment, as in `backend/Dockerfile` and `render.yaml`). Horizontal multi-worker scaling requires an external shared store (e.g., Redis).
+3. **SQLite MVP vs. Proposed PostgreSQL/Supabase**: Current persistence uses single-node SQLite in WAL mode (`calmspace.db`), not PostgreSQL/Supabase (`docs/database_architecture_issue_10.md` documents the earlier multi-user PostgreSQL proposal).
+4. **`X-Session-ID` Is Relational Isolation, Not Cryptographic Authentication**: Requests without a valid `X-Session-ID` header (`^[A-Za-z0-9._-]+$`, 1–128 chars) are rejected with HTTP `422`, and every query filters by `WHERE session_id = ?` to isolate normal clients, but client-supplied tokens (`student-{8-hex}`) lack signed JWTs or hashed secrets. Anyone possessing another browser's exact token string can access that session.
+5. **Retention Cleanup Prunes `checkins` Only**: Automated request-boundary pruning deletes expired rows in `checkins`; `tasks` and `user_settings` remain until removed individually or via `DELETE /api/settings/data`.
+6. **Deletion Does Not Cryptographically Revoke Browser Tokens**: `DELETE /api/settings/data` atomically purges all DB rows (`checkins`, `tasks`, `user_settings`) for `session_id`, but reusing the same client token starts a new empty session.
+7. **Campus Support Is a Labeled Demo Placeholder**: The institutional campus entry has `is_demo_placeholder: true` and `official_source_url: null` until configured by a university clinic.
 
 ---
 
