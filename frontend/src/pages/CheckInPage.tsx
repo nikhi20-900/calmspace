@@ -8,6 +8,7 @@ import { StressQuestion } from '../components/checkin/StressQuestion';
 import { SleepQuestion } from '../components/checkin/SleepQuestion';
 import { ReflectionInput } from '../components/checkin/ReflectionInput';
 import { api } from '../services/api';
+import { persistSuccessfulCheckIn } from '../services/checkinState';
 import { CheckInRecord } from '../types';
 import { usePrivacyModal } from '../context/PrivacyModalContext';
 import {
@@ -160,9 +161,8 @@ export const CheckInPage: React.FC = () => {
         consent_ai_processing: consentAi,
       });
 
-      // Cache the latest response locally in sessionStorage to power immediate result page rendering
-      sessionStorage.setItem('calmspace_latest_checkin', JSON.stringify(response));
-      sessionStorage.removeItem('calmspace_high_risk_exited');
+      // Cache the latest response locally in sessionStorage and clear any prior Safe Exit flag
+      persistSuccessfulCheckIn(response);
       navigate('/checkin/result');
     } catch (err: any) {
       console.error('Check-in submission failed:', err);

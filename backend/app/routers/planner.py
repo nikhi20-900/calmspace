@@ -18,14 +18,14 @@ async def list_tasks(session_id: str = Depends(require_session_id)):
     tasks = storage.get_tasks(session_id)
     if not tasks and not storage.has_planner_seeded(session_id):
         # Provide welcoming starter tasks once for a brand-new session
-        sample1 = storage.add_task(
+        storage.add_task(
             session_id, "Review lecture slides for 25 mins", 25, "Revision"
         )
-        sample2 = storage.add_task(
+        storage.add_task(
             session_id, "Take a restful 10-minute tea or stretch break", 10, "Break"
         )
         storage.mark_planner_seeded(session_id)
-        return [sample2, sample1]
+        return storage.get_tasks(session_id)
     return tasks
 
 

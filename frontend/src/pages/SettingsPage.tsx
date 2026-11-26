@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -10,10 +10,11 @@ import {
   Trash2,
   CheckCircle2,
   KeyRound,
-  Info,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { api, getAnonymousSessionId } from '../services/api';
+import { clearCheckInSessionState } from '../services/checkinState';
 import { UserSettings } from '../types';
 import { usePrivacyModal } from '../context/PrivacyModalContext';
 
@@ -40,40 +41,51 @@ export const SettingsPage: React.FC = () => {
   const [deletionSuccess, setDeletionSuccess] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadSettings() {
-      try {
-        const data = await api.getSettings();
-        setSettings({
-          ...data,
-          data_retention_days: data.data_retention_days ?? 30,
-        });
-      } catch (err: any) {
-        setLoadError(
-          err?.message ||
-            'Could not load your saved settings from the server. Showing defaults; saving will still attempt to update the server.'
-        );
-        setSettings({
-          nickname: 'Student',
-          break_reminders_enabled: true,
-          reminder_interval_minutes: 45,
-          share_anonymous_analytics: false,
-          data_retention_days: 30,
-        });
-      } finally {
-        setLoading(false);
-      }
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const data = await api.getSettings();
+      setSettings({
+        ...data,
+        data_retention_days: data.data_retention_days ?? 30,
+      });
+    } catch (err: any) {
+      setLoadError(
+        err?.message ||
+          'Could not load your saved settings from the server. Retry loading before saving so your existing preferences are not overwritten.'
+      );
+      setSettings({
+        nickname: 'Student',
+        break_reminders_enabled: true,
+        reminder_interval_minutes: 45,
+        share_anonymous_analytics: false,
+        data_retention_days: 30,
+      });
+    } finally {
+      setLoading(false);
     }
-    loadSettings();
   }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!settings) return;
+    if (!settings || loadError) return;
+    const trimmedNickname = settings.nickname.trim();
+    if (!trimmedNickname) {
+      setSaveError('Nickname cannot be empty or whitespace only.');
+      return;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {
-      const updated = await api.updateSettings(settings);
+      const updated = await api.updateSettings({
+        ...settings,
+        nickname: trimmedNickname,
+      });
       setSettings(updated);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -91,10 +103,11 @@ export const SettingsPage: React.FC = () => {
     setDeleteError(null);
     try {
       await api.deleteAllData();
-      sessionStorage.removeItem('calmspace_latest_checkin');
+      clearCheckInSessionState();
       setDeletionSuccess(true);
       setIsDeleteDialogOpen(false);
       setDeleteConfirmationText('');
+      setLoadError(null);
       setSettings({
         nickname: 'Student',
         break_reminders_enabled: true,
@@ -129,10 +142,23 @@ export const SettingsPage: React.FC = () => {
       {loadError && (
         <div
           role="alert"
-          className="p-3.5 rounded-card bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2"
+          className="p-3.5 rounded-card bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3"
         >
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{loadError}</span>
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{loadError}</span>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={loadSettings}
+            className="shrink-0 flex items-center gap-1.5"
+            aria-label="Retry loading settings"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </Button>
         </div>
       )}
 
@@ -187,14 +213,17 @@ export const SettingsPage: React.FC = () => {
           <span>Anonymous Session</span>
         </div>
         <h2 className="text-base font-bold text-[#25233B]">
-          Your Cryptographic Identity
+          Your Anonymous Session ID
         </h2>
         <p className="text-xs text-[#625F78] leading-relaxed">
-          Calmspace does not require email addresses, student roll numbers, or Google logins. You are represented on this browser solely by an anonymous token:
+          Calmspace does not require email addresses, student roll numbers, or Google logins. This browser scopes your local records using an anonymous session identifier stored on this device:
         </p>
         <div className="p-3 bg-[#F7F6FB] rounded-input border border-[#E8E6F1] font-mono text-xs text-[#25233B] select-all break-all">
           {anonymousId}
         </div>
+        <p className="text-[11px] text-[#8E8AA7]">
+          This token acts as an unauthenticated partition key, not a password-protected account. Keep your device and session ID private.
+        </p>
       </Card>
 
       {/* User Preferences Form */}
@@ -281,7 +310,13 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="pt-4 border-t border-[#F0EFF7] flex justify-end">
-            <Button type="submit" variant="primary" size="md" isLoading={isSaving}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              isLoading={isSaving}
+              disabled={Boolean(loadError)}
+            >
               Save Preferences
             </Button>
           </div>

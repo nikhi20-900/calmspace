@@ -19,6 +19,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { FALLBACK_SUPPORT_RESOURCES } from '../services/api';
+import { executeSafeExitState, resolveCheckInResultState } from '../services/checkinState';
 
 export const CheckInResultPage: React.FC = () => {
   const location = useLocation();
@@ -27,30 +28,18 @@ export const CheckInResultPage: React.FC = () => {
   const [demoNoticeOpen, setDemoNoticeOpen] = useState(false);
 
   useEffect(() => {
-    // If user has explicitly executed a safe-exit, do not restore state even if router location.state lingers
-    const wasExited = sessionStorage.getItem('calmspace_high_risk_exited') === 'true';
-    if (wasExited) {
+    const stateResult = (location.state as { result?: CheckInResponse } | null)?.result;
+    const resolution = resolveCheckInResultState(stateResult);
+    if (resolution.action === 'redirect_overview') {
       window.history.replaceState({}, '');
-      navigate('/', { replace: true });
+      navigate('/app', { replace: true });
       return;
     }
-
-    // Read from location state or sessionStorage
-    const stateResult = (location.state as any)?.result;
-    if (stateResult) {
-      setResult(stateResult);
-    } else {
-      const stored = sessionStorage.getItem('calmspace_latest_checkin');
-      if (stored) {
-        try {
-          setResult(JSON.parse(stored));
-        } catch {
-          navigate('/checkin');
-        }
-      } else {
-        navigate('/checkin');
-      }
+    if (resolution.action === 'redirect_checkin') {
+      navigate('/checkin');
+      return;
     }
+    setResult(resolution.result);
   }, [location, navigate]);
 
   if (!result) return null;
@@ -69,10 +58,9 @@ export const CheckInResultPage: React.FC = () => {
    * Wipes window.history state so browser "Back" cannot reload the exited result.
    */
   const handleSafeExit = () => {
-    sessionStorage.removeItem('calmspace_latest_checkin');
-    sessionStorage.setItem('calmspace_high_risk_exited', 'true');
+    executeSafeExitState();
     window.history.replaceState({}, '');
-    navigate('/', { replace: true, state: {} });
+    navigate('/app', { replace: true, state: {} });
   };
 
   // =========================================================================

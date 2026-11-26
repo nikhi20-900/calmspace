@@ -1,6 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Wind, Smile, Moon } from 'lucide-react';
-import { BlobScene, BlobExpression } from '../mascot/BlobScene';
+import type { BlobExpression } from '../mascot/BlobScene';
+
+const LazyBlobScene = React.lazy(() => import('../mascot/BlobScene'));
+
+const BlobStageFallback: React.FC = () => (
+  <div className="w-full h-full flex flex-col items-center justify-center rounded-[2rem]">
+    <div className="w-56 h-56 rounded-[50%_50%_46%_46%] bg-gradient-to-b from-[#C4BDF8] to-[#AFA6EC] shadow-2xl flex flex-col items-center justify-center border-2 border-white/40 motion-safe:animate-pulse">
+      <div className="flex gap-10 mb-4">
+        <div className="w-4 h-5 rounded-full bg-[#25233B]" />
+        <div className="w-4 h-5 rounded-full bg-[#25233B]" />
+      </div>
+      <div className="w-6 h-2 border-b-2 border-[#6E689C] rounded-full" />
+    </div>
+    <span className="text-xs text-[#625F78] mt-4 font-medium">Calmspace Blob</span>
+  </div>
+);
 
 export interface CalmspaceBlobProps {
   expression?: BlobExpression;
@@ -106,12 +121,14 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
 
       {/* Volumetric 3D Canvas Stage */}
       <div className={`w-full ${heightClassName}`}>
-        <BlobScene
-          expression={activeExpression}
-          isCtaHovered={isCtaHovered}
-          isBreathingActive={isBreathing}
-          onBlobClick={handleBlobClick}
-        />
+        <Suspense fallback={<BlobStageFallback />}>
+          <LazyBlobScene
+            expression={activeExpression}
+            isCtaHovered={isCtaHovered}
+            isBreathingActive={isBreathing}
+            onBlobClick={handleBlobClick}
+          />
+        </Suspense>
       </div>
 
       {/* Tactile Drag Hint */}

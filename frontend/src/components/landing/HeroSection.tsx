@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, ArrowRight, ShieldCheck, HeartPulse } from 'lucide-react';
 import { CalmspaceBlob } from '../ui/calmspace-blob';
-import { BlobExpression } from '../mascot/BlobScene';
+import type { BlobExpression } from '../mascot/BlobScene';
 
 export interface HeroSectionProps {
   onOpenSupportModal: () => void;

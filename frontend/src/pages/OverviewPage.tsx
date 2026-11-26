@@ -414,7 +414,7 @@ export const OverviewPage: React.FC = () => {
       {/* Privacy Footnote */}
       <div className="flex items-center justify-center gap-2 pt-4 pb-2 text-xs text-[#625F78]">
         <ShieldCheck className="w-4 h-4 text-[#245532]" />
-        <span>Anonymous cryptographic session.</span>
+        <span>Anonymous session.</span>
         <span>·</span>
         <button
           type="button"

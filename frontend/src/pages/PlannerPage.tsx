@@ -113,12 +113,16 @@ export const PlannerPage: React.FC = () => {
   // Task creation handler
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    const trimmedTitle = title.trim();
+    if (trimmedTitle.length < 2) {
+      setActionError('Task title must contain at least 2 non-space characters.');
+      return;
+    }
     setIsCreating(true);
     setActionError(null);
     try {
       const newTask = await api.createTask({
-        title: title.trim(),
+        title: trimmedTitle,
         estimated_minutes: estimatedMinutes,
         category,
       });
@@ -150,16 +154,15 @@ export const PlannerPage: React.FC = () => {
   // Toggle task completion
   const handleToggle = async (taskId: string) => {
     setActionError(null);
+    const previousTasks = tasks;
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
     );
     try {
-      await api.toggleTask(taskId);
+      const updated = await api.toggleTask(taskId);
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
     } catch (err: any) {
-      // Revert optimistic toggle if backend persistence fails
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
-      );
+      setTasks(previousTasks);
       setActionError(
         err?.message || 'Unable to update task completion on the server. Please try again.'
       );
@@ -193,13 +196,18 @@ export const PlannerPage: React.FC = () => {
   // Save edit handler
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTask || !editTitle.trim()) return;
+    if (!editingTask) return;
+    const trimmedTitle = editTitle.trim();
+    if (trimmedTitle.length < 2) {
+      setEditNotice('Task title must contain at least 2 non-space characters.');
+      return;
+    }
 
     setIsSavingEdit(true);
     setEditNotice(null);
     setActionError(null);
     const updatedPayload = {
-      title: editTitle.trim(),
+      title: trimmedTitle,
       estimated_minutes: editMinutes,
       category: editCategory,
     };
@@ -626,12 +634,25 @@ export const PlannerPage: React.FC = () => {
       {/* Stage 1: Edit Task Modal Dialog */}
       <Dialog
         isOpen={Boolean(editingTask)}
-        onClose={() => setEditingTask(null)}
+        onClose={() => {
+          setEditingTask(null);
+          setEditNotice(null);
+        }}
         title="Edit Study Block"
         description="Update your session focus, estimated time, or category."
         maxWidth="md"
       >
         <form onSubmit={handleSaveEdit} className="space-y-4 mt-3">
+          {editNotice && (
+            <div
+              role="alert"
+              className="p-3 rounded-button bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{editNotice}</span>
+            </div>
+          )}
+
           <div>
             <label htmlFor="edit-task-title" className="block text-xs font-semibold text-[#625F78] mb-1">
               Task Focus
@@ -683,16 +704,15 @@ export const PlannerPage: React.FC = () => {
             </div>
           </div>
 
-          <p className="text-[11px] text-[#8E8AA7]">
-            Note: Task edits update your active session view. Backend PATCH persistence endpoint is coordinated with the database workstream.
-          </p>
-
           <div className="flex justify-end gap-2 pt-2 border-t border-[#E8E6F1]">
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setEditingTask(null)}
+              onClick={() => {
+                setEditingTask(null);
+                setEditNotice(null);
+              }}
             >
               Cancel
             </Button>

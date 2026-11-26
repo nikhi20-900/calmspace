@@ -8,9 +8,9 @@ export const PrivacySection: React.FC = () => {
   const privacyPillars = [
     {
       icon: KeyRound,
-      title: 'Anonymous UUID',
+      title: 'Anonymous Session ID',
       description:
-        'No student ID, university email, phone number, or real name required. Your account is tied solely to an anonymous cryptographic UUID generated in your browser.',
+        'No student ID, university email, phone number, or real name required. Your browser creates a local anonymous session ID to keep your records separate.',
     },
     {
       icon: EyeOff,

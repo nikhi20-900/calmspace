@@ -455,3 +455,5 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     </div>
   );
 };
+
+export default BlobScene;

@@ -147,11 +147,19 @@ class StudyTaskUpdate(BaseModel):
 
 
 class UserSettings(BaseModel):
-    nickname: str = Field("Student", max_length=60)
+    nickname: str = Field("Student", min_length=1, max_length=60)
     break_reminders_enabled: bool = True
     reminder_interval_minutes: int = Field(45, ge=5, le=240)
     share_anonymous_analytics: bool = False
     data_retention_days: int = 30
+
+    @field_validator("nickname")
+    @classmethod
+    def validate_non_blank_nickname(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Nickname cannot be empty or whitespace only.")
+        return stripped
 
     @field_validator("data_retention_days", mode="before")
     @classmethod

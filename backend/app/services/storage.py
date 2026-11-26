@@ -10,13 +10,56 @@ Key Principles:
 5. Persistent storage using SQLite / SQL engine, surviving application restarts.
 """
 
+import atexit
 import os
 import sqlite3
 import threading
 import uuid
+import weakref
 from datetime import UTC, datetime, timedelta
 
 from app.models.schemas import CheckInRecord, StudyTask, UserSettings
+
+
+class _ThreadConnectionHolder:
+    """Closes a thread-local SQLite connection automatically if its thread exits."""
+
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        registry: set[sqlite3.Connection],
+        lock: threading.Lock,
+    ):
+        self.conn: sqlite3.Connection | None = conn
+        self._registry = registry
+        self._lock = lock
+
+    def close(self) -> None:
+        conn = self.conn
+        self.conn = None
+        if conn is not None:
+            with self._lock:
+                self._registry.discard(conn)
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+
+    def __del__(self) -> None:
+        self.close()
+
+
+def _close_tracked_connections(
+    registry: set[sqlite3.Connection], lock: threading.Lock
+) -> None:
+    with lock:
+        conns = list(registry)
+        registry.clear()
+    for conn in conns:
+        try:
+            conn.close()
+        except sqlite3.Error:
+            pass
 
 
 class CalmspaceStorage:
@@ -29,10 +72,16 @@ class CalmspaceStorage:
                 db_path = raw_url
         self.db_path = db_path
         self._local = threading.local()
+        self._connections: set[sqlite3.Connection] = set()
+        self._conn_lock = threading.Lock()
+        self._finalizer = weakref.finalize(
+            self, _close_tracked_connections, self._connections, self._conn_lock
+        )
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        if not hasattr(self._local, "conn") or self._local.conn is None:
+        holder: _ThreadConnectionHolder | None = getattr(self._local, "holder", None)
+        if holder is None or holder.conn is None:
             conn = sqlite3.connect(
                 self.db_path,
                 timeout=30.0,
@@ -46,8 +95,11 @@ class CalmspaceStorage:
                     conn.execute("PRAGMA synchronous = NORMAL;")
                 except sqlite3.DatabaseError:
                     pass
-            self._local.conn = conn
-        return self._local.conn
+            with self._conn_lock:
+                self._connections.add(conn)
+            holder = _ThreadConnectionHolder(conn, self._connections, self._conn_lock)
+            self._local.holder = holder
+        return holder.conn
 
     def _init_db(self):
         """Create tables and indexes if they do not exist."""
@@ -495,11 +547,13 @@ class CalmspaceStorage:
         return True
 
     def close(self):
-        """Close connection if open."""
-        if hasattr(self._local, "conn") and self._local.conn is not None:
-            self._local.conn.close()
-            self._local.conn = None
+        """Close all tracked SQLite connections across threads."""
+        if hasattr(self._local, "holder") and self._local.holder is not None:
+            self._local.holder.close()
+            self._local.holder = None
+        _close_tracked_connections(self._connections, self._conn_lock)
 
 
 # Global singleton instance
 storage = CalmspaceStorage()
+atexit.register(storage.close)
