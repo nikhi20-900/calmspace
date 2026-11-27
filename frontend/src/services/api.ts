@@ -3,6 +3,7 @@ import {
   CheckInResponse,
   CheckInRecord,
   InsightSummary,
+  InsightSummaryV2,
   StudyTask,
   UserSettings,
   SupportContact,
@@ -84,6 +85,21 @@ export const api = {
       headers: DEFAULT_HEADERS(),
     });
     if (!res.ok) throw new Error('Failed to fetch insights');
+    return res.json();
+  },
+
+  async getInsightsV2(days = 30): Promise<InsightSummaryV2> {
+    let timezone = 'UTC';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      timezone = 'UTC';
+    }
+    const params = new URLSearchParams({ days: String(days), timezone });
+    const res = await fetchWithTimeout(`${API_BASE_URL}/insights/v2?${params.toString()}`, {
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch Insights V2');
     return res.json();
   },
 
