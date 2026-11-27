@@ -11,8 +11,8 @@ Key Principles:
 from datetime import UTC, datetime, timedelta
 
 from app.models.schemas import (
-    ComparisonMetric,
     CheckInRecord,
+    ComparisonMetric,
     DailyInsightPoint,
     InsightSummary,
     InsightSummaryV2,

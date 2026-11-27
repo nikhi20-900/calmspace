@@ -25,7 +25,9 @@ async def get_insights(
 
 @router.get("/v2", response_model=InsightSummaryV2)
 async def get_insights_v2(
-    days: int = Query(default=30, ge=1, le=90, description="Local calendar window in days"),
+    days: int = Query(
+        default=30, ge=1, le=90, description="Local calendar window in days"
+    ),
     timezone_name: str = Query(
         default="UTC",
         alias="timezone",
