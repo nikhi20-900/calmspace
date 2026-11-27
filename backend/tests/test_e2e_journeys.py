@@ -12,11 +12,12 @@ import tempfile
 from datetime import UTC, datetime, timedelta, timezone
 
 import httpx
+from fastapi.testclient import TestClient
+
 from app.core import config as core_config
 from app.main import app
 from app.services.ai_guidance import rate_limiter
 from app.services.storage import CalmspaceStorage, storage
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -43,28 +44,41 @@ def test_complete_e2e_checkin_journeys_low_medium_high_and_erasure(monkeypatch):
 
     provider_calls: list[str] = []
 
-    def mock_gemini_post(http_self, url, *args, **kwargs):
-        provider_calls.append(str(url))
-        req = httpx.Request("POST", url)
-        return httpx.Response(
-            status_code=200,
-            json={
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [
-                                {
-                                    "text": '{"message": "You are pacing yourself steadily through a busy week. Take a moment to breathe and acknowledge your steady effort. Keeping small breaks in your routine can help you stay grounded.", "suggestion_chips": ["Take a 5-min breather", "Drink some water"]}'
-                                }
-                            ]
-                        }
-                    }
-                ]
-            },
-            request=req,
-        )
+    class FakeGeminiHTTPClient:
+        def __init__(self, *args, **kwargs):
+            pass
 
-    monkeypatch.setattr(httpx.Client, "post", mock_gemini_post)
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, *args, **kwargs):
+            provider_calls.append(str(url))
+            req = httpx.Request("POST", url)
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "text": '{"message": "You are pacing yourself steadily through a busy week. Take a moment to breathe and acknowledge your steady effort. Keeping small breaks in your routine can help you stay grounded.", "suggestion_chips": ["Take a 5-min breather", "Drink some water"]}'
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                request=req,
+            )
+
+    monkeypatch.setattr(
+        "app.services.ai_providers.gemini_provider.httpx.Client",
+        FakeGeminiHTTPClient,
+    )
 
     session_id, headers = _new_session_headers()
     try:
@@ -201,11 +215,30 @@ def test_ai_provider_outages_and_disabled_mode_via_api(monkeypatch):
         monkeypatch.setenv("CALMSPACE_AI_API_KEY", "synthetic-test-gemini-key")
         monkeypatch.setenv("CALMSPACE_AI_ENABLED", "true")
 
+        def _patch_gemini_client(post_fn):
+            class FakeGeminiHTTPClient:
+                def __init__(self, *args, **kwargs):
+                    pass
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    return False
+
+                def post(self, url, *args, **kwargs):
+                    return post_fn(url, *args, **kwargs)
+
+            monkeypatch.setattr(
+                "app.services.ai_providers.gemini_provider.httpx.Client",
+                FakeGeminiHTTPClient,
+            )
+
         # 1. Timeout
-        def raise_timeout(*args, **kwargs):
+        def raise_timeout(url, *args, **kwargs):
             raise httpx.ReadTimeout("Simulated upstream timeout")
 
-        monkeypatch.setattr(httpx.Client, "post", raise_timeout)
+        _patch_gemini_client(raise_timeout)
         core_config.get_ai_config(reload=True)
         res_timeout = client.post(
             "/api/checkin",
@@ -224,14 +257,14 @@ def test_ai_provider_outages_and_disabled_mode_via_api(monkeypatch):
         assert "Timeout canary private note" not in res_timeout.text
 
         # 2. HTTP 503 Outage
-        def return_503(http_self, url, *args, **kwargs):
+        def return_503(url, *args, **kwargs):
             return httpx.Response(
                 503,
                 json={"error": {"message": "Upstream overloaded"}},
                 request=httpx.Request("POST", url),
             )
 
-        monkeypatch.setattr(httpx.Client, "post", return_503)
+        _patch_gemini_client(return_503)
         res_503 = client.post(
             "/api/checkin",
             headers=headers,
@@ -249,7 +282,7 @@ def test_ai_provider_outages_and_disabled_mode_via_api(monkeypatch):
         assert res_503.json()["guidance"]["generated_by_ai"] is False
 
         # 3. Malformed AI JSON output
-        def return_bad_json(http_self, url, *args, **kwargs):
+        def return_bad_json(url, *args, **kwargs):
             return httpx.Response(
                 200,
                 json={
@@ -258,7 +291,7 @@ def test_ai_provider_outages_and_disabled_mode_via_api(monkeypatch):
                 request=httpx.Request("POST", url),
             )
 
-        monkeypatch.setattr(httpx.Client, "post", return_bad_json)
+        _patch_gemini_client(return_bad_json)
         res_bad = client.post(
             "/api/checkin",
             headers=headers,
@@ -277,11 +310,11 @@ def test_ai_provider_outages_and_disabled_mode_via_api(monkeypatch):
         # 4. Disabled mode (CALMSPACE_AI_ENABLED=false) -> 0 provider calls
         called_when_disabled = []
 
-        def fail_if_called(*args, **kwargs):
+        def fail_if_called(url, *args, **kwargs):
             called_when_disabled.append(True)
             raise AssertionError("Provider must not be called when AI is disabled!")
 
-        monkeypatch.setattr(httpx.Client, "post", fail_if_called)
+        _patch_gemini_client(fail_if_called)
         monkeypatch.setenv("CALMSPACE_AI_ENABLED", "false")
         core_config.get_ai_config(reload=True)
 
