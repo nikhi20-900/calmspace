@@ -9,7 +9,7 @@ Enforces:
 
 from fastapi import APIRouter, Depends
 
-from app.core.session import require_session_id
+from app.core.session import require_authenticated_session
 from app.models.schemas import CheckInRequest, CheckInResponse
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import evaluate_wellbeing_route
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/checkin", tags=["Check-in"])
 @router.post("", response_model=CheckInResponse)
 async def submit_checkin(
     payload: CheckInRequest,
-    session_id: str = Depends(require_session_id),
+    session_id: str = Depends(require_authenticated_session),
 ):
 
     # 0. Automatically prune expired records per session's retention policy
@@ -78,7 +78,7 @@ async def submit_checkin(
 
 @router.get("/history")
 async def get_checkin_history(
-    session_id: str = Depends(require_session_id),
+    session_id: str = Depends(require_authenticated_session),
 ):
     storage.cleanup_expired_records(session_id)
     return storage.get_checkins(session_id)

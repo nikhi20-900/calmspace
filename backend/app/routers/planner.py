@@ -6,7 +6,7 @@ In-app only MVP.
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.session import require_session_id
+from app.core.session import require_authenticated_session
 from app.models.schemas import StudyTask, StudyTaskCreate, StudyTaskUpdate
 from app.services.storage import storage
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/planner", tags=["Study Planner"])
 
 
 @router.get("/tasks", response_model=list[StudyTask])
-async def list_tasks(session_id: str = Depends(require_session_id)):
+async def list_tasks(session_id: str = Depends(require_authenticated_session)):
     tasks = storage.get_tasks(session_id)
     if not tasks and not storage.has_planner_seeded(session_id):
         # Provide welcoming starter tasks once for a brand-new session
@@ -32,7 +32,7 @@ async def list_tasks(session_id: str = Depends(require_session_id)):
 @router.post("/tasks", response_model=StudyTask)
 async def create_task(
     payload: StudyTaskCreate,
-    session_id: str = Depends(require_session_id),
+    session_id: str = Depends(require_authenticated_session),
 ):
     storage.mark_planner_seeded(session_id)
     return storage.add_task(
@@ -46,7 +46,7 @@ async def create_task(
 @router.patch("/tasks/{task_id}/toggle", response_model=StudyTask)
 async def toggle_task(
     task_id: str,
-    session_id: str = Depends(require_session_id),
+    session_id: str = Depends(require_authenticated_session),
 ):
     updated = storage.toggle_task(session_id, task_id)
     if not updated:
@@ -58,7 +58,7 @@ async def toggle_task(
 async def update_task(
     task_id: str,
     payload: StudyTaskUpdate,
-    session_id: str = Depends(require_session_id),
+    session_id: str = Depends(require_authenticated_session),
 ):
     updated = storage.update_task(
         session_id=session_id,
@@ -75,7 +75,7 @@ async def update_task(
 @router.delete("/tasks/{task_id}")
 async def delete_task(
     task_id: str,
-    session_id: str = Depends(require_session_id),
+    session_id: str = Depends(require_authenticated_session),
 ):
     storage.mark_planner_seeded(session_id)
     success = storage.delete_task(session_id, task_id)

@@ -10,6 +10,18 @@ from pydantic import BaseModel, Field, StrictBool, field_validator
 RiskRoute = Literal["LOW", "MEDIUM", "HIGH"]
 
 
+class SessionCreateResponse(BaseModel):
+    session_id: str
+    session_secret: str
+    expires_at: str
+    token_type: Literal["Bearer"] = "Bearer"
+
+
+class SessionRevokeResponse(BaseModel):
+    status: str
+    message: str
+
+
 class CheckInRequest(BaseModel):
     mood: int = Field(
         ..., ge=1, le=5, description="1: Very low, 2: Low, 3: Okay, 4: Good, 5: Great"

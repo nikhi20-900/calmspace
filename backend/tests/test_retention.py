@@ -454,11 +454,9 @@ def test_settings_updates_affect_subsequent_pruning(temp_storage):
 def test_api_request_boundary_automated_pruning():
     """Verify that automated pruning runs during live API requests over TestClient."""
     client = TestClient(app)
-    session_id = "test-session-api-boundary"
-    headers = {"X-Session-ID": session_id}
-
-    # Clean existing data for this session
-    client.delete("/api/settings/data", headers=headers)
+    sess = client.post("/api/sessions").json()
+    session_id = sess["session_id"]
+    headers = {"Authorization": f"Bearer {session_id}.{sess['session_secret']}"}
 
     # 1. Configure 14-day retention via PUT /api/settings
     settings_res = client.put(

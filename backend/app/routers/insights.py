@@ -6,7 +6,7 @@ Never uses clinical or diagnostic language.
 
 from fastapi import APIRouter, Depends, Query
 
-from app.core.session import require_session_id
+from app.core.session import require_authenticated_session
 from app.models.schemas import InsightSummary
 from app.services.analytics import compute_session_insights
 from app.services.storage import storage
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/insights", tags=["Insights"])
 @router.get("", response_model=InsightSummary)
 async def get_insights(
     days: int = Query(default=7, ge=1, le=90, description="Time window in days"),
-    session_id: str = Depends(require_session_id),
+    session_id: str = Depends(require_authenticated_session),
 ):
     storage.cleanup_expired_records(session_id)
     return compute_session_insights(session_id=session_id, days=days)
