@@ -312,8 +312,8 @@ Deployment containers, production CORS guards, `/api/ready`, and `VITE_API_BASE_
 
 ```mermaid
 flowchart LR
-    User["Student Browser (HTTPS)"] --> FEHost["Frontend Static / Nginx Host<br/>(frontend/Dockerfile or Render Static)<br/>VITE_API_BASE_URL=https://api.../api"]
-    FEHost -->|"Explicit HTTPS CORS Origin Only"| BEHost["FastAPI Backend (Single Worker)<br/>(backend/Dockerfile --workers 1)<br/>CALMSPACE_ENV=production"]
+    User["Student Browser (HTTPS)"] --> FEHost["Frontend Static Host<br/>(Vercel SPA frontend/vercel.json or Nginx)<br/>VITE_API_BASE_URL=https://api.../api"]
+    FEHost -->|"Explicit HTTPS CORS Origin Only"| BEHost["FastAPI Backend on Render<br/>(render.yaml / Dockerfile --workers 1)<br/>CALMSPACE_ENV=production"]
     BEHost --> Disk[("Persistent Volume (/data/calmspace.db)<br/>SQLite WAL Mode")]
     BEHost -.->|"Optional Opt-In TLS Header<br/>(x-goog-api-key secret)"| Gemini["Google Gemini REST API"]
 ```

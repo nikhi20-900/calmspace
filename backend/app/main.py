@@ -21,7 +21,7 @@ from app.routers.insights import router as insights_router
 from app.routers.planner import router as planner_router
 from app.routers.sessions import router as sessions_router
 from app.routers.support_and_settings import settings_router, support_router
-from app.services.storage import storage
+from app.services.storage import InvalidSessionCredentialError, storage
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +111,21 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             }
         sanitized_errors.append(err_copy)
     return JSONResponse(status_code=422, content={"detail": sanitized_errors})
+
+
+@app.exception_handler(InvalidSessionCredentialError)
+async def invalid_credential_handler(
+    request: Request, exc: InvalidSessionCredentialError
+):
+    """
+    Handle invalid, expired, revoked, or deleted session credentials during mutations,
+    returning uniform 401 Unauthorized without leaking internal state.
+    """
+    return JSONResponse(
+        status_code=401,
+        content={"detail": "Invalid or expired session credential."},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 @app.exception_handler(sqlite3.Error)

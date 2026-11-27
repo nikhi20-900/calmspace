@@ -28,8 +28,14 @@ from app.models.schemas import (
     UserSettings,
 )
 
+
+class InvalidSessionCredentialError(Exception):
+    """Raised when an operation is attempted with an invalid, expired, revoked, or missing session credential."""
+
+
 _WEAK_PEPPERS = frozenset(
     {
+        "",
         "changeme",
         "placeholder",
         "secret",
@@ -37,6 +43,9 @@ _WEAK_PEPPERS = frozenset(
         "pepper",
         "your-session-pepper",
         "calmspace-session-pepper",
+        "calmspace-session-pepper-placeholder",
+        "placeholder-pepper",
+        "example-pepper",
     }
 )
 
@@ -224,10 +233,14 @@ class CalmspaceStorage:
         ).fetchone()
         return bool(row and row["planner_seeded"])
 
-    def mark_planner_seeded(self, session_id: str) -> None:
+    def mark_planner_seeded(
+        self, session_id: str, session_secret: str | None = None
+    ) -> None:
         """Persist that initial starter planner tasks were provided for this session."""
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
             conn.execute(
                 """
                 INSERT INTO user_settings (session_id, planner_seeded)
@@ -279,26 +292,94 @@ class CalmspaceStorage:
     @staticmethod
     def is_session_pepper_valid() -> bool:
         """
-        In production (`CALMSPACE_ENV=production`), require a non-placeholder
-        `CALMSPACE_SESSION_PEPPER` of at least 16 characters.
+        In production (`CALMSPACE_ENV=production`), require a high-entropy
+        `CALMSPACE_SESSION_PEPPER` of at least 32 characters, rejecting
+        placeholders, low-entropy/repeated character strings, and known weak values.
         """
         env_mode = os.getenv("CALMSPACE_ENV", "development").strip().lower()
         if env_mode != "production":
             return True
         pepper = os.getenv("CALMSPACE_SESSION_PEPPER", "").strip()
-        return len(pepper) >= 16 and pepper.lower() not in _WEAK_PEPPERS
+        if len(pepper) < 32:
+            return False
+        lower = pepper.lower()
+        if lower in _WEAK_PEPPERS:
+            return False
+        if any(
+            kw in lower
+            for kw in (
+                "changeme",
+                "placeholder",
+                "your-session-pepper",
+                "calmspace-session-pepper",
+                "default-pepper",
+            )
+        ):
+            return False
+        # Reject low-entropy inputs such as "a" * 32 or "123412341234..."
+        return len(set(pepper)) >= 8
 
     @classmethod
     def _get_session_pepper(cls) -> str:
         pepper = os.getenv("CALMSPACE_SESSION_PEPPER", "").strip()
         env_mode = os.getenv("CALMSPACE_ENV", "development").strip().lower()
-        if env_mode == "production" and (
-            len(pepper) < 16 or pepper.lower() in _WEAK_PEPPERS
-        ):
+        if env_mode == "production" and not cls.is_session_pepper_valid():
             raise RuntimeError(
-                "CALMSPACE_SESSION_PEPPER must be configured with at least 16 non-placeholder characters in production."
+                "CALMSPACE_SESSION_PEPPER must be configured with at least 32 high-entropy, "
+                "non-placeholder characters in production."
             )
         return pepper
+
+    def _verify_session_credential_in_txn(
+        self,
+        conn: sqlite3.Connection,
+        session_id: str,
+        session_secret: str | None = None,
+        now: datetime | None = None,
+    ) -> None:
+        """
+        Verify that the session exists, is not revoked, is not expired, and (if
+        session_secret is provided) cryptographically matches the stored hash,
+        all executed within an active write transaction under BEGIN IMMEDIATE.
+        """
+        if not session_id:
+            raise InvalidSessionCredentialError("Session ID must not be empty.")
+
+        if session_secret is None:
+            # Low-level direct storage calls without credentials (e.g. test fixtures)
+            return
+
+        now_dt = self._normalize_utc(now)
+        row = conn.execute(
+            """
+            SELECT secret_hash, secret_salt, expires_at, revoked_at
+            FROM session_credentials
+            WHERE session_id = ?;
+            """,
+            (session_id,),
+        ).fetchone()
+
+        if not row:
+            raise InvalidSessionCredentialError(
+                "Session credential not found or was permanently deleted."
+            )
+        if row["revoked_at"] is not None:
+            raise InvalidSessionCredentialError("Session credential has been revoked.")
+        expires_dt = self._parse_iso_utc(row["expires_at"])
+        if expires_dt is None or expires_dt <= now_dt:
+            raise InvalidSessionCredentialError("Session credential has expired.")
+        try:
+            computed_hash = self._hash_session_secret(
+                row["secret_salt"], session_secret
+            )
+        except Exception as exc:
+            raise InvalidSessionCredentialError(
+                "Failed to compute session secret hash."
+            ) from exc
+        if not hmac.compare_digest(computed_hash, row["secret_hash"]):
+            raise InvalidSessionCredentialError(
+                "Session secret does not match current credential."
+            )
 
     @classmethod
     def _hash_session_secret(cls, salt_hex: str, session_secret: str) -> str:
@@ -399,6 +480,7 @@ class CalmspaceStorage:
             resolved_ttl = self._resolve_session_ttl_days(ttl_days)
             new_expires_iso = (now_dt + timedelta(days=resolved_ttl)).isoformat()
             with conn:
+                conn.execute("BEGIN IMMEDIATE")
                 cursor = conn.execute(
                     """
                     UPDATE session_credentials
@@ -435,6 +517,7 @@ class CalmspaceStorage:
         now_iso = self._normalize_utc(now).isoformat()
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
             cursor = conn.execute(
                 """
                 UPDATE session_credentials
@@ -463,43 +546,46 @@ class CalmspaceStorage:
 
         now_dt = self._normalize_utc(now)
         conn = self._get_connection()
-        row = conn.execute(
-            """
-            SELECT secret_hash, secret_salt, expires_at, revoked_at
-            FROM session_credentials
-            WHERE session_id = ?;
-            """,
-            (session_id,),
-        ).fetchone()
-
-        if not row or row["revoked_at"] is not None:
-            return None
-
-        expires_dt = self._parse_iso_utc(row["expires_at"])
-        if expires_dt is None or expires_dt <= now_dt:
-            return None
-
-        prior_hash = row["secret_hash"]
-        if current_secret is not None:
-            try:
-                computed = self._hash_session_secret(row["secret_salt"], current_secret)
-            except ValueError:
-                return None
-            if not hmac.compare_digest(computed, prior_hash):
-                return None
-        elif expected_secret_hash is not None and not hmac.compare_digest(
-            expected_secret_hash, prior_hash
-        ):
-            return None
-
-        resolved_ttl = self._resolve_session_ttl_days(ttl_days)
-        new_secret = secrets.token_urlsafe(32)
-        new_salt = secrets.token_bytes(16).hex()
-        new_hash = self._hash_session_secret(new_salt, new_secret)
-        now_iso = now_dt.isoformat()
-        new_expires_iso = (now_dt + timedelta(days=resolved_ttl)).isoformat()
-
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT secret_hash, secret_salt, expires_at, revoked_at
+                FROM session_credentials
+                WHERE session_id = ?;
+                """,
+                (session_id,),
+            ).fetchone()
+
+            if not row or row["revoked_at"] is not None:
+                return None
+
+            expires_dt = self._parse_iso_utc(row["expires_at"])
+            if expires_dt is None or expires_dt <= now_dt:
+                return None
+
+            prior_hash = row["secret_hash"]
+            if current_secret is not None:
+                try:
+                    computed = self._hash_session_secret(
+                        row["secret_salt"], current_secret
+                    )
+                except ValueError:
+                    return None
+                if not hmac.compare_digest(computed, prior_hash):
+                    return None
+            elif expected_secret_hash is not None and not hmac.compare_digest(
+                expected_secret_hash, prior_hash
+            ):
+                return None
+
+            resolved_ttl = self._resolve_session_ttl_days(ttl_days)
+            new_secret = secrets.token_urlsafe(32)
+            new_salt = secrets.token_bytes(16).hex()
+            new_hash = self._hash_session_secret(new_salt, new_secret)
+            now_iso = now_dt.isoformat()
+            new_expires_iso = (now_dt + timedelta(days=resolved_ttl)).isoformat()
+
             cursor = conn.execute(
                 """
                 UPDATE session_credentials
@@ -533,27 +619,28 @@ class CalmspaceStorage:
         """
         now_dt = self._normalize_utc(now)
         conn = self._get_connection()
-        rows = conn.execute(
-            """
-            SELECT session_id, expires_at, revoked_at
-            FROM session_credentials;
-            """
-        ).fetchall()
-
-        expired_ids: list[str] = []
-        for row in rows:
-            if row["revoked_at"] is not None:
-                expired_ids.append(row["session_id"])
-                continue
-            expires_dt = self._parse_iso_utc(row["expires_at"])
-            if expires_dt is None or expires_dt <= now_dt:
-                expired_ids.append(row["session_id"])
-
-        if not expired_ids:
-            return 0
-
-        placeholders = ", ".join("?" for _ in expired_ids)
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                """
+                SELECT session_id, expires_at, revoked_at
+                FROM session_credentials;
+                """
+            ).fetchall()
+
+            expired_ids: list[str] = []
+            for row in rows:
+                if row["revoked_at"] is not None:
+                    expired_ids.append(row["session_id"])
+                    continue
+                expires_dt = self._parse_iso_utc(row["expires_at"])
+                if expires_dt is None or expires_dt <= now_dt:
+                    expired_ids.append(row["session_id"])
+
+            if not expired_ids:
+                return 0
+
+            placeholders = ", ".join("?" for _ in expired_ids)
             if purge_orphaned_data:
                 conn.execute(
                     f"DELETE FROM checkins WHERE session_id IN ({placeholders});",
@@ -601,10 +688,15 @@ class CalmspaceStorage:
         )
 
     def update_settings(
-        self, session_id: str, new_settings: UserSettings
+        self,
+        session_id: str,
+        new_settings: UserSettings,
+        session_secret: str | None = None,
     ) -> UserSettings:
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
             conn.execute(
                 """
                 INSERT INTO user_settings (
@@ -640,6 +732,7 @@ class CalmspaceStorage:
         sleep_hours: float,
         route: str,
         timestamp: str | None = None,
+        session_secret: str | None = None,
     ) -> CheckInRecord:
         record_id = str(uuid.uuid4())
         if timestamp is None:
@@ -647,6 +740,8 @@ class CalmspaceStorage:
 
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
             conn.execute(
                 """
                 INSERT INTO checkins (id, session_id, timestamp, mood, stress, sleep_hours, route)
@@ -733,6 +828,7 @@ class CalmspaceStorage:
 
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
             cursor = conn.execute(
                 """
                 DELETE FROM checkins
@@ -770,14 +866,85 @@ class CalmspaceStorage:
             for r in rows
         ]
 
+    def get_or_seed_tasks(
+        self, session_id: str, session_secret: str | None = None
+    ) -> list[StudyTask]:
+        """
+        Return existing tasks or atomically seed welcoming starter tasks inside
+        a BEGIN IMMEDIATE write transaction guarded by the session credential.
+        """
+        existing = self.get_tasks(session_id)
+        if existing or self.has_planner_seeded(session_id):
+            return existing
+
+        conn = self._get_connection()
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
+            # Re-check under write lock
+            seeded_row = conn.execute(
+                "SELECT planner_seeded FROM user_settings WHERE session_id = ?;",
+                (session_id,),
+            ).fetchone()
+            if seeded_row and seeded_row["planner_seeded"]:
+                pass
+            else:
+                task1_id = str(uuid.uuid4())
+                task2_id = str(uuid.uuid4())
+                now_iso = datetime.now(UTC).isoformat()
+                conn.execute(
+                    """
+                    INSERT INTO tasks (id, session_id, title, estimated_minutes, category, completed, created_at)
+                    VALUES (?, ?, ?, ?, ?, 0, ?);
+                    """,
+                    (
+                        task1_id,
+                        session_id,
+                        "Review lecture slides for 25 mins",
+                        25,
+                        "Revision",
+                        now_iso,
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO tasks (id, session_id, title, estimated_minutes, category, completed, created_at)
+                    VALUES (?, ?, ?, ?, ?, 0, ?);
+                    """,
+                    (
+                        task2_id,
+                        session_id,
+                        "Take a restful 10-minute tea or stretch break",
+                        10,
+                        "Break",
+                        now_iso,
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO user_settings (session_id, planner_seeded)
+                    VALUES (?, 1)
+                    ON CONFLICT(session_id) DO UPDATE SET planner_seeded = 1;
+                    """,
+                    (session_id,),
+                )
+        return self.get_tasks(session_id)
+
     def add_task(
-        self, session_id: str, title: str, estimated_minutes: int, category: str
+        self,
+        session_id: str,
+        title: str,
+        estimated_minutes: int,
+        category: str,
+        session_secret: str | None = None,
     ) -> StudyTask:
         task_id = str(uuid.uuid4())
         created_at = datetime.now(UTC).isoformat()
 
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
             conn.execute(
                 """
                 INSERT INTO tasks (id, session_id, title, estimated_minutes, category, completed, created_at)
@@ -795,10 +962,13 @@ class CalmspaceStorage:
             created_at=created_at,
         )
 
-    def toggle_task(self, session_id: str, task_id: str) -> StudyTask | None:
+    def toggle_task(
+        self, session_id: str, task_id: str, session_secret: str | None = None
+    ) -> StudyTask | None:
         conn = self._get_connection()
         with conn:
-            # Atomic session-scoped toggle
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
             cursor = conn.execute(
                 """
                 UPDATE tasks
@@ -810,15 +980,14 @@ class CalmspaceStorage:
             if cursor.rowcount == 0:
                 return None
 
-        # Fetch and return updated task
-        row = conn.execute(
-            """
-            SELECT id, title, estimated_minutes, category, completed, created_at
-            FROM tasks
-            WHERE id = ? AND session_id = ?;
-            """,
-            (task_id, session_id),
-        ).fetchone()
+            row = conn.execute(
+                """
+                SELECT id, title, estimated_minutes, category, completed, created_at
+                FROM tasks
+                WHERE id = ? AND session_id = ?;
+                """,
+                (task_id, session_id),
+            ).fetchone()
 
         if not row:
             return None
@@ -839,6 +1008,7 @@ class CalmspaceStorage:
         title: str | None = None,
         estimated_minutes: int | None = None,
         category: str | None = None,
+        session_secret: str | None = None,
     ) -> StudyTask | None:
         conn = self._get_connection()
         fields = []
@@ -853,9 +1023,11 @@ class CalmspaceStorage:
             fields.append("category = ?")
             values.append(category)
 
-        if fields:
-            values.extend([task_id, session_id])
-            with conn:
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
+            if fields:
+                values.extend([task_id, session_id])
                 cursor = conn.execute(
                     f"""
                     UPDATE tasks
@@ -867,14 +1039,14 @@ class CalmspaceStorage:
                 if cursor.rowcount == 0:
                     return None
 
-        row = conn.execute(
-            """
-            SELECT id, title, estimated_minutes, category, completed, created_at
-            FROM tasks
-            WHERE id = ? AND session_id = ?;
-            """,
-            (task_id, session_id),
-        ).fetchone()
+            row = conn.execute(
+                """
+                SELECT id, title, estimated_minutes, category, completed, created_at
+                FROM tasks
+                WHERE id = ? AND session_id = ?;
+                """,
+                (task_id, session_id),
+            ).fetchone()
 
         if not row:
             return None
@@ -888,9 +1060,13 @@ class CalmspaceStorage:
             created_at=row["created_at"],
         )
 
-    def delete_task(self, session_id: str, task_id: str) -> bool:
+    def delete_task(
+        self, session_id: str, task_id: str, session_secret: str | None = None
+    ) -> bool:
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._verify_session_credential_in_txn(conn, session_id, session_secret)
             cursor = conn.execute(
                 """
                 DELETE FROM tasks
@@ -907,9 +1083,11 @@ class CalmspaceStorage:
         """
         Permanently purges all records associated with this session token across
         all tables: check-in records, study tasks, user settings, and session credentials.
+        Acquires an immediate write transaction so in-flight writes cannot interleave.
         """
         conn = self._get_connection()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute("DELETE FROM checkins WHERE session_id = ?;", (session_id,))
             conn.execute("DELETE FROM tasks WHERE session_id = ?;", (session_id,))
             conn.execute(

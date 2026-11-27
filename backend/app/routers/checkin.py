@@ -9,7 +9,10 @@ Enforces:
 
 from fastapi import APIRouter, Depends
 
-from app.core.session import require_authenticated_session
+from app.core.session import (
+    require_authenticated_session,
+    require_authenticated_session_with_secret,
+)
 from app.models.schemas import CheckInRequest, CheckInResponse
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import evaluate_wellbeing_route
@@ -22,8 +25,9 @@ router = APIRouter(prefix="/api/checkin", tags=["Check-in"])
 @router.post("", response_model=CheckInResponse)
 async def submit_checkin(
     payload: CheckInRequest,
-    session_id: str = Depends(require_authenticated_session),
+    auth_context: tuple[str, str] = Depends(require_authenticated_session_with_secret),
 ):
+    session_id, session_secret = auth_context
 
     # 0. Automatically prune expired records per session's retention policy
     storage.cleanup_expired_records(session_id)
@@ -44,12 +48,14 @@ async def submit_checkin(
     )
 
     # 3. Persist numeric check-in metrics ONLY. Never save reflection text!
+    # Guarded by atomic BEGIN IMMEDIATE transaction verifying session credential.
     record = storage.add_checkin(
         session_id=session_id,
         mood=payload.mood,
         stress=payload.stress,
         sleep_hours=payload.sleep_hours,
         route=safety.route,
+        session_secret=session_secret,
     )
 
     # 4. Generate AI supportive guidance ONLY if eligible (Low / Medium routes)

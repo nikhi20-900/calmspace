@@ -16,7 +16,12 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.storage import CalmspaceStorage, storage
+from app.models.schemas import UserSettings
+from app.services.storage import (
+    CalmspaceStorage,
+    InvalidSessionCredentialError,
+    storage,
+)
 
 client = TestClient(app)
 
@@ -599,10 +604,23 @@ def test_concurrent_requests_cannot_bypass_revocation():
 
 def test_production_requires_strong_session_pepper(monkeypatch):
     """Production mode fails closed if CALMSPACE_SESSION_PEPPER is missing, weak, or placeholder."""
+    import secrets
+
     import pytest
 
     monkeypatch.setenv("CALMSPACE_ENV", "production")
-    for bad_pepper in ("", "short", "changeme", "placeholder"):
+    weak_peppers = (
+        "",
+        "short",
+        "changeme",
+        "placeholder",
+        "a" * 31,  # Under 32 chars
+        "b" * 32,  # 32 chars but zero diversity (len(set) < 8)
+        "12341234123412341234123412341234",  # 32 chars, only 4 unique chars
+        "calmspace-session-pepper-placeholder",
+        "your-session-pepper-production-key",
+    )
+    for bad_pepper in weak_peppers:
         monkeypatch.setenv("CALMSPACE_SESSION_PEPPER", bad_pepper)
         assert storage.is_session_pepper_valid() is False
         with pytest.raises(RuntimeError):
@@ -616,20 +634,23 @@ def test_production_requires_strong_session_pepper(monkeypatch):
             "auth": "misconfigured",
         }
 
-    monkeypatch.setenv(
-        "CALMSPACE_SESSION_PEPPER", "strong-production-pepper-32-chars-ok"
+    valid_peppers = (
+        "strong-production-pepper-32-chars-ok",
+        secrets.token_hex(32),  # 64 hex chars, high entropy
     )
-    assert storage.is_session_pepper_valid() is True
-    created = storage.create_session()
-    try:
-        assert (
-            storage.verify_session_credential(
-                created.session_id, created.session_secret
+    for valid_pepper in valid_peppers:
+        monkeypatch.setenv("CALMSPACE_SESSION_PEPPER", valid_pepper)
+        assert storage.is_session_pepper_valid() is True
+        created = storage.create_session()
+        try:
+            assert (
+                storage.verify_session_credential(
+                    created.session_id, created.session_secret
+                )
+                is True
             )
-            is True
-        )
-    finally:
-        storage.delete_all_data(created.session_id)
+        finally:
+            storage.delete_all_data(created.session_id)
 
 
 def test_concurrent_verification_cannot_bypass_rotation():
@@ -880,3 +901,499 @@ def test_session_secret_and_pepper_never_leak_to_logs_streams_or_responses(
         assert secret_val not in caplog.text
         assert secret_val not in out
         assert secret_val not in err
+
+
+def test_concurrent_delete_and_inflight_checkin_write_interleaving():
+    """
+    Test Finding 1: An in-flight check-in write cannot complete if delete_all_data
+    has already deleted the session credential.
+    Atomic BEGIN IMMEDIATE transaction guarantees that once delete_all_data commits,
+    any in-flight write attempting to verify credentials in-transaction fails.
+    """
+    import pytest
+
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        temp_db = f.name
+
+    try:
+        store = CalmspaceStorage(db_path=temp_db)
+        sess = store.create_session()
+
+        # Delete session data and credentials
+        store.delete_all_data(sess.session_id)
+
+        # In-flight write with prior secret must fail
+        with pytest.raises(InvalidSessionCredentialError) as exc_info:
+            store.add_checkin(
+                sess.session_id,
+                mood=4,
+                stress=2,
+                sleep_hours=7.5,
+                route="LOW",
+                session_secret=sess.session_secret,
+            )
+
+        assert "not found or was permanently deleted" in str(exc_info.value)
+        # Zero rows must exist in checkins for this session
+        assert len(store.get_checkins(sess.session_id)) == 0
+        store.close()
+    finally:
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+
+
+def test_concurrent_delete_and_inflight_checkin_http_ordering(monkeypatch):
+    """
+    HTTP end-to-end regression test for Finding 1:
+    A check-in request authenticates.
+    A deletion request executes and deletes all session data and credentials.
+    The earlier check-in request attempts its storage write.
+    The in-flight write must be rejected with HTTP 401 and leave zero records behind.
+    """
+    session_id, _session_secret, headers = _issue_session()
+    auth_passed = threading.Event()
+    delete_done = threading.Event()
+
+    orig_cleanup = storage.cleanup_expired_records
+
+    def hooked_cleanup(sid, now=None):
+        res = orig_cleanup(sid, now)
+        if sid == session_id:
+            auth_passed.set()
+            assert delete_done.wait(timeout=5.0)
+        return res
+
+    monkeypatch.setattr(storage, "cleanup_expired_records", hooked_cleanup)
+
+    post_statuses = []
+    delete_statuses = []
+
+    def worker_post():
+        local_client = TestClient(app)
+        res = local_client.post(
+            "/api/checkin",
+            headers=headers,
+            json={
+                "mood": 4,
+                "stress": 2,
+                "sleep_hours": 7.5,
+                "consent_ai_processing": False,
+            },
+        )
+        post_statuses.append(res.status_code)
+
+    def worker_delete():
+        local_client = TestClient(app)
+        assert auth_passed.wait(timeout=5.0)
+        res = local_client.delete("/api/settings/data", headers=headers)
+        delete_statuses.append(res.status_code)
+        delete_done.set()
+
+    t_post = threading.Thread(target=worker_post)
+    t_del = threading.Thread(target=worker_delete)
+
+    t_post.start()
+    t_del.start()
+
+    t_post.join()
+    t_del.join()
+
+    assert delete_statuses == [200]
+    # Post must fail with 401 because session credentials were wiped before the write
+    assert post_statuses == [401]
+    # Zero checkins in storage for this session
+    assert len(storage.get_checkins(session_id)) == 0
+
+
+def test_concurrent_write_wins_lock_before_delete():
+    """
+    Ordering A: If check-in write wins BEGIN IMMEDIATE before delete_all_data,
+    the check-in is written and then cleanly wiped by the subsequent delete_all_data.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        temp_db = f.name
+
+    try:
+        store = CalmspaceStorage(db_path=temp_db)
+        sess = store.create_session()
+
+        # Write succeeds first
+        rec = store.add_checkin(
+            sess.session_id,
+            mood=5,
+            stress=1,
+            sleep_hours=8.0,
+            route="LOW",
+            session_secret=sess.session_secret,
+        )
+        assert rec is not None
+        assert len(store.get_checkins(sess.session_id)) == 1
+
+        # Then delete executes
+        store.delete_all_data(sess.session_id)
+        # All data wiped
+        assert len(store.get_checkins(sess.session_id)) == 0
+        store.close()
+    finally:
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+
+
+def test_concurrent_lock_contention_write_holds_immediate_lock_blocks_delete():
+    """
+    Ordering A Lock-Contention Test:
+    Demonstrates true SQLite write-lock exclusion under BEGIN IMMEDIATE.
+    Thread 1 acquires BEGIN IMMEDIATE write lock and inserts a checkin, but deliberately
+    holds the transaction open across a synchronization barrier.
+    Thread 2 attempts delete_all_data() (which also requires BEGIN IMMEDIATE).
+    Thread 2 is blocked from acquiring the write lock until Thread 1 commits.
+    Once Thread 1 commits, Thread 2 acquires the lock and deletes the newly committed checkin.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        temp_db = f.name
+
+    try:
+        store = CalmspaceStorage(db_path=temp_db)
+        sess = store.create_session()
+
+        lock_acquired = threading.Event()
+        delete_attempting_lock = threading.Event()
+        release_lock = threading.Event()
+        delete_finished = threading.Event()
+        execution_order = []
+        thread_errors = []
+
+        def worker_holding_write():
+            try:
+                conn = store._get_connection()
+                with conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    store._verify_session_credential_in_txn(
+                        conn, sess.session_id, sess.session_secret
+                    )
+                    rec_id = str(uuid4())
+                    now_iso = datetime.now(UTC).isoformat()
+                    conn.execute(
+                        """
+                        INSERT INTO checkins (id, session_id, timestamp, mood, stress, sleep_hours, route)
+                        VALUES (?, ?, ?, ?, ?, ?, ?);
+                        """,
+                        (rec_id, sess.session_id, now_iso, 4, 2, 7.5, "LOW"),
+                    )
+                    execution_order.append("write_locked_and_inserted")
+                    lock_acquired.set()
+                    # Holds the write lock open until main thread signals
+                    assert release_lock.wait(timeout=5.0)
+                    execution_order.append("write_committed")
+            except Exception as exc:  # noqa: BLE001
+                thread_errors.append(exc)
+
+        orig_delete = store.delete_all_data
+
+        def hooked_delete(sid):
+            delete_attempting_lock.set()
+            return orig_delete(sid)
+
+        def worker_delete():
+            try:
+                assert lock_acquired.wait(timeout=5.0)
+                hooked_delete(sess.session_id)
+                execution_order.append("delete_committed")
+                delete_finished.set()
+            except Exception as exc:  # noqa: BLE001
+                thread_errors.append(exc)
+
+        t_write = threading.Thread(target=worker_holding_write)
+        t_del = threading.Thread(target=worker_delete)
+
+        t_write.start()
+        assert lock_acquired.wait(timeout=5.0)
+
+        t_del.start()
+        # Explicit event confirms Thread 2 reached the deletion attempt and is contending for the lock
+        assert delete_attempting_lock.wait(timeout=5.0)
+
+        # Thread 2 must still be blocked waiting for BEGIN IMMEDIATE because Thread 1 holds the lock
+        assert not delete_finished.is_set()
+        assert "delete_committed" not in execution_order
+
+        # Release Thread 1 to commit and unblock Thread 2
+        release_lock.set()
+
+        t_write.join(timeout=5.0)
+        t_del.join(timeout=5.0)
+
+        # Assert both threads terminated and did not time out
+        assert not t_write.is_alive(), (
+            "Write worker thread timed out and did not terminate"
+        )
+        assert not t_del.is_alive(), (
+            "Delete worker thread timed out and did not terminate"
+        )
+
+        if thread_errors:
+            raise thread_errors[0]
+
+        # Verify ordering: write locked -> write committed -> delete committed
+        assert execution_order == [
+            "write_locked_and_inserted",
+            "write_committed",
+            "delete_committed",
+        ]
+
+        # Verify checkin was safely deleted by the subsequent delete_all_data
+        assert len(store.get_checkins(sess.session_id)) == 0
+        store.close()
+    finally:
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+
+
+def test_concurrent_rotation_and_inflight_task_write():
+    """
+    Test Finding 2: In-flight task creation using old secret fails after secret rotation.
+    Atomic BEGIN IMMEDIATE prevents writes with stale credentials from committing.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        temp_db = f.name
+
+    try:
+        store = CalmspaceStorage(db_path=temp_db)
+        sess = store.create_session()
+
+        # Rotate secret
+        rotated = store.rotate_session_secret(
+            sess.session_id, current_secret=sess.session_secret
+        )
+        assert rotated is not None
+        new_secret = rotated.session_secret
+
+        # Stale in-flight write with old secret must fail
+        import pytest
+
+        with pytest.raises(InvalidSessionCredentialError) as exc_info:
+            store.add_task(
+                sess.session_id,
+                "Stale Task",
+                30,
+                "Study",
+                session_secret=sess.session_secret,
+            )
+        assert "does not match current credential" in str(exc_info.value)
+        assert len(store.get_tasks(sess.session_id)) == 0
+
+        # Fresh secret write succeeds
+        valid_task = store.add_task(
+            sess.session_id,
+            "Fresh Task",
+            25,
+            "Study",
+            session_secret=new_secret,
+        )
+        assert valid_task is not None
+        assert len(store.get_tasks(sess.session_id)) == 1
+        store.close()
+    finally:
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+
+
+def test_concurrent_revocation_and_inflight_settings_write():
+    """
+    Test Finding 2: In-flight settings update fails after session revocation.
+    Atomic BEGIN IMMEDIATE ensures revoked credentials cannot commit changes.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        temp_db = f.name
+
+    try:
+        store = CalmspaceStorage(db_path=temp_db)
+        sess = store.create_session()
+
+        # Revoke session
+        assert store.revoke_session(sess.session_id) is True
+
+        # In-flight write attempted with revoked credential
+        import pytest
+
+        with pytest.raises(InvalidSessionCredentialError) as exc_info:
+            store.update_settings(
+                sess.session_id,
+                UserSettings(nickname="HackedName"),
+                session_secret=sess.session_secret,
+            )
+        assert "has been revoked" in str(exc_info.value)
+
+        # Setting was not updated to "HackedName"
+        saved = store.get_settings(sess.session_id)
+        assert saved.nickname != "HackedName"
+        store.close()
+    finally:
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+
+
+def test_planner_autoseed_guarded_against_deleted_or_revoked_session():
+    """
+    Planner auto-seeding must not write starter tasks if session was deleted or revoked.
+    """
+    import pytest
+
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        temp_db = f.name
+
+    try:
+        store = CalmspaceStorage(db_path=temp_db)
+        sess = store.create_session()
+        # Delete session
+        store.delete_all_data(sess.session_id)
+
+        # Attempt auto-seed with secret
+        with pytest.raises(InvalidSessionCredentialError):
+            store.get_or_seed_tasks(sess.session_id, session_secret=sess.session_secret)
+
+        # Zero tasks written
+        assert len(store.get_tasks(sess.session_id)) == 0
+
+        # Repeat for revoked session
+        sess2 = store.create_session()
+        store.revoke_session(sess2.session_id)
+        with pytest.raises(InvalidSessionCredentialError):
+            store.get_or_seed_tasks(
+                sess2.session_id, session_secret=sess2.session_secret
+            )
+        assert len(store.get_tasks(sess2.session_id)) == 0
+        store.close()
+    finally:
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+
+
+def test_concurrent_rotation_and_inflight_write_http_ordering(monkeypatch):
+    """
+    HTTP end-to-end regression test for Finding 2:
+    A check-in request authenticates with secret S1.
+    A rotation request executes concurrently and rotates the secret to S2.
+    The in-flight check-in attempts to write using S1.
+    The in-flight write must be rejected with HTTP 401 and leave zero records behind.
+    """
+    session_id, _session_secret, headers = _issue_session()
+    auth_passed = threading.Event()
+    rotate_done = threading.Event()
+
+    orig_cleanup = storage.cleanup_expired_records
+
+    def hooked_cleanup(sid, now=None):
+        res = orig_cleanup(sid, now)
+        if sid == session_id:
+            auth_passed.set()
+            assert rotate_done.wait(timeout=5.0)
+        return res
+
+    monkeypatch.setattr(storage, "cleanup_expired_records", hooked_cleanup)
+
+    post_statuses = []
+    rotate_statuses = []
+
+    def worker_post():
+        local_client = TestClient(app)
+        res = local_client.post(
+            "/api/checkin",
+            headers=headers,
+            json={
+                "mood": 4,
+                "stress": 2,
+                "sleep_hours": 7.5,
+                "consent_ai_processing": False,
+            },
+        )
+        post_statuses.append(res.status_code)
+
+    def worker_rotate():
+        local_client = TestClient(app)
+        assert auth_passed.wait(timeout=5.0)
+        res = local_client.post("/api/sessions/rotate", headers=headers)
+        rotate_statuses.append(res.status_code)
+        rotate_done.set()
+
+    t_post = threading.Thread(target=worker_post)
+    t_rot = threading.Thread(target=worker_rotate)
+
+    t_post.start()
+    t_rot.start()
+
+    t_post.join()
+    t_rot.join()
+
+    try:
+        assert rotate_statuses == [200]
+        # In-flight write using stale secret S1 must fail with 401
+        assert post_statuses == [401]
+        assert len(storage.get_checkins(session_id)) == 0
+    finally:
+        storage.delete_all_data(session_id)
+
+
+def test_concurrent_revocation_and_inflight_write_http_ordering(monkeypatch):
+    """
+    HTTP end-to-end regression test for Finding 2:
+    A check-in request authenticates with a valid secret.
+    A revocation request executes concurrently and marks the session revoked.
+    The in-flight check-in attempts its storage write.
+    The in-flight write must be rejected with HTTP 401 and leave zero records behind.
+    """
+    session_id, _session_secret, headers = _issue_session()
+    auth_passed = threading.Event()
+    revoke_done = threading.Event()
+
+    orig_cleanup = storage.cleanup_expired_records
+
+    def hooked_cleanup(sid, now=None):
+        res = orig_cleanup(sid, now)
+        if sid == session_id:
+            auth_passed.set()
+            assert revoke_done.wait(timeout=5.0)
+        return res
+
+    monkeypatch.setattr(storage, "cleanup_expired_records", hooked_cleanup)
+
+    post_statuses = []
+    revoke_statuses = []
+
+    def worker_post():
+        local_client = TestClient(app)
+        res = local_client.post(
+            "/api/checkin",
+            headers=headers,
+            json={
+                "mood": 4,
+                "stress": 2,
+                "sleep_hours": 7.5,
+                "consent_ai_processing": False,
+            },
+        )
+        post_statuses.append(res.status_code)
+
+    def worker_revoke():
+        local_client = TestClient(app)
+        assert auth_passed.wait(timeout=5.0)
+        res = local_client.post("/api/sessions/revoke", headers=headers)
+        revoke_statuses.append(res.status_code)
+        revoke_done.set()
+
+    t_post = threading.Thread(target=worker_post)
+    t_rev = threading.Thread(target=worker_revoke)
+
+    t_post.start()
+    t_rev.start()
+
+    t_post.join()
+    t_rev.join()
+
+    try:
+        assert revoke_statuses == [200]
+        # In-flight write using revoked credential must fail with 401
+        assert post_statuses == [401]
+        assert len(storage.get_checkins(session_id)) == 0
+    finally:
+        storage.delete_all_data(session_id)

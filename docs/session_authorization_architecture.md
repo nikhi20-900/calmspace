@@ -60,8 +60,41 @@ CREATE TABLE IF NOT EXISTS session_credentials (
 - **Permanent Data Deletion (`DELETE /api/settings/data`)**: Atomically deletes matching rows across `checkins`, `tasks`, `user_settings`, and `session_credentials` in one SQLite transaction and clears local credentials (`calmspace_session_credential`), so reusing the deleted Bearer token immediately fails with `401 Unauthorized`.
 - **Orphan & Expired Session Cleanup (`cleanup_expired_sessions`)**: Atomically purges expired or revoked `session_credentials` rows and any orphaned `checkins`, `tasks`, and `user_settings`.
 
-### 2.5 Frontend Handling (`frontend/src/services/api.ts`)
+### 2.5 Frontend Handling & Credential Storage Architecture (`frontend/src/services/api.ts`)
 - Calls `POST /api/sessions` (single-flight deduplicated) when no valid non-expired credential is present in `localStorage` (`calmspace_session_credential`), removing any legacy `calmspace_anonymous_session_id` key.
 - Sends `Authorization: Bearer <session_id>.<session_secret>` on all session-scoped API requests.
 - Clears credentials on `deleteAllData()`, and handles `401` expiry/revocation safely (re-bootstrapping idempotent/read/new-check-in calls once while failing closed on task/settings/delete mutations).
-- **Remaining Limitation**: Because static frontend and backend services may be deployed on separate origins, the Bearer credential is stored in `localStorage` rather than an `HttpOnly` cookie; XSS hygiene and single-device privacy remain important.
+
+#### Architectural Rationale: `localStorage` vs. `HttpOnly` Cookies
+Calmspace stores the anonymous session Bearer token in `localStorage` rather than an `HttpOnly` cookie due to its decoupled, cross-domain MVP hosting model:
+- **Hosting Model**: The static frontend is deployed on Vercel (`https://calmspace.vercel.app`), while the FastAPI backend runs on Render (`https://calmspace-backend.onrender.com`).
+- **Browser Cross-Site Cookie Restrictions**: Because the frontend and backend reside on different apex domains (`vercel.app` vs. `onrender.com`), modern browser tracking protections (Apple Safari Intelligent Tracking Prevention [ITP], Google Chrome Privacy Sandbox, Mozilla Firefox Enhanced Tracking Protection [ETP]) heavily partition or block third-party `SameSite=None` cookies by default. Using cookies across unrelated hosting domains introduces severe cross-browser authentication breakage for students.
+- **Accepted Risk & Threat Model**: Unlike `HttpOnly` cookies, items in `localStorage` are accessible to JavaScript executing within the browser origin. The principal risk is token exfiltration in the event of a Cross-Site Scripting (XSS) vulnerability.
+- **Defense-in-Depth XSS Mitigations**:
+  1. **Strict Context-Aware Auto-Escaping**: React JSX automatically escapes all dynamic content rendered in the DOM, preventing script injection from user check-in notes or reflections.
+  2. **Zero `dangerouslySetInnerHTML` & Zero `eval()`**: The Calmspace frontend codebase forbids raw HTML injection, `eval()`, and inline `<script>` tags.
+  3. **Zero Third-Party Trackers or Dynamic CDNs**: No advertising SDKs, social widgets, or third-party analytics scripts (e.g. Google Analytics, Facebook Pixel, Hotjar) are loaded. Typography fonts are locally bundled in `frontend/public/assets/fonts/` with zero external Google Fonts CDN dependencies.
+  4. **Strict Content Security Policy (CSP)**: Deployment hosts configure restrictive CSP headers disallowing untrusted script origins and object execution.
+  5. **Time-Bounded Blast Radius**: Anonymous session credentials feature sliding inactivity expiration (default 90 days) and explicit single-click server-side revocation and data erasure.
+- **Roadmap to `HttpOnly` Cookies**: When Calmspace is deployed under a single unified domain (e.g. `app.calmspace.edu` for frontend and `api.calmspace.edu` for backend) or routed through a Backend-For-Frontend (BFF) proxy (such as Next.js or Cloudflare Pages), the session credential will transition to a first-party `HttpOnly`, `Secure`, `SameSite=Lax` cookie.
+
+---
+
+### 2.6 Atomic Write Transactions & Lifecycle Concurrency Serialization
+
+To prevent in-flight writes from committing after a user has deleted their data or rotated/revoked their credential, all mutating storage operations and session lifecycle events are strictly serialized through SQLite's immediate write transactions:
+
+1. **`BEGIN IMMEDIATE` Write Locking**:
+   - Every mutating method (`add_checkin`, `add_task`, `toggle_task`, `update_task`, `delete_task`, `update_settings`, `mark_planner_seeded`, and planner starter task auto-seeding `get_or_seed_tasks`) executes within `BEGIN IMMEDIATE`.
+   - SQLite allows only one connection to hold the write lock at any moment.
+2. **In-Transaction Credential Guard (`_verify_session_credential_in_txn`)**:
+   - Inside the active `BEGIN IMMEDIATE` write transaction, the session credential is re-verified against `session_credentials`:
+     - Row existence check: ensures the session has not been deleted by `delete_all_data`.
+     - Revocation check: ensures `revoked_at IS NULL`.
+     - Expiry check: ensures `expires_at > now_utc`.
+     - Constant-time secret match: ensures `hmac.compare_digest(computed_hash, row.secret_hash)` succeeds against the current secret.
+   - If any condition fails, `InvalidSessionCredentialError` is raised, rolling back any pending write and returning uniform HTTP `401 Unauthorized`.
+3. **Serialization with Lifecycle Operations**:
+   - `delete_all_data()`, `rotate_session_secret()`, and `revoke_session()` also execute under `BEGIN IMMEDIATE`.
+   - **Ordering Scenario A (Write wins lock first)**: The write validates credentials, inserts/updates rows, commits, and releases the lock. The subsequent lifecycle operation then executes, deleting or rotating the data. No orphaned records exist after deletion.
+   - **Ordering Scenario B (Lifecycle operation wins lock first)**: Deletion, rotation, or revocation acquires the lock and commits. When the in-flight write acquires the lock, its in-transaction credential guard fails because the credentials row was deleted or updated. Zero rows are inserted, and the request fails with HTTP 401.

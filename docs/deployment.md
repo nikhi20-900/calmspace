@@ -11,11 +11,12 @@
 | --- | --- |
 | `backend/Dockerfile` | Non-root Python 3.12 container running `uvicorn app.main:app --workers 1` with `/api/health` check |
 | `backend/.dockerignore` | Excludes `.env`, local `*.db*` files, caches, and tests from backend images |
-| `frontend/Dockerfile` | Multi-stage Node 20 build (`npm ci && npm run build`) served via Nginx on port `8080` |
+| `frontend/Dockerfile` | Multi-stage Node 20 build (`npm ci && npm run build`) served via Nginx on port `8080` (Docker Compose / containerized) |
 | `frontend/.dockerignore` | Excludes `node_modules`, `dist`, and local `.env*` files |
 | `frontend/nginx.conf` | Security headers, `/api/` reverse proxy (for Docker Compose), and SPA fallback routing |
+| `frontend/vercel.json` | Vercel SPA static rewrite routing (`/(.*) -> /index.html`) for production static hosting |
 | `docker-compose.yml` | Local production-like stack with named persistent volume `calmspace_data:/data` |
-| `render.yaml` | Reproducible Render Blueprint (FastAPI web service + persistent disk + React static site) |
+| `render.yaml` | Reproducible Render Blueprint for backend FastAPI web service with persistent `/data` disk |
 | `backend/.env.example` | Backend placeholder variables (zero secrets) |
 | `frontend/.env.example` | Frontend `VITE_API_BASE_URL` placeholder |
 
@@ -30,8 +31,8 @@ Never commit real credentials (`backend/app/.env` is gitignored). Configure secr
 | `CALMSPACE_ENV` | `development` | `production` | Enables production CORS & rate-limit guards |
 | `DATABASE_URL` | `sqlite:///./calmspace.db` | `sqlite:////data/calmspace.db` | Mount `/data` on a persistent disk so data survives restarts |
 | `CALMSPACE_SESSION_TTL_DAYS` | `90` | `90` | Sliding inactivity session expiry in days (`1`–`365`) |
-| `CALMSPACE_SESSION_PEPPER` | *(empty)* | `<backend-secret-only>` | Required in `production` mode (`>= 16` non-placeholder chars; auto-generated in `render.yaml`) |
-| `CORS_ORIGINS` | `http://127.0.0.1:5173,...` | `https://<your-frontend-domain>` | Wildcard `*` is rejected in `production` mode |
+| `CALMSPACE_SESSION_PEPPER` | *(empty)* | `<backend-secret-only>` | Required in `production` mode (`>= 32` high-entropy non-placeholder chars with `>= 8` distinct chars; auto-generated in `render.yaml` or via `openssl rand -hex 32`) |
+| `CORS_ORIGINS` | `http://127.0.0.1:5173,...` | `https://calmspace.vercel.app` | Exact frontend origin URL; wildcard `*` is strictly rejected in `production` mode |
 | `CALMSPACE_AI_PROVIDER` | `mock` | `mock` or `gemini` | Fails closed to safe deterministic fallback on misconfiguration |
 | `CALMSPACE_AI_API_KEY` | *(empty)* | `<backend-secret-only>` | Sent via `x-goog-api-key` header only; never exposed to `VITE_*` |
 | `CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER` | `true` (default in dev) | `true` (single `--workers 1` MVP) | Keep `1` worker unless backed by Redis |
@@ -54,10 +55,21 @@ Never commit real credentials (`backend/app/.env` is gitignored). Configure secr
 
 1. **Schema Setup**: `CalmspaceStorage._init_db()` automatically creates `session_credentials`, `checkins`, `tasks`, and `user_settings` (with `PRAGMA journal_mode = WAL;` and defensive `data_retention_days` / `planner_seeded` migrations) on startup.
 2. **Persistence Across Restarts**: Mount persistent storage at `/data` and point `DATABASE_URL=sqlite:////data/calmspace.db`.
-3. **Pepper Stability Across Restarts & Redeployments (`CALMSPACE_SESSION_PEPPER`)**:
-   - In `production`, `CALMSPACE_SESSION_PEPPER` (`>= 16` non-placeholder characters) **must remain identical** across server restarts, redeployments, container recreations, and hosting migrations that retain `calmspace.db`.
-   - Changing or regenerating `CALMSPACE_SESSION_PEPPER` invalidates every persisted `secret_hash` in `session_credentials`, causing existing browser sessions to fail with `401 Unauthorized` and forcing users to establish new anonymous sessions (losing access to prior check-ins and planner tasks).
-   - Store `CALMSPACE_SESSION_PEPPER` in your host's persistent secret store (in `render.yaml`, `generateValue: true` sets it on initial Blueprint creation and keeps it across normal deploys—do not regenerate it casually without expecting session reset).
+3. **Pepper Generation, Entropy & Stability (`CALMSPACE_SESSION_PEPPER`)**:
+   - **Entropy & Validation Requirements**:
+     - In `production`, `CALMSPACE_SESSION_PEPPER` must have at least **32 characters**, a character diversity of at least 8 unique characters, and must not match common placeholder strings (`changeme`, `placeholder`, `default-pepper`, `calmspace-session-pepper`).
+     - Generation command:
+       ```bash
+       openssl rand -hex 32
+       ```
+       This yields a 64-hex-character cryptographically secure pseudo-random string with full 256-bit entropy.
+   - **Stability Across Restarts & Redeployments**:
+     - `CALMSPACE_SESSION_PEPPER` **must remain strictly identical** across all backend restarts, redeployments, container recreations, and infrastructure upgrades.
+     - Changing or regenerating `CALMSPACE_SESSION_PEPPER` breaks HMAC validation for every persisted `secret_hash` in `session_credentials`. This immediately invalidates all active student sessions with `401 Unauthorized`, resetting students' access to their prior check-in trends and study tasks.
+   - **Backup & Recovery Procedure**:
+     - Store `CALMSPACE_SESSION_PEPPER` in the platform's secure secret manager (e.g. Render environment variables, HashiCorp Vault, or AWS Secrets Manager).
+     - In `render.yaml`, `generateValue: true` provisions a persistent 32-character secret on Blueprint creation and retains it across standard Git pushes.
+     - Document and back up this value in an encrypted secrets vault alongside SQLite database snapshot backups (`/data/calmspace.backup.db`). When recovering or migrating the database to a new server instance, restore both the database file and the exact original `CALMSPACE_SESSION_PEPPER`.
 4. **Backup & Rollback**:
    - Before upgrading, snapshot the SQLite database safely while running:
 

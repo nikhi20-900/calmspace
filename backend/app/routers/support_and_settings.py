@@ -5,7 +5,10 @@ Provides verified human support resources and privacy data management.
 
 from fastapi import APIRouter, Depends
 
-from app.core.session import require_authenticated_session
+from app.core.session import (
+    require_authenticated_session,
+    require_authenticated_session_with_secret,
+)
 from app.models.schemas import SupportContact, UserSettings
 from app.services.ai_guidance import rate_limiter
 from app.services.storage import storage
@@ -28,9 +31,12 @@ async def get_settings(session_id: str = Depends(require_authenticated_session))
 @settings_router.put("", response_model=UserSettings)
 async def update_settings(
     settings: UserSettings,
-    session_id: str = Depends(require_authenticated_session),
+    auth_context: tuple[str, str] = Depends(require_authenticated_session_with_secret),
 ):
-    updated = storage.update_settings(session_id, settings)
+    session_id, session_secret = auth_context
+    updated = storage.update_settings(
+        session_id, settings, session_secret=session_secret
+    )
     storage.cleanup_expired_records(session_id)
     return updated
 
