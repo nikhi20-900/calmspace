@@ -31,6 +31,7 @@ from app.services.storage import storage
 
 DEFAULT_RETENTION_DAYS = 30
 MIN_PATTERN_SAMPLES = 4
+MIN_PATTERN_DAYS = 2
 MIN_CO_OBSERVATION_SAMPLES = 5
 MIN_CO_OBSERVATION_DAYS = 3
 MIN_CO_OBSERVATION_BUCKET_ENTRIES = 2
@@ -214,7 +215,7 @@ def _build_pattern_highlights(
 ) -> list[PatternHighlight]:
     """Generate conservative, non-diagnostic, non-causal observations."""
     count = len(records)
-    if count < MIN_PATTERN_SAMPLES:
+    if count < MIN_PATTERN_SAMPLES or distinct_local_days < MIN_PATTERN_DAYS:
         return []
 
     sample_basis = f"Based on {count} check-ins"

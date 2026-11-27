@@ -362,6 +362,34 @@ def test_v2_steady_rhythm_vs_varied_rhythm_thresholds(temp_storage):
     assert [h.category for h in varied.pattern_highlights] == ["varied_rhythm"]
 
 
+def test_v2_pattern_highlights_require_multiple_checkin_days(temp_storage):
+    """Several same-day check-ins do not produce a day-to-day pattern label."""
+    now = datetime(2026, 11, 27, 20, 0, tzinfo=UTC)
+    session_id = "v2-same-day-pattern-gate"
+    for hour, mood, stress, sleep_hours in [
+        (9, 2, 4, 5.0),
+        (12, 4, 2, 7.0),
+        (15, 2, 4, 5.5),
+        (18, 4, 2, 7.5),
+    ]:
+        temp_storage.add_checkin(
+            session_id,
+            mood=mood,
+            stress=stress,
+            sleep_hours=sleep_hours,
+            route="LOW",
+            timestamp=datetime(2026, 11, 27, hour, 0, tzinfo=UTC).isoformat(),
+        )
+
+    insights = compute_session_insights_v2(
+        session_id, days=7, timezone_name="UTC", storage_engine=temp_storage, now=now
+    )
+
+    assert insights.check_in_count == 4
+    assert insights.distinct_local_days == 1
+    assert insights.pattern_highlights == []
+
+
 def test_v2_directional_shifts_and_co_observation_gates(temp_storage):
     """Scenario C triggers shifts + sleep co-observation; insufficient distinct days blocks co-obs."""
     now = datetime(2026, 11, 27, 20, 0, tzinfo=UTC)

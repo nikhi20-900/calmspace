@@ -316,7 +316,7 @@ export const InsightsV2Page: React.FC = () => {
             <div><h2 id="reflection-heading" className="font-bold text-[#25233B]">Patterns to reflect on</h2><p className="text-xs text-[#625F78]">Generated from check-in numbers using fixed rules.</p></div>
             {insights.pattern_highlights.length ? <div className="grid gap-3 md:grid-cols-2">
               {insights.pattern_highlights.map((pattern) => <Card key={pattern.id} padding="md" className="space-y-2"><h3 className="text-sm font-bold text-[#25233B]">{pattern.title}</h3><p className="text-sm leading-relaxed text-[#625F78]">{pattern.summary}</p><p className="text-xs text-[#8E8AA7]">{pattern.sample_basis}</p></Card>)}
-            </div> : <Card padding="md" className="text-sm text-[#625F78]">A few more check-ins across this period can help reveal descriptive patterns. No pressure to check in on a schedule.</Card>}
+            </div> : <Card padding="md" className="text-sm text-[#625F78]">A few more check-ins across multiple days can help reveal descriptive patterns. No pressure to check in on a schedule.</Card>}
           </section>
 
           <div className="pt-2 text-center"><p className="mx-auto max-w-2xl text-xs leading-relaxed text-[#625F78]">Your check-in history is scoped to your anonymous session and follows your data-retention setting. <Link to="/settings" className="font-semibold text-[#5554B8] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]">View privacy settings</Link></p></div>
