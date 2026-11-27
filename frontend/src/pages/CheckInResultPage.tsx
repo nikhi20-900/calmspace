@@ -21,6 +21,46 @@ import {
 import { FALLBACK_SUPPORT_RESOURCES } from '../services/api';
 import { executeSafeExitState, resolveCheckInResultState } from '../services/checkinState';
 
+type CalmPlanAction = { title: string; reason: string; action: string };
+
+function buildCalmPlan(record: CheckInResponse['record']): CalmPlanAction[] {
+  return [
+    record.mood <= 2
+      ? {
+          title: 'Make room for a small comfort',
+          reason: 'Your mood check-in was on the lower side today.',
+          action: 'Pick one kind, low-effort thing: step outside for a few minutes, listen to a favorite song, or message someone you trust.',
+        }
+      : {
+          title: 'Stay connected to what helps',
+          reason: 'A small moment of connection can support a steady day.',
+          action: 'Take a short pause for something you enjoy, or share a moment with someone who feels supportive.',
+        },
+    record.stress >= 4
+      ? {
+          title: 'Create a little breathing space',
+          reason: 'You marked stress as high today.',
+          action: 'Try a slow exhale: breathe in comfortably, then let the breath out a little longer. Repeat a few times, and stop if it feels uncomfortable.',
+        }
+      : {
+          title: 'Reset between tasks',
+          reason: 'A brief pause can make a busy day feel more manageable.',
+          action: 'Step away from your screen, stretch gently, or get a glass of water before your next task.',
+        },
+    record.sleep_hours < 6
+      ? {
+          title: 'Make tonight easier',
+          reason: 'You logged less than six hours of sleep.',
+          action: 'If it suits your schedule, give yourself a calm wind-down: dim the lights, set aside one next-day task, and choose a comfortable bedtime.',
+        }
+      : {
+          title: 'Protect your rest',
+          reason: 'Keeping a gentle wind-down can help preserve your rest routine.',
+          action: 'Choose a time to pause studying tonight and do one relaxing, screen-light activity before bed.',
+        },
+  ];
+}
+
 export const CheckInResultPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -322,6 +362,37 @@ export const CheckInResultPage: React.FC = () => {
 
       {/* Prominent Supportive Response Card */}
       <Card padding="lg" className="border-t-4 border-t-[#5554B8] space-y-6">
+        <section
+          aria-labelledby="calm-plan-title"
+          className="rounded-card border border-[#DCD9F5] bg-[#F6F5FE] p-4 sm:p-5"
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#5554B8]">
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id="calm-plan-title" className="text-base font-bold text-[#25233B]">
+                A gentle plan for today
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-[#625F78]">
+                Three optional ideas based on your check-in. Choose what feels useful and leave the rest.
+              </p>
+            </div>
+          </div>
+
+          <ol className="mt-4 grid gap-3 sm:grid-cols-3">
+            {buildCalmPlan(record).map((item, index) => (
+              <li key={item.title} className="rounded-xl border border-[#E8E6F1] bg-white p-3.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#8E8AA7]">
+                  Idea {index + 1}
+                </p>
+                <h3 className="mt-1 text-sm font-semibold text-[#25233B]">{item.title}</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-[#625F78]">{item.reason}</p>
+                <p className="mt-2 text-xs leading-relaxed text-[#25233B]">{item.action}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
         <div>
           <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-[#5554B8]">
             <Sparkles className="w-4 h-4" />
