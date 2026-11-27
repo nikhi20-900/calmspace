@@ -13,9 +13,10 @@ import threading
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from fastapi.testclient import TestClient
+
 from app.main import app
 from app.services.storage import CalmspaceStorage, storage
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

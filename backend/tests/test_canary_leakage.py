@@ -25,6 +25,8 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
+
 from app.core.config import AIServiceConfig
 from app.main import app
 from app.services.ai_guidance import generate_supportive_guidance
@@ -32,7 +34,6 @@ from app.services.ai_providers.gemini_provider import GeminiAIProvider
 from app.services.ai_providers.mock_provider import MockAIProvider
 from app.services.safety_evaluator import evaluate_wellbeing_route
 from app.services.storage import CalmspaceStorage, storage
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture

@@ -1,5 +1,6 @@
-from app import main
 from fastapi.testclient import TestClient
+
+from app import main
 
 
 def test_spa_serves_build_files_and_falls_back_for_client_routes(tmp_path, monkeypatch):
