@@ -18,7 +18,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { api } from '../services/api';
-import { InsightSummary, RiskRoute } from '../types';
+import { InsightSummary } from '../types';
 import {
   Smile,
   Moon,
@@ -31,6 +31,47 @@ import {
   ShieldCheck,
   Table,
 } from 'lucide-react';
+
+type TimestampedTrend = { day: string; timestamp: string; record_index: number };
+
+const chartDateFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  day: 'numeric',
+});
+const chartTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit',
+});
+const tooltipDateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+const withLocalChartLabels = <T extends TimestampedTrend>(entries: T[]) => {
+  const parsedEntries = entries.map((entry) => {
+    const date = new Date(entry.timestamp);
+    const validDate = Number.isNaN(date.getTime()) ? null : date;
+    const localDay = validDate
+      ? `${validDate.getFullYear()}-${validDate.getMonth()}-${validDate.getDate()}`
+      : null;
+    return { entry, date: validDate, localDay };
+  });
+  const entriesPerDay = new Map<string, number>();
+  parsedEntries.forEach(({ localDay }) => {
+    if (localDay) entriesPerDay.set(localDay, (entriesPerDay.get(localDay) ?? 0) + 1);
+  });
+
+  const usedLabels = new Set<string>();
+  return parsedEntries.map(({ entry, date, localDay }) => {
+    let day = date ? chartDateFormatter.format(date) : `Entry ${entry.record_index + 1}`;
+    if (date && localDay && (entriesPerDay.get(localDay) ?? 0) > 1) {
+      day = `${day} · ${chartTimeFormatter.format(date)}`;
+    }
+    if (usedLabels.has(day)) day = `${day} · Entry ${entry.record_index + 1}`;
+    usedLabels.add(day);
+    return { ...entry, day };
+  });
+};
 
 export const InsightsPage: React.FC = () => {
   const [days, setDays] = useState<number>(7);
@@ -58,68 +99,45 @@ export const InsightsPage: React.FC = () => {
     fetchInsights();
   }, [fetchInsights]);
 
-  // Join disparate series into stable date-keyed rows rather than assuming matching array indexes
+  const moodChartData = useMemo(
+    () => withLocalChartLabels(insights?.mood_trend ?? []),
+    [insights],
+  );
+  const sleepChartData = useMemo(
+    () => withLocalChartLabels(insights?.sleep_trend ?? []),
+    [insights],
+  );
+  const stressChartData = useMemo(
+    () => withLocalChartLabels(insights?.stress_trend ?? []),
+    [insights],
+  );
+
+  // Keep one table row per check-in, including multiple entries on the same date.
   const tableRows = useMemo(() => {
     if (!insights) return [];
 
-    const dayMap = new Map<
-      string,
-      {
-        day: string;
-        mood: number | null;
-        sleep: number | null;
-        stress: number | null;
-        route?: RiskRoute;
-      }
-    >();
-
-    // 1. Ingest mood records
-    (insights.mood_trend || []).forEach((m) => {
-      if (!dayMap.has(m.day)) {
-        dayMap.set(m.day, {
-          day: m.day,
-          mood: m.mood ?? null,
-          sleep: null,
-          stress: null,
-          route: m.route,
-        });
-      } else {
-        const row = dayMap.get(m.day)!;
-        row.mood = m.mood ?? null;
-        if (m.route) row.route = m.route;
-      }
+    const sleepByIndex = new Map(insights.sleep_trend.map((entry, index) => [entry.record_index ?? index, entry]));
+    const stressByIndex = new Map(insights.stress_trend.map((entry, index) => [entry.record_index ?? index, entry]));
+    return moodChartData.map((mood, index) => {
+      const recordIndex = mood.record_index ?? index;
+      return {
+        day: mood.day,
+        timestamp: mood.timestamp,
+        recordIndex,
+        mood: mood.mood ?? null,
+        sleep: sleepByIndex.get(recordIndex)?.sleep ?? null,
+        stress: stressByIndex.get(recordIndex)?.stress ?? null,
+        route: mood.route,
+      };
     });
+  }, [insights, moodChartData]);
 
-    // 2. Ingest sleep records by day key
-    (insights.sleep_trend || []).forEach((s) => {
-      if (!dayMap.has(s.day)) {
-        dayMap.set(s.day, {
-          day: s.day,
-          mood: null,
-          sleep: s.sleep ?? null,
-          stress: null,
-        });
-      } else {
-        dayMap.get(s.day)!.sleep = s.sleep ?? null;
-      }
-    });
-
-    // 3. Ingest stress records by day key
-    (insights.stress_trend || []).forEach((st) => {
-      if (!dayMap.has(st.day)) {
-        dayMap.set(st.day, {
-          day: st.day,
-          mood: null,
-          sleep: null,
-          stress: st.stress ?? null,
-        });
-      } else {
-        dayMap.get(st.day)!.stress = st.stress ?? null;
-      }
-    });
-
-    return Array.from(dayMap.values());
-  }, [insights]);
+  const formatTooltipDate = (label: unknown, payload: ReadonlyArray<{ payload?: { timestamp?: string } }> = []) => {
+    const timestamp = payload[0]?.payload?.timestamp;
+    if (!timestamp) return String(label ?? '');
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? String(label ?? '') : tooltipDateFormatter.format(date);
+  };
 
   // Loading State
   if (loading) {
@@ -337,11 +355,14 @@ export const InsightsPage: React.FC = () => {
             <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
               <strong>Mood Summary:</strong> Average {insights?.average_mood} out of 5 across {insights?.check_in_count} {insights?.check_in_count === 1 ? 'check-in' : 'check-ins'} in the last {days} days.
             </p>
+            {insights?.mood_trend.length === 1 && (
+              <p className="text-xs text-[#625F78]">One check-in is shown. Add another check-in to see how your mood changes over time.</p>
+            )}
 
             <div className="h-48 w-full mt-auto pt-1">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={insights?.mood_trend}
+                  data={moodChartData}
                   margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
@@ -361,6 +382,7 @@ export const InsightsPage: React.FC = () => {
                     aria-label="Mood score from 1 to 5"
                   />
                   <Tooltip
+                    labelFormatter={formatTooltipDate}
                     contentStyle={{
                       backgroundColor: '#FFFFFF',
                       borderColor: '#E8E6F1',
@@ -414,13 +436,16 @@ export const InsightsPage: React.FC = () => {
 
               {/* Accompanying plain text summary */}
               <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-                <strong>Sleep Summary:</strong> Average nightly rest was {insights?.average_sleep} hours over the last {days} days. The dashed line marks 7 hours.
+                <strong>Sleep Summary:</strong> Average nightly rest was {insights?.average_sleep} hours over the last {days} days. The dashed line is a 7-hour reference for comparison, not a clinical target.
               </p>
+              {insights?.sleep_trend.length === 1 && (
+                <p className="text-xs text-[#625F78]">One check-in is shown. Add another check-in to compare sleep across dates.</p>
+              )}
 
               <div className="h-48 w-full mt-auto pt-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={insights?.sleep_trend}
+                    data={sleepChartData}
                     margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
@@ -441,13 +466,14 @@ export const InsightsPage: React.FC = () => {
                       stroke="#BCD4C3"
                       strokeDasharray="4 4"
                       label={{
-                        value: '7h Reference',
-                        position: 'insideTopRight',
+                        value: '7h reference',
+                        position: 'insideTopLeft',
                         fill: '#245532',
                         fontSize: 10,
                       }}
                     />
                     <Tooltip
+                      labelFormatter={formatTooltipDate}
                       contentStyle={{
                         backgroundColor: '#FFFFFF',
                         borderColor: '#E8E6F1',
@@ -491,7 +517,7 @@ export const InsightsPage: React.FC = () => {
 
                 {/* Non-color-only legend */}
                 <div className="flex items-center gap-1.5 text-xs text-[#625F78]">
-                  <span className="inline-block w-3 h-1 bg-[#7A4D05] border-t border-dashed border-[#7A4D05]" aria-hidden="true" />
+                  <span className="inline-block w-3 h-0.5 bg-[#7A4D05]" aria-hidden="true" />
                   <span>Stress rating</span>
                 </div>
               </div>
@@ -500,11 +526,14 @@ export const InsightsPage: React.FC = () => {
               <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
                 <strong>Stress Summary:</strong> Average load was {insights?.average_stress} out of 5 over the last {days} days.
               </p>
+              {insights?.stress_trend.length === 1 && (
+                <p className="text-xs text-[#625F78]">One check-in is shown. Add another check-in to see how your stress rating changes over time.</p>
+              )}
 
               <div className="h-48 w-full mt-auto pt-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={insights?.stress_trend}
+                    data={stressChartData}
                     margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
@@ -522,6 +551,7 @@ export const InsightsPage: React.FC = () => {
                       tickLine={false}
                     />
                     <Tooltip
+                      labelFormatter={formatTooltipDate}
                       contentStyle={{
                         backgroundColor: '#FFFFFF',
                         borderColor: '#E8E6F1',
@@ -540,9 +570,8 @@ export const InsightsPage: React.FC = () => {
                       name="Stress Rating"
                       stroke="#7A4D05"
                       strokeWidth={(insights?.stress_trend?.length ?? 0) > 1 ? 2.5 : 0}
-                      strokeDasharray="6 4"
                       connectNulls={false}
-                      dot={{ r: 5, fill: '#FFFFFF', stroke: '#7A4D05', strokeWidth: 2 }}
+                      dot={{ r: 5, fill: '#7A4D05', stroke: '#FFFFFF', strokeWidth: 2 }}
                       activeDot={{ r: 7, stroke: '#7A4D05', strokeWidth: 2, fill: '#FFFFFF' }}
                     />
                   </LineChart>
@@ -586,7 +615,7 @@ export const InsightsPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-[#F0EFF7]">
                     {tableRows.map((row) => (
-                      <tr key={row.day} className="hover:bg-[#F7F6FB]/60 transition-colors">
+                      <tr key={row.recordIndex} className="hover:bg-[#F7F6FB]/60 transition-colors">
                         <th scope="row" className="py-2.5 px-3 font-medium text-[#25233B]">
                           {row.day}
                         </th>

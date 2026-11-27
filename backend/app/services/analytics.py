@@ -14,33 +14,8 @@ from app.models.schemas import CheckInRecord, InsightSummary
 from app.services.storage import storage
 
 
-def _format_day_label(timestamp_str: str, fallback_idx: int) -> str:
-    """Safely format an ISO timestamp into a calm, short day label (e.g. 'Tue 24')."""
-    try:
-        # Handle 'Z' or standard ISO strings
-        clean_ts = timestamp_str.replace("Z", "+00:00")
-        dt = datetime.fromisoformat(clean_ts)
-        return dt.strftime("%a %d")
-    except (ValueError, TypeError):
-        return f"Entry {fallback_idx + 1}"
-
-
-def _get_descriptive_mood_word(avg_mood: float) -> str:
-    if avg_mood >= 4.0:
-        return "feeling very steady"
-    if avg_mood >= 3.0:
-        return "generally okay"
-    if avg_mood >= 2.0:
-        return "feeling a bit weighed down"
-    return "facing a tough period"
-
-
-def _get_descriptive_stress_word(avg_stress: float) -> str:
-    if avg_stress <= 2.0:
-        return "well-managed"
-    if avg_stress <= 3.5:
-        return "moderate"
-    return "elevated"
+def _format_average(value: float) -> str:
+    return f"{value:.1f}".rstrip("0").rstrip(".")
 
 
 def compute_session_insights(
@@ -96,24 +71,30 @@ def compute_session_insights(
     stress_trend = []
 
     for idx, c in enumerate(filtered_records):
-        day_label = _format_day_label(c.timestamp, idx)
-        mood_trend.append({"day": day_label, "mood": c.mood, "route": c.route})
-        sleep_trend.append({"day": day_label, "sleep": round(c.sleep_hours, 1)})
-        stress_trend.append({"day": day_label, "stress": c.stress})
-
-    mood_word = _get_descriptive_mood_word(avg_mood)
-    stress_word = _get_descriptive_stress_word(avg_stress)
+        # The browser derives the visible label from this original timestamp so
+        # the chart uses the student's local timezone. Keep a safe fallback for
+        # clients that cannot parse the timestamp.
+        common = {
+            "day": f"Entry {idx + 1}",
+            "timestamp": c.timestamp,
+            "record_index": idx,
+        }
+        mood_trend.append({**common, "mood": c.mood, "route": c.route})
+        sleep_trend.append({**common, "sleep": round(c.sleep_hours, 1)})
+        stress_trend.append({**common, "stress": c.stress})
 
     if count == 1:
         plain_summary = (
-            f"Based on your first check-in, you've been {mood_word} with "
-            f"{avg_sleep:.1f} hours of sleep and {stress_word} stress. "
-            "More detailed patterns will emerge as you log future check-ins."
+            f"Based on your first check-in, mood was {_format_average(avg_mood)} out of 5, "
+            f"sleep was {_format_average(avg_sleep)} hours, and stress was rated "
+            f"{_format_average(avg_stress)} out of 5."
         )
     else:
         plain_summary = (
-            f"Across your last {count} check-ins, your mood averaged {avg_mood:.1f}/5 ({mood_word}), "
-            f"averaging {avg_sleep:.1f} hours of sleep with {stress_word} stress levels."
+            f"Across your last {count} check-ins, your average mood was "
+            f"{_format_average(avg_mood)} out of 5, sleep averaged "
+            f"{_format_average(avg_sleep)} hours, and stress was rated "
+            f"{_format_average(avg_stress)} out of 5."
         )
 
     return InsightSummary(
