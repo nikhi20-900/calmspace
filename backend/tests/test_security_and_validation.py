@@ -704,9 +704,7 @@ def test_simultaneous_rotations_cannot_overwrite_each_other():
             )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-            results = list(
-                pool.map(lambda _: attempt_storage_rotate(), range(6))
-            )
+            results = list(pool.map(lambda _: attempt_storage_rotate(), range(6)))
 
         winners = [r for r in results if r is not None]
         assert len(winners) == 1
@@ -752,7 +750,9 @@ def test_simultaneous_rotations_cannot_overwrite_each_other():
 
         new_secret = successes[0].json()["session_secret"]
         assert new_secret != old_secret
-        assert client.get("/api/checkin/history", headers=old_headers).status_code == 401
+        assert (
+            client.get("/api/checkin/history", headers=old_headers).status_code == 401
+        )
         new_headers = {"Authorization": f"Bearer {session_id}.{new_secret}"}
         hist = client.get("/api/checkin/history", headers=new_headers)
         assert hist.status_code == 200
@@ -830,7 +830,9 @@ def test_session_secret_and_pepper_never_leak_to_logs_streams_or_responses(
             with monkeypatch.context() as m:
                 m.setattr(storage, "get_checkins", broken_get_checkins)
                 no_raise_client = TestClient(app, raise_server_exceptions=False)
-                err_503_db = no_raise_client.get("/api/checkin/history", headers=headers_2)
+                err_503_db = no_raise_client.get(
+                    "/api/checkin/history", headers=headers_2
+                )
                 assert err_503_db.status_code == 503
 
             with monkeypatch.context() as m:
