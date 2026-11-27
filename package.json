@@ -6,6 +6,7 @@
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "preview": "npm --prefix frontend run preview",
+    "test": "npm --prefix frontend test",
     "backend": "uvicorn app.main:app --app-dir backend --reload --port 8000",
     "test:backend": "cd backend && pytest"
   },

@@ -12,12 +12,11 @@ import tempfile
 from datetime import UTC, datetime, timedelta, timezone
 
 import httpx
-from fastapi.testclient import TestClient
-
 from app.core import config as core_config
 from app.main import app
 from app.services.ai_guidance import rate_limiter
 from app.services.storage import CalmspaceStorage, storage
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

@@ -6,10 +6,9 @@ import re
 import sqlite3
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
 from app.main import app, resolve_cors_settings
 from app.services.storage import storage
+from fastapi.testclient import TestClient
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

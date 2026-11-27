@@ -10,7 +10,8 @@ import {
 
 import { CANONICAL_SUPPORT_RESOURCES } from './supportResources';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const API_BASE_URL = rawApiBaseUrl.endsWith('/api') ? rawApiBaseUrl : `${rawApiBaseUrl}/api`;
 const REQUEST_TIMEOUT_MS = 15000;
 const SESSION_CREDENTIAL_KEY = 'calmspace_session_credential';
 const LEGACY_SESSION_ID_KEY = 'calmspace_anonymous_session_id';

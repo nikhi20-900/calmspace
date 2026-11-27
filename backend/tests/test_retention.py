@@ -23,11 +23,10 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.models.schemas import UserSettings
 from app.services.storage import CalmspaceStorage
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture

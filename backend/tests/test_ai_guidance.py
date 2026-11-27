@@ -13,7 +13,6 @@ import json
 import logging
 
 import pytest
-
 from app.core import config as core_config
 from app.core.config import AIServiceConfig
 from app.services.ai_guidance import generate_supportive_guidance, rate_limiter
@@ -518,7 +517,6 @@ def test_gemini_missing_api_key_fails_closed(monkeypatch):
 def test_gemini_provider_header_authentication_no_query_param(monkeypatch):
     """Verifies Gemini API credentials are sent strictly in HTTP headers, never in URL query parameters."""
     import httpx
-
     from app.services.ai_providers.gemini_provider import GeminiAIProvider
 
     captured_requests = []
@@ -641,7 +639,6 @@ def test_load_local_env_populates_gemini_config(tmp_path, monkeypatch):
 def test_gemini_invalid_credentials_return_safe_fallback(monkeypatch, caplog):
     """Invalid Gemini API credentials fail safely to deterministic fallback without leaking key."""
     import httpx
-
     from app.services.ai_providers.gemini_provider import GeminiAIProvider
 
     fake_invalid_key = "invalid-gemini-credential-xyz"

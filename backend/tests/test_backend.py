@@ -4,15 +4,14 @@ Verifies core safety rules, privacy retention, and routing.
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
-
 from app.main import app
 from app.models.schemas import CheckInRequest
 from app.services.ai_guidance import generate_supportive_guidance
 from app.services.safety_evaluator import evaluate_wellbeing_route
 from app.services.storage import storage
 from app.services.support_directory import get_support_directory
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 
 def test_safety_rules():
