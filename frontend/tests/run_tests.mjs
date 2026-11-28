@@ -646,7 +646,7 @@ test('UI source contracts verify Safe Exit, Planner editNotice, Settings accessi
     path.join(frontendRoot, 'src/pages/InsightsPage.tsx'),
     'utf8'
   );
-  assert.ok(insightsPage.includes('7h Reference'));
+  assert.ok(insightsPage.includes('7h reference'));
 });
 
 test('aggregateDailyMoodTrend merges repeated same-day check-ins and preserves chronological order', () => {
