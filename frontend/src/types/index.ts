@@ -68,9 +68,9 @@ export interface InsightSummary {
   average_sleep: number;
   check_in_count: number;
   plain_summary: string;
-  mood_trend: Array<{ day: string; mood: number; route: RiskRoute }>;
-  sleep_trend: Array<{ day: string; sleep: number }>;
-  stress_trend: Array<{ day: string; stress: number }>;
+  mood_trend: Array<{ day: string; timestamp?: string; mood: number; route: RiskRoute }>;
+  sleep_trend: Array<{ day: string; timestamp?: string; sleep: number }>;
+  stress_trend: Array<{ day: string; timestamp?: string; stress: number }>;
 }
 
 export interface StudyTask {
