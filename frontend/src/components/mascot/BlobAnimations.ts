@@ -305,6 +305,7 @@ export class BlobAnimationController {
     const audioRate = this.targetAudioLevel > this.smoothedAudioLevel ? 18 : 9;
     this.smoothedAudioLevel = smooth(this.smoothedAudioLevel, this.targetAudioLevel, audioRate, dt);
     const audio = calm ? this.smoothedAudioLevel * 0.2 : this.smoothedAudioLevel;
+    const speechOpen = smoothstep01((audio - 0.025) / 0.22);
 
     if (!calm) {
       floatElevation =
@@ -373,13 +374,14 @@ export class BlobAnimationController {
         tintB = 0.07;
         break;
       case 'speaking':
-        floatElevation += (calm ? 0 : Math.sin(sec * 2.2) * 0.015) + audio * 0.03;
+        floatElevation += (calm ? 0 : Math.sin(sec * 2.2) * 0.015) + speechOpen * 0.025;
         bodyRoll = calm ? 0 : Math.sin(sec * 1.5) * 0.025;
-        eyeOpen = 1.12;
+        eyeOpen = 1.16 - speechOpen * 0.08;
         eyeAngleZ = 0.05;
         eyeSizeScale = 1.02;
-        mouthScaleX = 1.08 + audio * 0.24;
-        mouthScaleY = 1.05 + audio * 0.65;
+        // Let the mouth relax between syllables, then open smoothly with TTS amplitude.
+        mouthScaleX = 0.86 + speechOpen * 0.52;
+        mouthScaleY = 0.35 + speechOpen * 1.4;
         blushOpacity = 0.62 + audio * 0.12;
         tintR = 0.03;
         tintG = 0.02;

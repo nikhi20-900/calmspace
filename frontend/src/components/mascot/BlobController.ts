@@ -69,8 +69,10 @@ export class BlobController {
   private readonly mouthBase = new THREE.Vector3();
   private readonly shadowTexture: THREE.CanvasTexture;
   private disposed = false;
+  private voiceLevel = 0;
+  private targetVoiceLevel = 0;
 
-  constructor(quality: BlobQuality = BLOB_QUALITY_HIGH) {
+  constructor(quality: BlobQuality = BLOB_QUALITY_HIGH, bodyColor = 0xa79de3) {
     this.rootGroup = new THREE.Group();
     this.rootGroup.name = 'calmspace_mascot_root';
 
@@ -78,7 +80,7 @@ export class BlobController {
     const { geometry, minY } = createBlobBodyGeometry(quality.segments, quality.segments);
     this.minY = minY;
     this.floorY = minY - 0.01;
-    this.bodyMesh = new THREE.Mesh(geometry, createBlobBodyMaterial(this.uniforms));
+    this.bodyMesh = new THREE.Mesh(geometry, createBlobBodyMaterial(this.uniforms, bodyColor));
     this.bodyMesh.name = 'blob_body';
     this.bodyMesh.frustumCulled = false; // shader displacement leaves the static bounds
 
@@ -152,6 +154,11 @@ export class BlobController {
     this.animController.setExternalBreath(phase01);
   }
 
+  /** Smooth microphone activity into a small, volume-preserving body pulse. */
+  setVoiceLevel(level: number) {
+    this.targetVoiceLevel = THREE.MathUtils.clamp(level, 0, 1);
+  }
+
   /** `active` = a real target (pointer / CTA); otherwise the eyes idle-wander. */
   setGaze(normX: number, normY: number, active = true) {
     this.animController.setTargetGaze(normX, normY, active);
@@ -203,12 +210,15 @@ export class BlobController {
     ph.step(dt);
 
     const pose = this.animController.update(dt, totalTime, isReducedMotion);
+    this.voiceLevel +=
+      (this.targetVoiceLevel - this.voiceLevel) * (1 - Math.exp(-10 * dt));
 
     // --- Body transform: volume-preserving, planted on the floor -----------------------
     const breathDelta = pose.breatheScale - 1;
-    let sx = ph.scaleX.value * (1 + breathDelta * 0.78);
-    let sy = ph.scaleY.value * (1 + breathDelta * 0.46);
-    let sz = ph.scaleZ.value * (1 + breathDelta * 1.08);
+    const voicePulse = this.voiceLevel * 0.055;
+    let sx = ph.scaleX.value * (1 + breathDelta * 0.78 + voicePulse * 0.55);
+    let sy = ph.scaleY.value * (1 + breathDelta * 0.46 + voicePulse);
+    let sz = ph.scaleZ.value * (1 + breathDelta * 1.08 + voicePulse * 0.2);
     // Keep the clay's volume (≈ constant): squash must bulge elsewhere. A tiny residual
     // is allowed so breathing still reads as the body filling with air.
     const volume = Math.cbrt(sx * sy * sz) / (1 + breathDelta * 0.55);
