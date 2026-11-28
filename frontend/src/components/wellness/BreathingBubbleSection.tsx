@@ -196,6 +196,7 @@ export const BreathingBubbleSection: React.FC = () => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const lastCuePhaseRef = useRef<string | null>(null);
   const completionRecordedRef = useRef(false);
+  const activeAudioNodesRef = useRef<OscillatorNode[]>([]);
 
   const pattern =
     BREATHING_PATTERNS.find((p) => p.id === patternId) || BREATHING_PATTERNS[0];
@@ -228,6 +229,18 @@ export const BreathingBubbleSection: React.FC = () => {
     }
   };
 
+  const stopActiveTones = () => {
+    for (const node of activeAudioNodesRef.current) {
+      try {
+        node.stop();
+        node.disconnect();
+      } catch {
+        // Ignore already-stopped oscillators
+      }
+    }
+    activeAudioNodesRef.current = [];
+  };
+
   const playTone = (freq: number, durationSec: number, peakGain = 0.14, delaySec = 0) => {
     const ctx = ensureAudioContext();
     if (!ctx) return;
@@ -254,6 +267,13 @@ export const BreathingBubbleSection: React.FC = () => {
       harmonicGain.connect(gain);
       gain.connect(ctx.destination);
 
+      activeAudioNodesRef.current.push(osc, harmonic);
+      osc.onended = () => {
+        activeAudioNodesRef.current = activeAudioNodesRef.current.filter(
+          (n) => n !== osc && n !== harmonic
+        );
+      };
+
       osc.start(startAt);
       harmonic.start(startAt);
       osc.stop(startAt + durationSec + 0.02);
@@ -278,13 +298,14 @@ export const BreathingBubbleSection: React.FC = () => {
 
   const playCompletionChime = () => {
     if (!soundEnabled) return;
-    // Clear, pleasant 3-pulse completion alarm ring + final bell
-    const pulseStarts = [0.0, 0.52, 1.04];
-    for (const offset of pulseStarts) {
-      playTone(880.0, 0.18, 0.18, offset);
-      playTone(1046.5, 0.22, 0.18, offset + 0.16);
+    // ~7-second clear repeating alarm ring (6 two-tone bell cycles + final chime)
+    const cycleOffsets = [0.0, 1.05, 2.1, 3.15, 4.2, 5.25];
+    for (const offset of cycleOffsets) {
+      playTone(880.0, 0.22, 0.18, offset);
+      playTone(1046.5, 0.26, 0.18, offset + 0.22);
+      playTone(1318.5, 0.34, 0.16, offset + 0.46);
     }
-    playTone(1318.5, 0.9, 0.2, 1.56);
+    playTone(1046.5, 1.2, 0.2, 6.3);
   };
 
   useEffect(() => {
@@ -327,6 +348,7 @@ export const BreathingBubbleSection: React.FC = () => {
   }, []);
 
   const resetSession = () => {
+    stopActiveTones();
     setStatus('idle');
     setElapsedMs(0);
     setSyncStreak(0);
@@ -368,6 +390,8 @@ export const BreathingBubbleSection: React.FC = () => {
     if (next) {
       ensureAudioContext();
       playTone(523.25, 0.4, 0.12);
+    } else {
+      stopActiveTones();
     }
   };
 
