@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -30,6 +30,7 @@ import {
 import { api } from '../services/api';
 import { InsightSummary, CheckInRecord, UserSettings } from '../types';
 import { usePrivacyModal } from '../context/PrivacyModalContext';
+import { aggregateDailyMoodTrend } from '../utils/moodTrend';
 
 export const OverviewPage: React.FC = () => {
   const { openPrivacyModal } = usePrivacyModal();
@@ -89,6 +90,11 @@ export const OverviewPage: React.FC = () => {
     return 'Good evening';
   };
 
+  const dailyMoodTrend = useMemo(
+    () => aggregateDailyMoodTrend(insights?.mood_trend),
+    [insights?.mood_trend]
+  );
+
   if (loading) {
     return <LoadingState message="Welcoming you to Calmspace..." />;
   }
@@ -124,7 +130,7 @@ export const OverviewPage: React.FC = () => {
       )}
 
       {/* Editorial Welcome Header */}
-      <section className="bg-gradient-to-r from-[#F0EFFC] via-[#F7F6FB] to-[#F4DCCB]/20 p-6 sm:p-8 rounded-card border border-[#E8E6F1] shadow-soft">
+      <section className="bg-gradient-to-r from-[#F0EFFC] via-[#F7F6FB] to-[#F4DCCB]/20 p-4 sm:p-6 md:p-8 rounded-card border border-[#E8E6F1] shadow-soft">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#5554B8]">
@@ -193,16 +199,16 @@ export const OverviewPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <a
             href="tel:14416"
-            className="text-xs font-semibold px-3 py-1.5 rounded-button bg-[#E9E7FB] text-[#5554B8] hover:bg-[#DCD8F7] transition-colors"
+            className="text-xs font-semibold px-3 py-2 rounded-button bg-[#E9E7FB] text-[#5554B8] hover:bg-[#DCD8F7] transition-colors"
           >
             Call 14416
           </a>
           <Link
             to="/support"
-            className="text-xs font-semibold px-3 py-1.5 rounded-button bg-white border border-[#E8E6F1] text-[#25233B] hover:bg-[#F7F6FB] transition-colors flex items-center gap-1"
+            className="text-xs font-semibold px-3 py-2 rounded-button bg-white border border-[#E8E6F1] text-[#25233B] hover:bg-[#F7F6FB] transition-colors flex items-center gap-1"
           >
             <span>Full directory</span>
             <ArrowRight className="w-3 h-3" />
@@ -296,65 +302,85 @@ export const OverviewPage: React.FC = () => {
           {/* Trends & Study Break Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Weekly Mood Trend Rechart */}
-            <Card padding="lg" className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
+            <Card padding="lg" className="lg:col-span-2 min-w-0 space-y-4">
+              <div className="flex flex-wrap items-start sm:items-center justify-between gap-2">
                 <div>
                   <h2 className="text-base font-bold text-[#25233B]">
                     Weekly Mood Pattern
                   </h2>
                   <p className="text-xs text-[#625F78] mt-0.5">
-                    Gentle snapshot of your daily baseline over the last 7 entries.
+                    Daily average mood across your recent check-in days.
                   </p>
                 </div>
                 <Link
                   to="/insights"
-                  className="text-xs font-semibold text-[#5554B8] hover:text-[#4645A7] flex items-center gap-1"
+                  className="text-xs font-semibold text-[#5554B8] hover:text-[#4645A7] flex items-center gap-1 shrink-0"
                 >
                   <span>Detailed insights</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
 
-              {insights && insights.mood_trend.length >= 2 ? (
-                <div className="h-48 w-full pt-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={insights.mood_trend}>
-                      <XAxis
-                        dataKey="day"
-                        stroke="#8E8AA7"
-                        fontSize={11}
-                        tickLine={false}
-                        axisLine={{ stroke: '#E8E6F1' }}
-                      />
-                      <YAxis
-                        domain={[1, 5]}
-                        ticks={[1, 2, 3, 4, 5]}
-                        stroke="#8E8AA7"
-                        fontSize={11}
-                        tickLine={false}
-                        axisLine={{ stroke: '#E8E6F1' }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#FFFFFF',
-                          borderColor: '#E8E6F1',
-                          borderRadius: '12px',
-                          boxShadow: '0 4px 20px rgba(91,91,214,0.08)',
-                          fontSize: '12px',
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="mood"
-                        stroke="#5554B8"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, fill: '#5554B8', strokeWidth: 2, stroke: '#FFFFFF' }}
-                        activeDot={{ r: 6, fill: '#4645A7' }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                  {insights.plain_summary && (
-                    <p className="text-xs text-[#625F78] text-center mt-2 italic">
+              {dailyMoodTrend.length >= 1 ? (
+                <div className="w-full min-w-0 pt-2 space-y-2">
+                  <div className="h-48 w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={dailyMoodTrend}
+                        margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
+                      >
+                        <XAxis
+                          dataKey="day"
+                          stroke="#8E8AA7"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={{ stroke: '#E8E6F1' }}
+                        />
+                        <YAxis
+                          domain={[1, 5]}
+                          ticks={[1, 2, 3, 4, 5]}
+                          stroke="#8E8AA7"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={{ stroke: '#E8E6F1' }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#E8E6F1',
+                            borderRadius: '12px',
+                            boxShadow: '0 4px 20px rgba(91,91,214,0.08)',
+                            fontSize: '12px',
+                          }}
+                          labelFormatter={(label) => `Day: ${label}`}
+                          formatter={(value: unknown, _name: unknown, item: { payload?: { count?: number } }) => {
+                            const avg = typeof value === 'number' ? value.toFixed(1) : '—';
+                            const count = item?.payload?.count ?? 1;
+                            return [
+                              `${avg} / 5 (${count} ${count === 1 ? 'check-in' : 'check-ins'})`,
+                              'Daily Average Mood',
+                            ];
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="mood"
+                          name="Daily Average Mood"
+                          stroke="#5554B8"
+                          strokeWidth={dailyMoodTrend.length > 1 ? 2.5 : 0}
+                          dot={{ r: 4, fill: '#5554B8', strokeWidth: 2, stroke: '#FFFFFF' }}
+                          activeDot={{ r: 6, fill: '#4645A7' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {dailyMoodTrend.length === 1 && (
+                    <p className="text-xs text-[#625F78] text-center">
+                      Single-day baseline recorded ({dailyMoodTrend[0].day}: {dailyMoodTrend[0].mood.toFixed(1)} / 5). Check in on another day to see your multi-day trend line.
+                    </p>
+                  )}
+                  {insights?.plain_summary && (
+                    <p className="text-xs text-[#625F78] text-center italic">
                       "{insights.plain_summary}"
                     </p>
                   )}
@@ -362,7 +388,7 @@ export const OverviewPage: React.FC = () => {
               ) : (
                 <div className="h-40 flex flex-col items-center justify-center text-xs text-[#625F78] text-center p-4 bg-[#F7F6FB] rounded-button border border-[#E8E6F1]/50">
                   <Calendar className="w-5 h-5 text-[#8E8AA7] mb-1.5" />
-                  <span>Complete 2 or more daily check-ins to view your personal trend graph.</span>
+                  <span>Complete check-ins across 2 or more days to view your personal trend graph.</span>
                 </div>
               )}
             </Card>
@@ -396,7 +422,7 @@ export const OverviewPage: React.FC = () => {
                 </Button>
               </div>
 
-              <div className="pt-2 border-t border-[#F0EFF7] flex items-center justify-between text-xs text-[#625F78]">
+              <div className="pt-2 border-t border-[#F0EFF7] flex flex-wrap items-center justify-between gap-2 text-xs text-[#625F78]">
                 <Link to="/planner" className="hover:text-[#5554B8] flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#5554B8] rounded">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>Open study planner</span>
@@ -412,7 +438,7 @@ export const OverviewPage: React.FC = () => {
       )}
 
       {/* Privacy Footnote */}
-      <div className="flex items-center justify-center gap-2 pt-4 pb-2 text-xs text-[#625F78]">
+      <div className="flex flex-wrap items-center justify-center gap-2 pt-4 pb-2 text-xs text-[#625F78] text-center">
         <ShieldCheck className="w-4 h-4 text-[#245532]" />
         <span>Anonymous session.</span>
         <span>·</span>
