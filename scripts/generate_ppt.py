@@ -1,7 +1,7 @@
 """
-Calmspace PowerPoint Generator Script
-Generates a 16:9 widescreen presentation matching the Soft Editorial Wellness design.
-Content drawn directly from README.md, architecture docs, and GitHub deliverables.
+Calmspace Professional PowerPoint Generator
+Generates a 16:9 widescreen executive presentation (12 slides) for
+https://github.com/nikhi20-900/calmspace matching the Soft Editorial Wellness design.
 """
 
 import os
@@ -11,46 +11,70 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 
-# Calmspace Brand Color Palette
-COLOR_BG = RGBColor(247, 246, 251)         # #F7F6FB Serene Canvas
-COLOR_SURFACE = RGBColor(255, 255, 255)    # #FFFFFF Card Surface
-COLOR_PRIMARY = RGBColor(85, 84, 184)      # #5554B8 Deep Indigo
-COLOR_PRIMARY_DARK = RGBColor(55, 54, 130) # Dark Indigo
-COLOR_LAVENDER = RGBColor(233, 231, 251)   # #E9E7FB Soft Lavender Accent
-COLOR_SAGE = RGBColor(220, 233, 223)       # #DCE9DF Soft Sage Indicator
-COLOR_PEACH = RGBColor(244, 220, 203)      # #F4DCCB Soft Peach Accent
-COLOR_TEXT_MAIN = RGBColor(37, 35, 59)     # #25233B Deep Warm Ink
-COLOR_TEXT_MUTED = RGBColor(98, 95, 120)   # #625F78 Secondary Ink
-COLOR_BORDER = RGBColor(232, 230, 241)     # #E8E6F1 Subtle Border
+# ---------------------------------------------------------------------------
+# Calmspace Soft Editorial Wellness Palette
+# ---------------------------------------------------------------------------
+COLOR_BG = RGBColor(247, 246, 251)          # #F7F6FB Serene Canvas
+COLOR_SURFACE = RGBColor(255, 255, 255)     # #FFFFFF Card Surface
+COLOR_PRIMARY = RGBColor(85, 84, 184)       # #5554B8 Deep Indigo
+COLOR_PRIMARY_DARK = RGBColor(55, 54, 130)  # #373682 Dark Indigo
+COLOR_LAVENDER = RGBColor(233, 231, 251)    # #E9E7FB Soft Lavender
+COLOR_SAGE = RGBColor(220, 233, 223)        # #DCE9DF Soft Sage
+COLOR_SAGE_TEXT = RGBColor(36, 85, 50)      # #245532 Deep Sage
+COLOR_PEACH = RGBColor(244, 220, 203)       # #F4DCCB Soft Peach
+COLOR_PEACH_TEXT = RGBColor(140, 74, 34)    # #8C4A22 Deep Peach/Amber
+COLOR_ROSE = RGBColor(252, 228, 232)        # #FCE4E8 Soft Rose
+COLOR_ROSE_TEXT = RGBColor(166, 38, 57)     # #A62639 Deep Rose
+COLOR_TEXT_MAIN = RGBColor(37, 35, 59)      # #25233B Deep Warm Ink
+COLOR_TEXT_MUTED = RGBColor(98, 95, 120)    # #625F78 Secondary Ink
+COLOR_BORDER = RGBColor(232, 230, 241)      # #E8E6F1 Subtle Border
 COLOR_WHITE = RGBColor(255, 255, 255)
 
 FONT_HEADING = "Segoe UI"
 FONT_BODY = "Segoe UI"
+REPO_URL = "github.com/nikhi20-900/calmspace"
+TOTAL_SLIDES = 12
 
 
-def set_slide_background(slide, color):
-    background = slide.background
-    fill = background.fill
+def set_slide_background(slide, color=COLOR_BG):
+    fill = slide.background.fill
     fill.solid()
     fill.fore_color.rgb = color
 
 
-def add_header(slide, title_text, category_badge="CALMSPACE"):
-    # Category badge
-    badge_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.4), Inches(8), Inches(0.4))
-    tf_badge = badge_box.text_frame
-    tf_badge.word_wrap = True
-    p_badge = tf_badge.paragraphs[0]
-    p_badge.text = category_badge.upper()
-    p_badge.font.name = FONT_HEADING
-    p_badge.font.size = Pt(11)
-    p_badge.font.bold = True
-    p_badge.font.color.rgb = COLOR_PRIMARY
+def add_header(slide, title_text, category_badge, slide_num):
+    # Top subtle accent bar
+    bar = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(13.333), Inches(0.08)
+    )
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = COLOR_PRIMARY
+    bar.line.fill.background()
+
+    # Category pill
+    pill = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.75), Inches(0.32), Inches(3.2), Inches(0.32)
+    )
+    pill.fill.solid()
+    pill.fill.fore_color.rgb = COLOR_LAVENDER
+    pill.line.fill.background()
+    tf_p = pill.text_frame
+    tf_p.word_wrap = False
+    tf_p.margin_left = Inches(0.12)
+    tf_p.margin_top = Inches(0.03)
+    p_p = tf_p.paragraphs[0]
+    p_p.text = category_badge.upper()
+    p_p.font.name = FONT_HEADING
+    p_p.font.size = Pt(10)
+    p_p.font.bold = True
+    p_p.font.color.rgb = COLOR_PRIMARY
 
     # Title
-    title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.7), Inches(11), Inches(0.8))
+    title_box = slide.shapes.add_textbox(Inches(0.75), Inches(0.72), Inches(11.8), Inches(0.65))
     tf_title = title_box.text_frame
     tf_title.word_wrap = True
+    tf_title.margin_left = 0
+    tf_title.margin_top = 0
     p_title = tf_title.paragraphs[0]
     p_title.text = title_text
     p_title.font.name = FONT_HEADING
@@ -58,613 +82,828 @@ def add_header(slide, title_text, category_badge="CALMSPACE"):
     p_title.font.bold = True
     p_title.font.color.rgb = COLOR_TEXT_MAIN
 
+    # Footer
+    footer_left = slide.shapes.add_textbox(Inches(0.75), Inches(7.05), Inches(8.0), Inches(0.3))
+    tf_fl = footer_left.text_frame
+    p_fl = tf_fl.paragraphs[0]
+    p_fl.text = f"Calmspace  •  Student Wellbeing Companion  •  {REPO_URL}"
+    p_fl.font.name = FONT_BODY
+    p_fl.font.size = Pt(9.5)
+    p_fl.font.color.rgb = COLOR_TEXT_MUTED
 
-def add_card(slide, left, top, width, height, bg_color=COLOR_SURFACE, border_color=COLOR_BORDER):
+    footer_right = slide.shapes.add_textbox(Inches(11.3), Inches(7.05), Inches(1.28), Inches(0.3))
+    tf_fr = footer_right.text_frame
+    p_fr = tf_fr.paragraphs[0]
+    p_fr.alignment = PP_ALIGN.RIGHT
+    p_fr.text = f"{slide_num} / {TOTAL_SLIDES}"
+    p_fr.font.name = FONT_BODY
+    p_fr.font.size = Pt(9.5)
+    p_fr.font.bold = True
+    p_fr.font.color.rgb = COLOR_PRIMARY
+
+
+def add_card(
+    slide,
+    left,
+    top,
+    width,
+    height,
+    bg_color=COLOR_SURFACE,
+    border_color=COLOR_BORDER,
+    accent_top_color=None,
+):
     shape = slide.shapes.add_shape(
         MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height
     )
+    shape.adjustments[0] = 0.04
     shape.fill.solid()
     shape.fill.fore_color.rgb = bg_color
     shape.line.color.rgb = border_color
-    shape.line.width = Pt(1.2)
+    shape.line.width = Pt(1.1)
+
+    if accent_top_color is not None:
+        strip = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE,
+            left + Inches(0.18),
+            top + Inches(0.14),
+            Inches(0.55),
+            Inches(0.06),
+        )
+        strip.fill.solid()
+        strip.fill.fore_color.rgb = accent_top_color
+        strip.line.fill.background()
     return shape
 
 
-def add_bullet_point(text_frame, bold_prefix, text_content, pt_size=13):
-    p = text_frame.add_paragraph()
-    p.space_after = Pt(8)
-    p.space_before = Pt(2)
-    
-    run_bullet = p.add_run()
-    run_bullet.text = "• "
-    run_bullet.font.name = FONT_BODY
-    run_bullet.font.bold = True
-    run_bullet.font.size = Pt(pt_size)
-    run_bullet.font.color.rgb = COLOR_PRIMARY
+def add_card_title(slide, left, top, width, title, subtitle=None, color=COLOR_TEXT_MAIN):
+    tb = slide.shapes.add_textbox(left, top, width, Inches(0.75))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.margin_left = 0
+    tf.margin_top = 0
+    p = tf.paragraphs[0]
+    p.text = title
+    p.font.name = FONT_HEADING
+    p.font.size = Pt(16)
+    p.font.bold = True
+    p.font.color.rgb = color
+    if subtitle:
+        p2 = tf.add_paragraph()
+        p2.text = subtitle
+        p2.font.name = FONT_BODY
+        p2.font.size = Pt(11.5)
+        p2.font.color.rgb = COLOR_TEXT_MUTED
+        p2.space_before = Pt(3)
+    return tb
 
-    run_bold = p.add_run()
-    run_bold.text = bold_prefix + (" " if bold_prefix else "")
-    run_bold.font.name = FONT_BODY
-    run_bold.font.bold = True
-    run_bold.font.size = Pt(pt_size)
-    run_bold.font.color.rgb = COLOR_TEXT_MAIN
 
-    run_body = p.add_run()
-    run_body.text = text_content
-    run_body.font.name = FONT_BODY
-    run_body.font.bold = False
-    run_body.font.size = Pt(pt_size)
-    run_body.font.color.rgb = COLOR_TEXT_MUTED
+def add_bullets(slide, left, top, width, height, items, pt_size=12.5, space_after=8):
+    tb = slide.shapes.add_textbox(left, top, width, height)
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.margin_left = 0
+    tf.margin_top = 0
+    for idx, (prefix, body) in enumerate(items):
+        p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+        p.space_after = Pt(space_after)
+
+        r_bul = p.add_run()
+        r_bul.text = "•  "
+        r_bul.font.name = FONT_BODY
+        r_bul.font.bold = True
+        r_bul.font.size = Pt(pt_size)
+        r_bul.font.color.rgb = COLOR_PRIMARY
+
+        if prefix:
+            r_pre = p.add_run()
+            r_pre.text = prefix + " "
+            r_pre.font.name = FONT_BODY
+            r_pre.font.bold = True
+            r_pre.font.size = Pt(pt_size)
+            r_pre.font.color.rgb = COLOR_TEXT_MAIN
+
+        r_body = p.add_run()
+        r_body.text = body
+        r_body.font.name = FONT_BODY
+        r_body.font.size = Pt(pt_size)
+        r_body.font.color.rgb = COLOR_TEXT_MUTED
+    return tb
 
 
 def build_presentation():
     prs = Presentation()
-    # 16:9 Widescreen layout: 13.333 x 7.5 inches
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
-    blank_layout = prs.slide_layouts[6]
+    blank = prs.slide_layouts[6]
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    mascot_path = os.path.join(repo_root, "docs", "assets", "calmspace_mascot.jpg")
 
     # =========================================================================
     # SLIDE 1: Title Slide
     # =========================================================================
-    s1 = prs.slides.add_slide(blank_layout)
+    s1 = prs.slides.add_slide(blank)
     set_slide_background(s1, COLOR_BG)
 
-    # Left content container
-    add_card(s1, Inches(0.8), Inches(1.0), Inches(7.4), Inches(5.5), COLOR_SURFACE)
-    
-    tb = s1.shapes.add_textbox(Inches(1.2), Inches(1.3), Inches(6.6), Inches(4.8))
-    tf = tb.text_frame
-    tf.word_wrap = True
-
-    p0 = tf.paragraphs[0]
-    p0.text = "STUDENT WELLBEING COMPANION"
-    p0.font.name = FONT_HEADING
-    p0.font.size = Pt(12)
-    p0.font.bold = True
-    p0.font.color.rgb = COLOR_PRIMARY
-    p0.space_after = Pt(12)
-
-    p1 = tf.add_paragraph()
-    p1.text = "Calmspace"
-    p1.font.name = FONT_HEADING
-    p1.font.size = Pt(44)
-    p1.font.bold = True
-    p1.font.color.rgb = COLOR_TEXT_MAIN
-    p1.space_after = Pt(8)
-
-    p2 = tf.add_paragraph()
-    p2.text = "A quieter space to check in with yourself."
-    p2.font.name = FONT_BODY
-    p2.font.size = Pt(18)
-    p2.font.italic = True
-    p2.font.color.rgb = COLOR_TEXT_MUTED
-    p2.space_after = Pt(20)
-
-    p3 = tf.add_paragraph()
-    p3.text = "Built around thoughtful design, deterministic safety, and human support."
-    p3.font.name = FONT_BODY
-    p3.font.size = Pt(14)
-    p3.font.color.rgb = COLOR_TEXT_MAIN
-    p3.space_after = Pt(24)
-
-    # Core principle pill
-    p4 = tf.add_paragraph()
-    p4.text = "Core Architecture Principle:"
-    p4.font.name = FONT_HEADING
-    p4.font.size = Pt(11)
-    p4.font.bold = True
-    p4.font.color.rgb = COLOR_TEXT_MUTED
-    p4.space_after = Pt(4)
-
-    p5 = tf.add_paragraph()
-    p5.text = "« Rules decide safety. AI writes language. Humans provide care. »"
-    p5.font.name = FONT_HEADING
-    p5.font.size = Pt(13)
-    p5.font.bold = True
-    p5.font.color.rgb = COLOR_PRIMARY
-
-    # Right side: Mascot Image Card
-    add_card(s1, Inches(8.5), Inches(1.0), Inches(4.0), Inches(5.5), COLOR_SURFACE)
-    mascot_img_path = "docs/assets/calmspace_mascot.jpg"
-    if os.path.exists(mascot_img_path):
-        s1.shapes.add_picture(mascot_img_path, Inches(8.75), Inches(1.25), width=Inches(3.5))
-
-    tb_sub = s1.shapes.add_textbox(Inches(8.5), Inches(5.6), Inches(4.0), Inches(0.8))
-    tf_sub = tb_sub.text_frame
-    tf_sub.word_wrap = True
-    p_sub = tf_sub.paragraphs[0]
-    p_sub.alignment = PP_ALIGN.CENTER
-    p_sub.text = "Interactive 3D Mascot — Digital Sanctuary"
-    p_sub.font.name = FONT_BODY
-    p_sub.font.size = Pt(12)
-    p_sub.font.bold = True
-    p_sub.font.color.rgb = COLOR_PRIMARY_DARK
-
-    s1.notes_slide.notes_text_frame.text = (
-        "Welcome judges and reviewers. Today we introduce Calmspace—a privacy-first student wellbeing companion. "
-        "University life brings invisible pressures. We built Calmspace around one unwavering standard: "
-        "Rules decide safety, AI provides supportive language, and verified humans provide real care."
+    top_bar = s1.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(13.333), Inches(0.1)
     )
+    top_bar.fill.solid()
+    top_bar.fill.fore_color.rgb = COLOR_PRIMARY
+    top_bar.line.fill.background()
 
-    # =========================================================================
-    # SLIDE 2: The Problem & The Idea (Section 01)
-    # =========================================================================
-    s2 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s2, COLOR_BG)
-    add_header(s2, "The Reality of Student Life & The Calmspace Idea", "01 — THE IDEA")
+    add_card(s1, Inches(0.75), Inches(0.9), Inches(7.35), Inches(5.7), COLOR_SURFACE)
 
-    # Card 1: The Problem
-    add_card(s2, Inches(0.8), Inches(1.6), Inches(5.6), Inches(5.2))
-    tb_c1 = s2.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(5.2), Inches(4.8))
-    tf_c1 = tb_c1.text_frame
-    tf_c1.word_wrap = True
-    
-    p = tf_c1.paragraphs[0]
-    p.text = "The Silent Student Struggle"
-    p.font.name = FONT_HEADING
-    p.font.size = Pt(18)
-    p.font.bold = True
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(14)
-
-    add_bullet_point(tf_c1, "Academic Overload:", "Deadlines, lab submissions, attendance pressure, and constant performance anxiety.")
-    add_bullet_point(tf_c1, "Sleep & Routine Disruption:", "Irregular sleeping patterns directly compounding stress and mood decline.")
-    add_bullet_point(tf_c1, "Stigma & Hesitation:", "Students carry mental fatigue quietly rather than visiting intimidating clinical clinics.")
-    add_bullet_point(tf_c1, "The SaaS/Tracker Trap:", "Conventional apps use gamified streaks, intrusive alerts, and clinical forms that induce more anxiety.")
-
-    # Card 2: What Calmspace Delivers
-    add_card(s2, Inches(6.8), Inches(1.6), Inches(5.7), Inches(5.2))
-    tb_c2 = s2.shapes.add_textbox(Inches(7.0), Inches(1.8), Inches(5.3), Inches(4.8))
-    tf_c2 = tb_c2.text_frame
-    tf_c2.word_wrap = True
-
-    p = tf_c2.paragraphs[0]
-    p.text = "What Calmspace Enables"
-    p.font.name = FONT_HEADING
-    p.font.size = Pt(18)
-    p.font.bold = True
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(14)
-
-    add_bullet_point(tf_c2, "30-Second Check-Ins:", "Effortless tracking of mood, stress, and sleep in a single-column, distraction-free flow.")
-    add_bullet_point(tf_c2, "Empathetic Self-Reflection:", "Understanding personal trends without being judged or diagnosed.")
-    add_bullet_point(tf_c2, "Pacing & Balance:", "Study task management combined with integrated 5-minute breather timers.")
-    add_bullet_point(tf_c2, "Immediate Human Escalation:", "Instant one-tap connection to verified national helplines and campus counsellors.")
-    add_bullet_point(tf_c2, "Not Medical Software:", "Positioned deliberately as a comforting companion, never clinical diagnostic software.")
-
-    s2.notes_slide.notes_text_frame.text = (
-        "Explain the context: university life isn't just about grades; it's about the emotional pressure carried in silence. "
-        "Existing apps either feel like cold diagnostic clinics or aggressive habit trackers with guilt-tripping streaks. "
-        "Calmspace provides a safe, welcoming pause button for students."
-    )
-
-    # =========================================================================
-    # SLIDE 3: Soft Editorial Wellness Design Philosophy (Section 02)
-    # =========================================================================
-    s3 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s3, COLOR_BG)
-    add_header(s3, "Soft Editorial Wellness — Design Philosophy", "02 — DESIGN SYSTEM")
-
-    # 3 Column Cards
-    col_width = Inches(3.65)
-    gap = Inches(0.4)
-    start_left = Inches(0.8)
-
-    # Col 1: Principles
-    c1 = add_card(s3, start_left, Inches(1.6), col_width, Inches(5.2))
-    tb1 = s3.shapes.add_textbox(start_left + Inches(0.2), Inches(1.8), col_width - Inches(0.4), Inches(4.8))
+    tb1 = s1.shapes.add_textbox(Inches(1.15), Inches(1.25), Inches(6.55), Inches(5.0))
     tf1 = tb1.text_frame
     tf1.word_wrap = True
-    p = tf1.paragraphs[0]
-    p.text = "5 Core UX Pillars"
-    p.font.bold = True
-    p.font.size = Pt(16)
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(10)
-    add_bullet_point(tf1, "Calm over clutter:", "Generous spacing, quiet margins, serene canvas.")
-    add_bullet_point(tf1, "Human over clinical:", "Warm comforting language instead of medical diagnoses.")
-    add_bullet_point(tf1, "Accessible by default:", "WCAG AA contrast, keyboard navigation, screen reader tables.")
-    add_bullet_point(tf1, "Safety first:", "Emergency actions take priority over decorative UI.")
-    add_bullet_point(tf1, "Privacy conscious:", "Zero reflection storage; anonymous session tokens.")
 
-    # Col 2: Visual Identity & Color Tokens
-    left2 = start_left + col_width + gap
-    c2 = add_card(s3, left2, Inches(1.6), col_width, Inches(5.2))
-    tb2 = s3.shapes.add_textbox(left2 + Inches(0.2), Inches(1.8), col_width - Inches(0.4), Inches(4.8))
-    tf2 = tb2.text_frame
-    tf2.word_wrap = True
-    p = tf2.paragraphs[0]
-    p.text = "Calm Visual Tokens"
-    p.font.bold = True
-    p.font.size = Pt(16)
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(10)
-    add_bullet_point(tf2, "Canvas (#F7F6FB):", "Warm, soothing atmosphere.")
-    add_bullet_point(tf2, "Primary (#5554B8):", "Deep focused indigo for calm confidence.")
-    add_bullet_point(tf2, "Soft Sage (#DCE9DF):", "Healthy steady state and recovery badge.")
-    add_bullet_point(tf2, "Soft Lavender (#E9E7FB):", "Gentle containers and suggestion chips.")
-    add_bullet_point(tf2, "Warm Ink (#25233B):", "High-contrast effortless readability.")
-    add_bullet_point(tf2, "Typography:", "Satoshi & Cabinet Grotesk editorial styling.")
+    p_tag = tf1.paragraphs[0]
+    p_tag.text = "STUDENT WELLBEING COMPANION"
+    p_tag.font.name = FONT_HEADING
+    p_tag.font.size = Pt(12)
+    p_tag.font.bold = True
+    p_tag.font.color.rgb = COLOR_PRIMARY
+    p_tag.space_after = Pt(10)
 
-    # Col 3: 3D Interactive Mascot
-    left3 = left2 + col_width + gap
-    c3 = add_card(s3, left3, Inches(1.6), col_width, Inches(5.2))
-    tb3 = s3.shapes.add_textbox(left3 + Inches(0.2), Inches(1.8), col_width - Inches(0.4), Inches(4.8))
-    tf3 = tb3.text_frame
-    tf3.word_wrap = True
-    p = tf3.paragraphs[0]
-    p.text = "3D Interactive Mascot"
-    p.font.bold = True
-    p.font.size = Pt(16)
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(10)
-    add_bullet_point(tf3, "Tactile Character:", "A soft lavender 3D clay blob living on the landing page.")
-    add_bullet_point(tf3, "Reactive Physics:", "Squash-and-stretch physics tracking cursor and touch gestures.")
-    add_bullet_point(tf3, "WebGL & Three.js:", "Custom GLSL vertex deformation and pear-sculpted geometry.")
-    add_bullet_point(tf3, "Emotional Connection:", "Creates an immediate sense of warmth before any input is requested.")
+    p_title = tf1.add_paragraph()
+    p_title.text = "Calmspace"
+    p_title.font.name = FONT_HEADING
+    p_title.font.size = Pt(48)
+    p_title.font.bold = True
+    p_title.font.color.rgb = COLOR_TEXT_MAIN
+    p_title.space_after = Pt(6)
 
-    s3.notes_slide.notes_text_frame.text = (
-        "Highlight our design philosophy: Soft Editorial Wellness. "
-        "Every token, from our serene canvas to the tactile 3D lavender blob, is engineered to lower cortisol. "
-        "We reject gamification streaks in favor of intentional, quiet pacing."
+    p_sub = tf1.add_paragraph()
+    p_sub.text = "A quieter space to check in with yourself."
+    p_sub.font.name = FONT_BODY
+    p_sub.font.size = Pt(19)
+    p_sub.font.italic = True
+    p_sub.font.color.rgb = COLOR_TEXT_MUTED
+    p_sub.space_after = Pt(22)
+
+    p_desc = tf1.add_paragraph()
+    p_desc.text = (
+        "Privacy-conscious university student wellbeing companion combining "
+        "Soft Editorial Wellness design, deterministic crisis routing, 3D voice "
+        "companionship, guided wellness activities, and verified human support."
+    )
+    p_desc.font.name = FONT_BODY
+    p_desc.font.size = Pt(13.5)
+    p_desc.font.color.rgb = COLOR_TEXT_MAIN
+    p_desc.space_after = Pt(26)
+
+    # Core principle pill
+    pill_box = add_card(
+        s1, Inches(1.15), Inches(4.85), Inches(6.55), Inches(0.72), COLOR_LAVENDER, COLOR_LAVENDER
+    )
+    tb_pill = s1.shapes.add_textbox(Inches(1.35), Inches(4.98), Inches(6.15), Inches(0.5))
+    tf_pill = tb_pill.text_frame
+    p_pill = tf_pill.paragraphs[0]
+    p_pill.text = "Rules decide safety.  AI writes the language.  Humans help."
+    p_pill.font.name = FONT_HEADING
+    p_pill.font.size = Pt(13.5)
+    p_pill.font.bold = True
+    p_pill.font.color.rgb = COLOR_PRIMARY_DARK
+
+    tb_repo = s1.shapes.add_textbox(Inches(1.15), Inches(5.85), Inches(6.55), Inches(0.4))
+    p_repo = tb_repo.text_frame.paragraphs[0]
+    p_repo.text = f"GitHub: https://{REPO_URL}   •   React 18 + FastAPI + SQLite WAL"
+    p_repo.font.name = FONT_BODY
+    p_repo.font.size = Pt(11.5)
+    p_repo.font.bold = True
+    p_repo.font.color.rgb = COLOR_PRIMARY
+
+    # Right visual card with real mascot image
+    add_card(s1, Inches(8.4), Inches(0.9), Inches(4.18), Inches(5.7), COLOR_LAVENDER, COLOR_BORDER)
+    if os.path.exists(mascot_path):
+        s1.shapes.add_picture(
+            mascot_path, Inches(8.64), Inches(1.15), width=Inches(3.7)
+        )
+    tb_cap = s1.shapes.add_textbox(Inches(8.64), Inches(5.05), Inches(3.7), Inches(1.3))
+    tf_cap = tb_cap.text_frame
+    tf_cap.word_wrap = True
+    pc1 = tf_cap.paragraphs[0]
+    pc1.alignment = PP_ALIGN.CENTER
+    pc1.text = "3D Lavender Mascot & Voice Companion"
+    pc1.font.name = FONT_HEADING
+    pc1.font.size = Pt(13.5)
+    pc1.font.bold = True
+    pc1.font.color.rgb = COLOR_PRIMARY_DARK
+    pc2 = tf_cap.add_paragraph()
+    pc2.alignment = PP_ALIGN.CENTER
+    pc2.space_before = Pt(4)
+    pc2.text = "Interactive Three.js GLSL experience with reduced-motion accessibility"
+    pc2.font.name = FONT_BODY
+    pc2.font.size = Pt(11)
+    pc2.font.color.rgb = COLOR_TEXT_MUTED
+
+    # =========================================================================
+    # SLIDE 2: Problem & Non-Clinical Vision
+    # =========================================================================
+    s2 = prs.slides.add_slide(blank)
+    set_slide_background(s2)
+    add_header(s2, "The Problem & Our Non-Clinical Vision", "01 • Purpose & Scope", 2)
+
+    # Left card: The Challenge
+    add_card(s2, Inches(0.75), Inches(1.55), Inches(5.75), Inches(5.2), COLOR_SURFACE, COLOR_BORDER, COLOR_PEACH_TEXT)
+    add_card_title(
+        s2, Inches(1.0), Inches(1.85), Inches(5.25),
+        "Why Existing Student Tools Fall Short",
+        "Quiet academic pressure meets clinical or guilt-driven apps"
+    )
+    add_bullets(s2, Inches(1.0), Inches(2.7), Inches(5.25), Inches(3.8), [
+        ("Everyday Pressure:", "Students carry compounding stress from deadlines, exams, and sleep disruption."),
+        ("Clinical Friction:", "Traditional portals feel cold, diagnostic, and intimidating for routine check-ins."),
+        ("Streak Guilt:", "Gamified productivity trackers punish missed days instead of supporting rest."),
+        ("AI Safety Risk:", "Unbounded chatbots can hallucinate or give unsafe responses during moments of crisis."),
+    ], pt_size=12.5, space_after=12)
+
+    # Right card: Calmspace Solution
+    add_card(s2, Inches(6.8), Inches(1.55), Inches(5.78), Inches(5.2), COLOR_SURFACE, COLOR_BORDER, COLOR_PRIMARY)
+    add_card_title(
+        s2, Inches(7.05), Inches(1.85), Inches(5.28),
+        "The Calmspace Approach",
+        "Calm, private reflection backed by deterministic safety"
+    )
+    add_bullets(s2, Inches(7.05), Inches(2.7), Inches(5.28), Inches(2.8), [
+        ("60-Second Check-Ins:", "Log mood, stress, sleep, and an optional reflection without judgment."),
+        ("Pattern Visibility:", "7/14/30-day Mood Trend analytics with accessible data tables."),
+        ("Active Reset Tools:", "Breathing Bubble, Guided Video Player, Study Planner, and Sound Lounge."),
+        ("Strict Non-Clinical Boundary:", "Never diagnoses, prescribes, or replaces licensed counselling."),
+    ], pt_size=12.5, space_after=11)
+
+    # Highlight callout inside right card
+    add_card(s2, Inches(7.05), Inches(5.55), Inches(5.28), Inches(0.95), COLOR_SAGE, COLOR_SAGE)
+    tb2_call = s2.shapes.add_textbox(Inches(7.25), Inches(5.68), Inches(4.88), Inches(0.75))
+    tf2_c = tb2_call.text_frame
+    tf2_c.word_wrap = True
+    p2c = tf2_c.paragraphs[0]
+    p2c.text = "Non-Clinical Guarantee: When elevated distress appears, verified human helplines (Tele-MANAS 14416 / 112) immediately supersede AI dialogue."
+    p2c.font.name = FONT_BODY
+    p2c.font.size = Pt(11.5)
+    p2c.font.bold = True
+    p2c.font.color.rgb = COLOR_SAGE_TEXT
+
+    # =========================================================================
+    # SLIDE 3: Soft Editorial Wellness Design System
+    # =========================================================================
+    s3 = prs.slides.add_slide(blank)
+    set_slide_background(s3)
+    add_header(s3, "Soft Editorial Wellness Design System", "02 • Design Philosophy", 3)
+
+    # Top row: 5 Design Principles
+    principles = [
+        ("Calm Over Clutter", "Single-column check-in steps, generous whitespace, zero streak guilt.", COLOR_PRIMARY),
+        ("Human Over Clinical", "Everyday language ('Doing okay', 'Carrying a lot') over clinical labels.", COLOR_SAGE_TEXT),
+        ("Accessible by Default", "Keyboard focus traps, non-color indicators, data tables, reduced motion.", COLOR_PRIMARY),
+        ("Safety First", "Verified tel: human support cards supersede charts & AI on HIGH risk.", COLOR_ROSE_TEXT),
+        ("Zero-CDN Privacy", "Cabinet Grotesk & Satoshi bundled locally; zero font CDN tracking.", COLOR_PEACH_TEXT),
+    ]
+    card_w = Inches(2.24)
+    gap = Inches(0.16)
+    start_x = Inches(0.75)
+    for i, (title, desc, acc) in enumerate(principles):
+        x = start_x + i * (card_w + gap)
+        add_card(s3, x, Inches(1.55), card_w, Inches(2.25), COLOR_SURFACE, COLOR_BORDER, acc)
+        add_card_title(s3, x + Inches(0.16), Inches(1.85), card_w - Inches(0.32), title, None)
+        tb_d = s3.shapes.add_textbox(x + Inches(0.16), Inches(2.45), card_w - Inches(0.32), Inches(1.2))
+        tf_d = tb_d.text_frame
+        tf_d.word_wrap = True
+        pd = tf_d.paragraphs[0]
+        pd.text = desc
+        pd.font.name = FONT_BODY
+        pd.font.size = Pt(11)
+        pd.font.color.rgb = COLOR_TEXT_MUTED
+
+    # Bottom: Color Token Swatches Card
+    add_card(s3, Inches(0.75), Inches(4.05), Inches(11.83), Inches(2.7), COLOR_SURFACE, COLOR_BORDER)
+    add_card_title(
+        s3, Inches(1.0), Inches(4.25), Inches(10.0),
+        "Verified Design Tokens (frontend/src/styles/tokens.css)",
+        "Harmonized palette engineered for low visual fatigue and WCAG contrast"
     )
 
+    swatches = [
+        ("Serene Canvas", "#F7F6FB", COLOR_BG, COLOR_TEXT_MAIN),
+        ("Deep Indigo", "#5554B8", COLOR_PRIMARY, COLOR_WHITE),
+        ("Soft Lavender", "#E9E7FB", COLOR_LAVENDER, COLOR_PRIMARY_DARK),
+        ("Soft Sage", "#DCE9DF", COLOR_SAGE, COLOR_SAGE_TEXT),
+        ("Soft Peach", "#F4DCCB", COLOR_PEACH, COLOR_PEACH_TEXT),
+        ("Deep Warm Ink", "#25233B", COLOR_TEXT_MAIN, COLOR_WHITE),
+    ]
+    sw_w = Inches(1.75)
+    sw_gap = Inches(0.16)
+    for i, (name, hex_code, fill_c, txt_c) in enumerate(swatches):
+        sx = Inches(1.0) + i * (sw_w + sw_gap)
+        box = s3.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE, sx, Inches(5.12), sw_w, Inches(1.35)
+        )
+        box.adjustments[0] = 0.08
+        box.fill.solid()
+        box.fill.fore_color.rgb = fill_c
+        box.line.color.rgb = COLOR_BORDER
+        box.line.width = Pt(1)
+        tf_s = box.text_frame
+        tf_s.word_wrap = True
+        tf_s.vertical_anchor = MSO_ANCHOR.MIDDLE
+        ps1 = tf_s.paragraphs[0]
+        ps1.alignment = PP_ALIGN.CENTER
+        ps1.text = name
+        ps1.font.name = FONT_HEADING
+        ps1.font.size = Pt(12)
+        ps1.font.bold = True
+        ps1.font.color.rgb = txt_c
+        ps2 = tf_s.add_paragraph()
+        ps2.alignment = PP_ALIGN.CENTER
+        ps2.text = hex_code
+        ps2.font.name = FONT_BODY
+        ps2.font.size = Pt(11)
+        ps2.font.color.rgb = txt_c
+
     # =========================================================================
-    # SLIDE 4: Full-Stack Architecture (Section 04)
+    # SLIDE 4: Student Experience Flow
     # =========================================================================
-    s4 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s4, COLOR_BG)
-    add_header(s4, "Full-Stack System Architecture", "04 — ARCHITECTURE & TECH STACK")
+    s4 = prs.slides.add_slide(blank)
+    set_slide_background(s4)
+    add_header(s4, "End-to-End Student Experience Flow", "03 • User Journey", 4)
 
-    # Card 1: Frontend Architecture
-    add_card(s4, Inches(0.8), Inches(1.6), Inches(3.7), Inches(5.2))
-    tb_fe = s4.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(3.3), Inches(4.8))
-    tf_fe = tb_fe.text_frame
-    tf_fe.word_wrap = True
-    p = tf_fe.paragraphs[0]
-    p.text = "Frontend (Client)"
-    p.font.bold = True
-    p.font.size = Pt(18)
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(12)
-    add_bullet_point(tf_fe, "React 19 & TypeScript:", "Strictly typed, reactive single-page app.")
-    add_bullet_point(tf_fe, "Vite Dev & Build:", "Lightning-fast HMR and optimized production bundling.")
-    add_bullet_point(tf_fe, "Tailwind CSS:", "Design token architecture with custom utility classes.")
-    add_bullet_point(tf_fe, "Recharts:", "Accessible, responsive wellbeing trend visualizations.")
-    add_bullet_point(tf_fe, "Three.js / WebGL:", "Interactive 3D volumetric mascot controller.")
+    steps = [
+        ("1. Landing & Overview", "/  and  /app", "3D Lavender Mascot greets the student; Overview surfaces Daily Highlights, Breathing Bubble, & recent mood.", COLOR_LAVENDER, COLOR_PRIMARY_DARK),
+        ("2. Daily Check-In", "/checkin", "Single-column flow: Mood (1-5), Stress (1-5), Sleep (hrs), and optional reflection (strict opt-in AI consent).", COLOR_SURFACE, COLOR_TEXT_MAIN),
+        ("3. Safety Routing", "safety_evaluator.py", "Pure deterministic engine classifies LOW, MEDIUM, or HIGH/CRISIS before any AI or persistence step.", COLOR_PEACH, COLOR_PEACH_TEXT),
+        ("4. Result & Support", "/checkin/result", "LOW/MEDIUM: gentle guidance. HIGH: zero AI calls, instant Tele-MANAS 14416 / 112 + Safe Exit.", COLOR_ROSE, COLOR_ROSE_TEXT),
+        ("5. Reflect & Reset", "/insights  /planner  /explore", "7/14/30d Mood Trends, Study Planner + 5-min breather, Guided Videos, & 3D Voice Companion.", COLOR_SAGE, COLOR_SAGE_TEXT),
+    ]
+    st_w = Inches(2.16)
+    st_gap = Inches(0.25)
+    for i, (st_title, route, st_desc, bg_c, hd_c) in enumerate(steps):
+        sx = Inches(0.75) + i * (st_w + st_gap)
+        add_card(s4, sx, Inches(1.75), st_w, Inches(4.5), bg_c, COLOR_BORDER)
 
-    # Card 2: Backend Architecture
-    add_card(s4, Inches(4.8), Inches(1.6), Inches(3.7), Inches(5.2))
-    tb_be = s4.shapes.add_textbox(Inches(5.0), Inches(1.8), Inches(3.3), Inches(4.8))
-    tf_be = tb_be.text_frame
-    tf_be.word_wrap = True
-    p = tf_be.paragraphs[0]
-    p.text = "Backend (FastAPI)"
-    p.font.bold = True
-    p.font.size = Pt(18)
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(12)
-    add_bullet_point(tf_be, "Python & FastAPI:", "High-performance async REST API with automatic OpenAPI docs.")
-    add_bullet_point(tf_be, "Pydantic v2:", "Strict input validation and schema contracts.")
-    add_bullet_point(tf_be, "Pure Safety Engine:", "Deterministic, zero-I/O mathematical routing module.")
-    add_bullet_point(tf_be, "AI Adapter Layer:", "Provider abstraction (Gemini / Mock) with validation filters.")
-    add_bullet_point(tf_be, "Dynamic CORS:", "Configurable multi-environment origin isolation.")
+        tb_st = s4.shapes.add_textbox(sx + Inches(0.16), Inches(1.98), st_w - Inches(0.32), Inches(4.0))
+        tf_st = tb_st.text_frame
+        tf_st.word_wrap = True
+        p_t = tf_st.paragraphs[0]
+        p_t.text = st_title
+        p_t.font.name = FONT_HEADING
+        p_t.font.size = Pt(15)
+        p_t.font.bold = True
+        p_t.font.color.rgb = hd_c
+        p_t.space_after = Pt(6)
 
-    # Card 3: Storage & Integration
-    add_card(s4, Inches(8.8), Inches(1.6), Inches(3.7), Inches(5.2))
-    tb_st = s4.shapes.add_textbox(Inches(9.0), Inches(1.8), Inches(3.3), Inches(4.8))
-    tf_st = tb_st.text_frame
-    tf_st.word_wrap = True
-    p = tf_st.paragraphs[0]
-    p.text = "Data & Security"
-    p.font.bold = True
-    p.font.size = Pt(18)
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(12)
-    add_bullet_point(tf_st, "Anonymous Storage:", "Indexed by UUID token; no email, password, or student ID.")
-    add_bullet_point(tf_st, "SQLite with WAL:", "Fast, persistent storage surviving restarts, deployable to PostgreSQL.")
-    add_bullet_point(tf_st, "Zero-Storage Reflections:", "Reflections processed strictly in runtime memory, never written to disk.")
-    add_bullet_point(tf_st, "2-Step Data Erasure:", "Instant transactional purge across all database tables.")
-    add_bullet_point(tf_st, "CI Automation:", "GitHub Actions validating lint, types, and 226 tests on every commit.")
+        p_r = tf_st.add_paragraph()
+        p_r.text = route
+        p_r.font.name = FONT_BODY
+        p_r.font.size = Pt(10.5)
+        p_r.font.bold = True
+        p_r.font.color.rgb = COLOR_PRIMARY
+        p_r.space_after = Pt(14)
 
-    s4.notes_slide.notes_text_frame.text = (
-        "Explain our modern decoupled architecture: React 19 on the frontend, FastAPI on the backend. "
-        "Notice the clean boundary: the frontend never evaluates safety scores; the backend never leaks database credentials; "
-        "and our persistence engine structurally excludes reflection text."
+        p_d = tf_st.add_paragraph()
+        p_d.text = st_desc
+        p_d.font.name = FONT_BODY
+        p_d.font.size = Pt(11.5)
+        p_d.font.color.rgb = COLOR_TEXT_MAIN
+
+        if i < len(steps) - 1:
+            arr = s4.shapes.add_shape(
+                MSO_SHAPE.RIGHT_ARROW,
+                sx + st_w + Inches(0.04),
+                Inches(3.85),
+                Inches(0.17),
+                Inches(0.25),
+            )
+            arr.fill.solid()
+            arr.fill.fore_color.rgb = COLOR_PRIMARY
+            arr.line.fill.background()
+
+    # =========================================================================
+    # SLIDE 5: Full-Stack System Architecture
+    # =========================================================================
+    s5 = prs.slides.add_slide(blank)
+    set_slide_background(s5)
+    add_header(s5, "Full-Stack System Architecture", "04 • Technical Stack", 5)
+
+    # 3 Vertical Tier Cards
+    tiers = [
+        (
+            "Frontend SPA",
+            "React 18 • TypeScript • Vite 6",
+            COLOR_PRIMARY,
+            [
+                ("Routing & Pages:", "10 routes including /app, /checkin, /insights, /planner, /explore, /companion, /support, /settings."),
+                ("3D & Charts:", "Three.js custom GLSL lavender blob + Recharts responsive mood trends."),
+                ("Motion & Icons:", "Framer Motion with reduced-motion guard + Lucide icons."),
+                ("Session Identity:", "Anonymous X-Session-ID UUID in localStorage (no account wall)."),
+            ],
+        ),
+        (
+            "FastAPI Backend & Routers",
+            "Python 3.12+ • Pydantic v2 • Uvicorn",
+            COLOR_SAGE_TEXT,
+            [
+                ("checkin.py:", "POST /api/checkin & GET /api/checkin/history with 422 sanitization."),
+                ("insights.py:", "GET /api/insights powered by analytics.py aggregation."),
+                ("planner.py:", "Full CRUD /api/planner/tasks for study-life pacing."),
+                ("support_and_settings.py:", "Helplines, retention settings, and full DELETE /api/settings/data."),
+            ],
+        ),
+        (
+            "Safety, AI & Persistence",
+            "Zero-I/O Evaluator • SQLite WAL",
+            COLOR_PEACH_TEXT,
+            [
+                ("safety_evaluator.py:", "Pure deterministic risk classifier (98% test coverage)."),
+                ("AI Guidance Service:", "Offline mock default or Gemini (x-goog-api-key) with strict output validator."),
+                ("SQLite WAL (storage.py):", "Stores numeric scores & timestamps only — zero reflection text column."),
+                ("Health & Readiness:", "GET /api/health and GET /api/ready probes."),
+            ],
+        ),
+    ]
+
+    t_w = Inches(3.75)
+    t_gap = Inches(0.29)
+    for i, (t_title, t_sub, t_acc, t_items) in enumerate(tiers):
+        tx = Inches(0.75) + i * (t_w + t_gap)
+        add_card(s5, tx, Inches(1.55), t_w, Inches(5.2), COLOR_SURFACE, COLOR_BORDER, t_acc)
+        add_card_title(s5, tx + Inches(0.22), Inches(1.85), t_w - Inches(0.44), t_title, t_sub)
+        add_bullets(s5, tx + Inches(0.22), Inches(2.75), t_w - Inches(0.44), Inches(3.8), t_items, pt_size=11.5, space_after=11)
+
+    # =========================================================================
+    # SLIDE 6: Deterministic Safety & AI-Bypass Engine
+    # =========================================================================
+    s6 = prs.slides.add_slide(blank)
+    set_slide_background(s6)
+    add_header(s6, "Deterministic Safety & AI-Bypass Engine", "05 • Safety Architecture", 6)
+
+    # Banner
+    add_card(s6, Inches(0.75), Inches(1.5), Inches(11.83), Inches(0.72), COLOR_LAVENDER, COLOR_LAVENDER)
+    tb6_b = s6.shapes.add_textbox(Inches(1.0), Inches(1.65), Inches(11.3), Inches(0.45))
+    p6b = tb6_b.text_frame.paragraphs[0]
+    p6b.text = "Core Rule: Pure deterministic logic (safety_evaluator.py) runs FIRST with zero network I/O. AI never classifies risk."
+    p6b.font.name = FONT_HEADING
+    p6b.font.size = Pt(13.5)
+    p6b.font.bold = True
+    p6b.font.color.rgb = COLOR_PRIMARY_DARK
+
+    tiers_safety = [
+        (
+            "LOW RISK ROUTE",
+            "Steady Baseline",
+            COLOR_SAGE,
+            COLOR_SAGE_TEXT,
+            [
+                ("Trigger:", "Balanced mood, stress, & sleep with zero crisis keywords."),
+                ("AI Consent:", "Strict opt-in per request; deterministic fallback if declined."),
+                ("UI Action:", "Gentle editorial reflection + optional planner/breathing prompt."),
+            ],
+        ),
+        (
+            "MEDIUM RISK ROUTE",
+            "Elevated Load",
+            COLOR_PEACH,
+            COLOR_PEACH_TEXT,
+            [
+                ("Trigger:", "High stress, low mood/sleep, or non-crisis overwhelm cues."),
+                ("AI Consent:", "Validated supportive language only; fail-closed output guard."),
+                ("UI Action:", "Grounding steps + visible human support options."),
+            ],
+        ),
+        (
+            "HIGH / CRISIS ROUTE",
+            "Immediate Human Escalation",
+            COLOR_ROSE,
+            COLOR_ROSE_TEXT,
+            [
+                ("Trigger:", "Crisis/self-harm keywords or severe distress threshold."),
+                ("AI Bypass:", "ZERO AI calls executed — hard-blocked in backend router."),
+                ("UI Action:", "Instant Tele-MANAS (14416) & 112 tel: cards + Safe Exit button."),
+            ],
+        ),
+    ]
+
+    s_w = Inches(3.75)
+    s_gap = Inches(0.29)
+    for i, (badge, title, bg_c, txt_c, items) in enumerate(tiers_safety):
+        sx = Inches(0.75) + i * (s_w + s_gap)
+        add_card(s6, sx, Inches(2.45), s_w, Inches(4.3), bg_c, COLOR_BORDER)
+        tb_h = s6.shapes.add_textbox(sx + Inches(0.22), Inches(2.68), s_w - Inches(0.44), Inches(0.85))
+        tf_h = tb_h.text_frame
+        tf_h.word_wrap = True
+        p_b = tf_h.paragraphs[0]
+        p_b.text = badge
+        p_b.font.name = FONT_HEADING
+        p_b.font.size = Pt(10.5)
+        p_b.font.bold = True
+        p_b.font.color.rgb = txt_c
+        p_t = tf_h.add_paragraph()
+        p_t.text = title
+        p_t.font.name = FONT_HEADING
+        p_t.font.size = Pt(17)
+        p_t.font.bold = True
+        p_t.font.color.rgb = COLOR_TEXT_MAIN
+        p_t.space_before = Pt(3)
+
+        add_bullets(s6, sx + Inches(0.22), Inches(3.65), s_w - Inches(0.44), Inches(2.9), items, pt_size=12, space_after=12)
+
+    # =========================================================================
+    # SLIDE 7: 3D Calm Voice Companion & Mood Trend Analytics
+    # =========================================================================
+    s7 = prs.slides.add_slide(blank)
+    set_slide_background(s7)
+    add_header(s7, "3D Calm Voice Companion & Mood Analytics", "06 • Core Experiences", 7)
+
+    # Left Card: CompanionPage
+    add_card(s7, Inches(0.75), Inches(1.55), Inches(5.75), Inches(5.2), COLOR_SURFACE, COLOR_BORDER, COLOR_PRIMARY)
+    add_card_title(
+        s7, Inches(1.0), Inches(1.85), Inches(5.25),
+        "Calm Voice Companion (/companion)",
+        "Interactive 3D GLSL lavender blob with voice & text support"
     )
+    add_bullets(s7, Inches(1.0), Inches(2.75), Inches(5.25), Inches(3.8), [
+        ("Real-Time 3D Presence:", "Three.js custom shader blob reacts smoothly to idle, listening, thinking, and speaking states."),
+        ("Voice + Text Modes:", "Supports browser Web Speech recognition & synthesis alongside accessible text input."),
+        ("Deterministic Safety Guard:", "Crisis phrases bypass AI immediately and surface verified human helplines."),
+        ("Graceful Fallbacks:", "Works seamlessly even when microphone or WebGL is unavailable."),
+    ], pt_size=12.5, space_after=12)
 
-    # =========================================================================
-    # SLIDE 5: Safety Routing & The Deterministic Boundary (Section 05)
-    # =========================================================================
-    s5 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s5, COLOR_BG)
-    add_header(s5, "Safety Routing Architecture & The AI Bypass Rule", "05 — SAFETY ARCHITECTURE")
-
-    # Table Card
-    add_card(s5, Inches(0.8), Inches(1.6), Inches(11.7), Inches(5.2))
-    tb_safe = s5.shapes.add_textbox(Inches(1.1), Inches(1.8), Inches(11.1), Inches(4.8))
-    tf_safe = tb_safe.text_frame
-    tf_safe.word_wrap = True
-
-    p = tf_safe.paragraphs[0]
-    p.text = "Deterministic Safety Matrix: Evaluated Strictly on Backend"
-    p.font.name = FONT_HEADING
-    p.font.size = Pt(18)
-    p.font.bold = True
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(14)
-
-    add_bullet_point(tf_safe, "LOW ROUTE (Doing Okay):", "Conditions: Mood >= 3, Stress <= 2, Sleep >= 6.0h. Soft Sage badge (#DCE9DF). Receives 3-5 sentence supportive reflection and 2 pacing chips.")
-    add_bullet_point(tf_safe, "MEDIUM ROUTE (Worth Support):", "Conditions: Mood = 2, Stress 3-4, Sleep < 6.0h, or declining trend. Muted Amber badge. Delivers grounding breath exercise, pacing suggestions, and campus counseling links.")
-    add_bullet_point(tf_safe, "HIGH ROUTE (Let's Get You Support):", "Conditions: Mood = 1, Stress = 5, Sleep < 3.5h, or crisis keywords. Calm High-Contrast Plum/Ink screen. AI IS 100% BYPASSED.")
-    add_bullet_point(tf_safe, "THE STRICT AI BYPASS GUARANTEE:", "Whenever acute crisis or high risk is detected, zero LLM API calls are made. We never let an AI improvise when human life is on the line.")
-    add_bullet_point(tf_safe, "Multilingual Crisis Corpus:", "Trained on English, Hindi, Devanagari, and Hinglish crisis phrases with sentence-isolated negation handling.")
-    add_bullet_point(tf_safe, "Protected Immutable Code:", "safety_evaluator.py is locked to SHA 8f5e2e98... with 156 regression tests.")
-
-    s5.notes_slide.notes_text_frame.text = (
-        "This is the core ethical breakthrough of Calmspace: 'Rules decide safety. AI writes language. Humans provide care.' "
-        "LLMs hallucinate and cannot be trusted with safety triage. "
-        "Our backend mathematical engine decides the route. On the High route, AI is 100% bypassed and verified humans take over."
+    # Right Card: Mood Trend Analytics
+    add_card(s7, Inches(6.8), Inches(1.55), Inches(5.78), Inches(5.2), COLOR_SURFACE, COLOR_BORDER, COLOR_SAGE_TEXT)
+    add_card_title(
+        s7, Inches(7.05), Inches(1.85), Inches(5.28),
+        "Mood Trend & Insights (/app & /insights)",
+        "Clear, non-judgmental pattern visibility over time"
     )
+    add_bullets(s7, Inches(7.05), Inches(2.75), Inches(5.28), Inches(3.8), [
+        ("7 / 14 / 30-Day Filters:", "Interactive range selectors aggregate same-day check-ins chronologically."),
+        ("Summary Metrics:", "Displays average mood, highest/lowest days, and total check-in counts."),
+        ("Accessible Dual View:", "Pairs Recharts area/line visualizations with a screen-reader-friendly data table."),
+        ("Empty & Single-Day States:", "Helpful onboarding copy instead of broken or misleading empty charts."),
+    ], pt_size=12.5, space_after=12)
 
     # =========================================================================
-    # SLIDE 6: Privacy by Design & Zero-Storage Memory (Section 06)
+    # SLIDE 8: Interactive Wellness Suite (5 New Features)
     # =========================================================================
-    s6 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s6, COLOR_BG)
-    add_header(s6, "Privacy by Design & Data Safeguards", "06 — PRIVACY SAFEGUARDS")
+    s8 = prs.slides.add_slide(blank)
+    set_slide_background(s8)
+    add_header(s8, "Interactive Wellness Suite", "07 • Guided Practices & Tools", 8)
 
-    add_card(s6, Inches(0.8), Inches(1.6), Inches(5.6), Inches(5.2))
-    tb_p1 = s6.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(5.2), Inches(4.8))
-    tf_p1 = tb_p1.text_frame
-    tf_p1.word_wrap = True
+    quads = [
+        (
+            "Breathing Bubble Game",
+            "BreathingBubbleSection.tsx",
+            COLOR_PRIMARY,
+            [
+                ("3 Guided Patterns:", "4-4-4 Box, 4-7-8 Relax, and 5-5 Coherent rhythms."),
+                ("Phase-Reactive Visuals:", "Pastel gradients, glowing aura, & rhythm sync mini-game."),
+                ("Audio & Completion Bell:", "Sound On/Off toggle with 7-second gentle bell alarm."),
+                ("Persistent Progress:", "Tracks completed sessions, minutes, & post-session mood."),
+            ],
+        ),
+        (
+            "Explore & Guided Video Player",
+            "ExplorePage.tsx • GuidedVideoPlayer.tsx",
+            COLOR_SAGE_TEXT,
+            [
+                ("Real HD Nature Videos:", "WebM scenes (sunrise, nightfall, waves) with smooth playback."),
+                ("Spoken Voice Narration:", "Web Speech API reads guided steps aloud + soothing WAV audio."),
+                ("3 Distinct Activities:", "Neck & Eye Strain Relief, Progressive Muscle Unwind, Mental Declutter."),
+                ("Interactive Checklists:", "Step-by-step practice checkboxes & saved article bookmarks."),
+            ],
+        ),
+        (
+            "Study-Life Balance Planner",
+            "PlannerPage.tsx",
+            COLOR_PEACH_TEXT,
+            [
+                ("Balanced Task Pacing:", "Organize study blocks without overwhelming overdue counters."),
+                ("5-Minute Breather Timer:", "Built-in recovery break timer between focused study sprints."),
+                ("SQLite Persistence:", "Tasks saved cleanly per anonymous session via /api/planner/tasks."),
+            ],
+        ),
+        (
+            "Highlights, Challenges & Sound Lounge",
+            "DailyHighlights • DailyChallenge • SoundLounge",
+            COLOR_PRIMARY_DARK,
+            [
+                ("Daily Highlights:", "Affirmations and gentle daily focus prompts on Overview."),
+                ("Daily Micro-Challenges:", "Low-pressure wellbeing habits with local completion tracking."),
+                ("Ambient Sound Lounge:", "Looping meditation, ocean, and nightfall WAV soundscapes."),
+            ],
+        ),
+    ]
 
-    p = tf_p1.paragraphs[0]
-    p.text = "Structural Architectural Privacy"
-    p.font.name = FONT_HEADING
-    p.font.size = Pt(18)
-    p.font.bold = True
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(12)
+    q_w = Inches(5.78)
+    q_h = Inches(2.5)
+    positions = [
+        (Inches(0.75), Inches(1.55)),
+        (Inches(6.80), Inches(1.55)),
+        (Inches(0.75), Inches(4.25)),
+        (Inches(6.80), Inches(4.25)),
+    ]
+    for (qx, qy), (qt, qs, qa, qitems) in zip(positions, quads):
+        add_card(s8, qx, qy, q_w, q_h, COLOR_SURFACE, COLOR_BORDER, qa)
+        add_card_title(s8, qx + Inches(0.2), qy + Inches(0.2), q_w - Inches(0.4), qt, qs)
+        add_bullets(s8, qx + Inches(0.2), qy + Inches(0.92), q_w - Inches(0.4), Inches(1.5), qitems, pt_size=11, space_after=5)
 
-    add_bullet_point(tf_p1, "No Intrusive Identity:", "Students interact through an anonymous UUID session token. Zero roll numbers, emails, or names required.")
-    add_bullet_point(tf_p1, "Zero-Storage Reflections:", "Free-text reflection is evaluated in volatile memory for crisis words, then immediately discarded. No 'reflection' column exists in SQLite/Postgres tables.")
-    add_bullet_point(tf_p1, "Strict Session Isolation:", "Session A can never query, read, toggle, or delete Session B's check-ins or study tasks.")
-    add_bullet_point(tf_p1, "Explicit AI Consent:", "If student untoggles AI consent, free-text reflection is completely omitted from AI payloads.")
+    # =========================================================================
+    # SLIDE 9: Privacy by Architecture & Data Lifecycle
+    # =========================================================================
+    s9 = prs.slides.add_slide(blank)
+    set_slide_background(s9)
+    add_header(s9, "Privacy by Architecture & Data Lifecycle", "08 • Privacy & Consent", 9)
 
-    add_card(s6, Inches(6.8), Inches(1.6), Inches(5.7), Inches(5.2))
-    tb_p2 = s6.shapes.add_textbox(Inches(7.0), Inches(1.8), Inches(5.3), Inches(4.8))
-    tf_p2 = tb_p2.text_frame
-    tf_p2.word_wrap = True
+    priv_cards = [
+        (
+            "Zero-Storage Reflections",
+            COLOR_PRIMARY,
+            [
+                ("No Database Column:", "Optional reflection text is never written to SQLite (calmspace.db)."),
+                ("Ephemeral Evaluation:", "Processed in memory for safety routing and discarded immediately."),
+                ("Numeric Metrics Only:", "Storage retains only mood, stress, sleep scores, & timestamps."),
+            ],
+        ),
+        (
+            "Strict Opt-In & Safe Exit",
+            COLOR_SAGE_TEXT,
+            [
+                ("Per-Request Consent:", "AI guidance requires explicit StrictBool consent on every check-in."),
+                ("Safe Exit Control:", "One-click Safe Exit on crisis/result views clears session state."),
+                ("Anonymous Sessions:", "Uses local UUID (X-Session-ID) — no email, password, or PII."),
+            ],
+        ),
+        (
+            "Retention & 2-Step Wipe",
+            COLOR_PEACH_TEXT,
+            [
+                ("Configurable Windows:", "Students choose 14, 30, 60, or 90-day retention in /settings."),
+                ("Automatic Pruning:", "Expired records are pruned automatically on read/write."),
+                ("2-Step Full Deletion:", "DELETE /api/settings/data permanently wipes all session data."),
+            ],
+        ),
+    ]
+    pw = Inches(3.75)
+    pg = Inches(0.29)
+    for i, (ptitle, pacc, pitems) in enumerate(priv_cards):
+        px = Inches(0.75) + i * (pw + pg)
+        add_card(s9, px, Inches(1.6), pw, Inches(5.1), COLOR_SURFACE, COLOR_BORDER, pacc)
+        add_card_title(s9, px + Inches(0.22), Inches(1.92), pw - Inches(0.44), ptitle)
+        add_bullets(s9, px + Inches(0.22), Inches(2.65), pw - Inches(0.44), Inches(3.8), pitems, pt_size=12, space_after=14)
 
-    p = tf_p2.paragraphs[0]
-    p.text = "Student Control & Data Deletion"
-    p.font.name = FONT_HEADING
-    p.font.size = Pt(18)
-    p.font.bold = True
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(12)
+    # =========================================================================
+    # SLIDE 10: Verified Human Support & Transparency
+    # =========================================================================
+    s10 = prs.slides.add_slide(blank)
+    set_slide_background(s10)
+    add_header(s10, "Verified Human Support & Transparency", "09 • Human Escalation", 10)
 
-    add_bullet_point(tf_p2, "2-Step Permanent Purge:", "Clicking 'Delete all my data' triggers an atomic DELETE across all tables, permanently purging check-ins, tasks, and settings.")
-    add_bullet_point(tf_p2, "Safe Error Responses:", "Database failure responses never leak SQL statements, stack traces, or credentials to the client.")
-    add_bullet_point(tf_p2, "No Behavioral Ad Tracking:", "Zero third-party trackers, commercial tracking cookies, or data brokers.")
-    add_bullet_point(tf_p2, "Non-Diagnostic Language:", "Personal metrics are descriptive pacing reflections, never clinical diagnoses or disorder classifications.")
-
-    s6.notes_slide.notes_text_frame.text = (
-        "Explain that in Calmspace, privacy is architectural, not merely contractual. "
-        "Show judges that we do not store reflection text even on our servers. "
-        "Students can wipe their entire digital footprint with one click."
+    add_card(s10, Inches(0.75), Inches(1.55), Inches(7.2), Inches(5.2), COLOR_SURFACE, COLOR_BORDER, COLOR_ROSE_TEXT)
+    add_card_title(
+        s10, Inches(1.0), Inches(1.85), Inches(6.7),
+        "Verified National Helplines (/support)",
+        "Direct one-tap tel: links surfaced immediately on HIGH risk or via Support Network"
     )
+    add_bullets(s10, Inches(1.0), Inches(2.75), Inches(6.7), Inches(3.8), [
+        ("Tele-MANAS (14416 / 1-800-891-4416):", "24/7 Government of India national mental health helpline."),
+        ("National Emergency (112):", "Immediate emergency response for acute physical danger."),
+        ("iCall (9152987821):", "Psychosocial counselling service by TISS (Mon–Sat)."),
+        ("Vandrevala Foundation (9999 666 555):", "24/7 multilingual crisis support and emotional counselling."),
+    ], pt_size=12.5, space_after=14)
 
-    # =========================================================================
-    # SLIDE 7: Verified Human Support Network (Section 07)
-    # =========================================================================
-    s7 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s7, COLOR_BG)
-    add_header(s7, "Verified Human Support Network", "07 — HUMAN CARE")
-
-    # Full card container
-    add_card(s7, Inches(0.8), Inches(1.6), Inches(11.7), Inches(5.2))
-    tb_dir = s7.shapes.add_textbox(Inches(1.1), Inches(1.8), Inches(11.1), Inches(4.8))
-    tf_dir = tb_dir.text_frame
-    tf_dir.word_wrap = True
-
-    p = tf_dir.paragraphs[0]
-    p.text = "Direct, One-Tap Access to Certified Human Helplines"
-    p.font.name = FONT_HEADING
-    p.font.size = Pt(18)
-    p.font.bold = True
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(12)
-
-    add_bullet_point(tf_dir, "Tele-MANAS (Govt. of India):", "Dial 14416 / 1800-891-4416. 24/7, Toll-Free, available in 20+ national languages. Ministry of Health & Family Welfare verified.")
-    add_bullet_point(tf_dir, "National Emergency Services:", "Dial 112. 24/7 instant emergency ambulance, medical, and police dispatch via Emergency Response Support System (ERSS).")
-    add_bullet_point(tf_dir, "University Student Wellbeing Unit:", "Phone: +91 (011) 2659-7100. Drop-in support and confidential consultations with licensed campus clinical psychologists.")
-    add_bullet_point(tf_dir, "Vandrevala Foundation:", "Dial +91 9999 666 555. 24/7 free empathetic crisis intervention and psychological support.")
-    add_bullet_point(tf_dir, "iCALL Psychosocial Helpline (TISS):", "Dial 022-25521111 / +91 9152 987 821. Run by Tata Institute of Social Sciences, offering student-tailored counseling.")
-    add_bullet_point(tf_dir, "Source Auditing Guarantee:", "Every single directory entry displays its official verification source and last-verified audit date.")
-
-    s7.notes_slide.notes_text_frame.text = (
-        "When students are in acute distress, chatbots cannot replace humans. "
-        "Calmspace provides verified, source-audited helplines accessible within one tap from every single view. "
-        "No searching, no navigation barriers, no friction."
+    # Right honesty card
+    add_card(s10, Inches(8.25), Inches(1.55), Inches(4.33), Inches(5.2), COLOR_PEACH, COLOR_BORDER)
+    add_card_title(
+        s10, Inches(8.5), Inches(1.85), Inches(3.83),
+        "Honest Campus Disclosure",
+        "Zero fake local resources"
     )
+    add_bullets(s10, Inches(8.5), Inches(2.75), Inches(3.83), Inches(3.8), [
+        ("Transparent Placeholders:", "Unconfigured campus counselling entries are explicitly labeled as demo placeholders."),
+        ("No Clinical Claims:", "Clear non-diagnostic notice in Overview, Check-In, and Support pages."),
+        ("Always Reachable:", "Support Network link remains accessible in persistent navigation."),
+    ], pt_size=12, space_after=13)
 
     # =========================================================================
-    # SLIDE 8: Team Ownership & Code Contributions (Section 09)
+    # SLIDE 11: Engineering Rigor & Quality Verification
     # =========================================================================
-    s8 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s8, COLOR_BG)
-    add_header(s8, "Engineering Ownership & GitHub Contributions", "08 — TEAM OWNERSHIP")
+    s11 = prs.slides.add_slide(blank)
+    set_slide_background(s11)
+    add_header(s11, "Engineering Rigor & Quality Verification", "10 • Testing & Reliability", 11)
 
-    # Member 1 Card
-    add_card(s8, Inches(0.8), Inches(1.6), Inches(5.6), Inches(5.2))
-    tb_m1 = s8.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(5.2), Inches(4.8))
-    tf_m1 = tb_m1.text_frame
-    tf_m1.word_wrap = True
-    p = tf_m1.paragraphs[0]
-    p.text = "Nikhil Chhetri (@nikhi20-900)"
-    p.font.bold = True
-    p.font.size = Pt(17)
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(10)
-    add_bullet_point(tf_m1, "Frontend Lead & Design System:", "React 19 application shell, responsive navigation, and design tokens.")
-    add_bullet_point(tf_m1, "Interactive 3D Mascot:", "Three.js volumetric clay blob, WebGL vertex animations, tactile rubber-band physics.")
-    add_bullet_point(tf_m1, "Daily Check-In UX:", "Step-by-step single column check-in with accessible sliders and steppers.")
-    add_bullet_point(tf_m1, "Safety Engine & Corpus:", "Pure deterministic wellbeing safety evaluator and multilingual crisis corpus (Issues #2, #3, #4, #8).")
+    kpis = [
+        ("271", "Backend Pytest Tests", "All API routers, storage, & safety routes verified", COLOR_PRIMARY),
+        ("98%", "Safety Engine Coverage", "Exhaustive unit & boundary tests on safety_evaluator.py", COLOR_SAGE_TEXT),
+        ("12 / 12", "Frontend Suite Passing", "Mood trends, Safe Exit, Wellness persistence, & Voice contracts", COLOR_PRIMARY_DARK),
+        ("0 Errors", "TypeScript & Vite Build", "Clean tsc --noEmit & production bundle (vite build)", COLOR_PEACH_TEXT),
+    ]
+    kw = Inches(2.8)
+    kg = Inches(0.21)
+    for i, (num, label, sub, kcol) in enumerate(kpis):
+        kx = Inches(0.75) + i * (kw + kg)
+        add_card(s11, kx, Inches(1.6), kw, Inches(2.25), COLOR_SURFACE, COLOR_BORDER, kcol)
+        tb_k = s11.shapes.add_textbox(kx + Inches(0.18), Inches(1.9), kw - Inches(0.36), Inches(1.8))
+        tf_k = tb_k.text_frame
+        tf_k.word_wrap = True
+        pk1 = tf_k.paragraphs[0]
+        pk1.text = num
+        pk1.font.name = FONT_HEADING
+        pk1.font.size = Pt(34)
+        pk1.font.bold = True
+        pk1.font.color.rgb = kcol
+        pk2 = tf_k.add_paragraph()
+        pk2.text = label
+        pk2.font.name = FONT_HEADING
+        pk2.font.size = Pt(13.5)
+        pk2.font.bold = True
+        pk2.font.color.rgb = COLOR_TEXT_MAIN
+        pk2.space_before = Pt(4)
+        pk3 = tf_k.add_paragraph()
+        pk3.text = sub
+        pk3.font.name = FONT_BODY
+        pk3.font.size = Pt(10.5)
+        pk3.font.color.rgb = COLOR_TEXT_MUTED
+        pk3.space_before = Pt(4)
 
-    # Member 2 (Roushan) Card
-    add_card(s8, Inches(6.8), Inches(1.6), Inches(5.7), Inches(5.2))
-    tb_m2 = s8.shapes.add_textbox(Inches(7.0), Inches(1.8), Inches(5.3), Inches(4.8))
-    tf_m2 = tb_m2.text_frame
-    tf_m2.word_wrap = True
-    p = tf_m2.paragraphs[0]
-    p.text = "Roushan (@roushan-23) — Backend & Data Lead"
-    p.font.bold = True
-    p.font.size = Pt(17)
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(10)
-    add_bullet_point(tf_m2, "Issue #1 (Architecture & Contracts):", "System boundaries, shared API contracts, environment setup, dynamic CORS.")
-    add_bullet_point(tf_m2, "Issue #10 (Persistent Anonymous Storage):", "SQLite persistent storage with WAL mode, structural zero-reflection guarantee, session isolation, 2-step wipe.")
-    add_bullet_point(tf_m2, "Issue #14 (Analytics Layer):", "Dedicated analytics service, 1-90 day bounded queries, Recharts trend formatting, non-diagnostic guardrails.")
-    add_bullet_point(tf_m2, "Issue #16 (Demo Journey & Rehearsal):", "8-step hackathon demo script, synthetic test data, AI bypass live verification.")
+    # Bottom architecture quality card
+    add_card(s11, Inches(0.75), Inches(4.15), Inches(11.83), Inches(2.6), COLOR_SURFACE, COLOR_BORDER)
+    add_card_title(s11, Inches(1.0), Inches(4.35), Inches(11.0), "Production & CI Safeguards")
+    add_bullets(s11, Inches(1.0), Inches(4.9), Inches(5.5), Inches(1.7), [
+        ("Ruff Lint & Format:", "Enforced Python code quality across backend/app."),
+        ("AbortSignal Timeouts:", "Frontend API client handles outages & recovery cleanly."),
+    ], pt_size=12, space_after=10)
+    add_bullets(s11, Inches(6.7), Inches(4.9), Inches(5.6), Inches(1.7), [
+        ("SQLite WAL Concurrency:", "Write-Ahead Logging with automatic schema initialization."),
+        ("Zero-CDN Assets:", "Local fonts, WAV audio, and WebM videos work offline-first."),
+    ], pt_size=12, space_after=10)
 
-    s8.notes_slide.notes_text_frame.text = (
-        "Highlight the team's seamless collaboration: Nikhil led the frontend design, 3D mascot, and safety rules. "
-        "Roushan owned the backend infrastructure, database persistence, session isolation, analytics aggregation, and demo coordination."
+    # =========================================================================
+    # SLIDE 12: Live Demo & Repository
+    # =========================================================================
+    s12 = prs.slides.add_slide(blank)
+    set_slide_background(s12)
+    add_header(s12, "Live Demo Walkthrough & Repository", "11 • Summary", 12)
+
+    add_card(s12, Inches(0.75), Inches(1.55), Inches(7.2), Inches(5.2), COLOR_SURFACE, COLOR_BORDER, COLOR_PRIMARY)
+    add_card_title(
+        s12, Inches(1.0), Inches(1.85), Inches(6.7),
+        "5-Minute Live Demo Flow",
+        "From 3D welcome to deterministic crisis protection"
     )
+    add_bullets(s12, Inches(1.0), Inches(2.75), Inches(6.7), Inches(3.8), [
+        ("1. Landing & Overview (/app):", "Show 3D Lavender Mascot, Daily Highlights, and Breathing Bubble with Sound On/Off."),
+        ("2. Daily Check-In (/checkin):", "Demonstrate LOW check-in, then HIGH crisis phrase triggering instant Tele-MANAS bypass + Safe Exit."),
+        ("3. Explore & Guided Video (/explore):", "Play HD nature WebM video with spoken voice narration and interactive practice checklist."),
+        ("4. Insights & Voice Companion:", "Filter 7/14/30d Mood Trends and interact with the 3D Calm Voice Companion."),
+        ("5. Privacy & Settings (/settings):", "Show 14–90d retention selector and 2-step full data wipe."),
+    ], pt_size=12, space_after=10)
 
-    # =========================================================================
-    # SLIDE 9: Quality Assurance & Engineering Rigor (Section 12)
-    # =========================================================================
-    s9 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s9, COLOR_BG)
-    add_header(s9, "Engineering Rigor & Automated Verification", "09 — QUALITY & TESTING")
+    add_card(s12, Inches(8.25), Inches(1.55), Inches(4.33), Inches(5.2), COLOR_LAVENDER, COLOR_BORDER)
+    tb_end = s12.shapes.add_textbox(Inches(8.55), Inches(2.05), Inches(3.73), Inches(4.2))
+    tf_end = tb_end.text_frame
+    tf_end.word_wrap = True
+    pe1 = tf_end.paragraphs[0]
+    pe1.text = "Calmspace"
+    pe1.font.name = FONT_HEADING
+    pe1.font.size = Pt(30)
+    pe1.font.bold = True
+    pe1.font.color.rgb = COLOR_PRIMARY_DARK
+    pe1.space_after = Pt(10)
 
-    # 3 Stat Cards
-    add_card(s9, Inches(0.8), Inches(1.6), Inches(3.7), Inches(2.2), COLOR_LAVENDER)
-    tb_st1 = s9.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(3.3), Inches(1.8))
-    tf_st1 = tb_st1.text_frame
-    tf_st1.word_wrap = True
-    p = tf_st1.paragraphs[0]
-    p.text = "226 TESTS"
-    p.font.bold = True
-    p.font.size = Pt(28)
-    p.font.color.rgb = COLOR_PRIMARY
-    p2 = tf_st1.add_paragraph()
-    p2.text = "100% Passing Automated Pytest Suite covering safety routing, corpus, storage, analytics & AI"
-    p2.font.size = Pt(11)
-    p2.font.color.rgb = COLOR_TEXT_MAIN
+    pe2 = tf_end.add_paragraph()
+    pe2.text = "A quieter space to check in with yourself."
+    pe2.font.name = FONT_BODY
+    pe2.font.size = Pt(14)
+    pe2.font.italic = True
+    pe2.font.color.rgb = COLOR_TEXT_MAIN
+    pe2.space_after = Pt(24)
 
-    add_card(s9, Inches(4.8), Inches(1.6), Inches(3.7), Inches(2.2), COLOR_SAGE)
-    tb_st2 = s9.shapes.add_textbox(Inches(5.0), Inches(1.8), Inches(3.3), Inches(1.8))
-    tf_st2 = tb_st2.text_frame
-    tf_st2.word_wrap = True
-    p = tf_st2.paragraphs[0]
-    p.text = "100% CI GREEN"
-    p.font.bold = True
-    p.font.size = Pt(28)
-    p.font.color.rgb = RGBColor(40, 120, 60)
-    p2 = tf_st2.add_paragraph()
-    p2.text = "GitHub Actions CI passing on every commit: Ruff formatting, linting, typechecking & tests"
-    p2.font.size = Pt(11)
-    p2.font.color.rgb = COLOR_TEXT_MAIN
+    pe3 = tf_end.add_paragraph()
+    pe3.text = "GitHub Repository:"
+    pe3.font.name = FONT_HEADING
+    pe3.font.size = Pt(11.5)
+    pe3.font.bold = True
+    pe3.font.color.rgb = COLOR_TEXT_MUTED
+    pe3.space_after = Pt(4)
 
-    add_card(s9, Inches(8.8), Inches(1.6), Inches(3.7), Inches(2.2), COLOR_PEACH)
-    tb_st3 = s9.shapes.add_textbox(Inches(9.0), Inches(1.8), Inches(3.3), Inches(1.8))
-    tf_st3 = tb_st3.text_frame
-    tf_st3.word_wrap = True
-    p = tf_st3.paragraphs[0]
-    p.text = "WCAG AA"
-    p.font.bold = True
-    p.font.size = Pt(28)
-    p.font.color.rgb = RGBColor(160, 80, 40)
-    p2 = tf_st3.add_paragraph()
-    p2.text = "Full accessibility compliance: high contrast, keyboard traps, screen reader tables, reduced motion"
-    p2.font.size = Pt(11)
-    p2.font.color.rgb = COLOR_TEXT_MAIN
+    pe4 = tf_end.add_paragraph()
+    pe4.text = f"https://{REPO_URL}"
+    pe4.font.name = FONT_HEADING
+    pe4.font.size = Pt(12.5)
+    pe4.font.bold = True
+    pe4.font.color.rgb = COLOR_PRIMARY
+    pe4.space_after = Pt(24)
 
-    # Lower Card: Test Coverage Breakdown
-    add_card(s9, Inches(0.8), Inches(4.1), Inches(11.7), Inches(2.7))
-    tb_cov = s9.shapes.add_textbox(Inches(1.1), Inches(4.3), Inches(11.1), Inches(2.3))
-    tf_cov = tb_cov.text_frame
-    tf_cov.word_wrap = True
-    p = tf_cov.paragraphs[0]
-    p.text = "Automated Test Coverage Breakdown"
-    p.font.bold = True
-    p.font.size = Pt(16)
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(8)
-    add_bullet_point(tf_cov, "Safety Routing Suite (156 tests):", "Mathematical validation across every mood, stress, and sleep combination, crisis indicators, and history transitions.")
-    add_bullet_point(tf_cov, "Multilingual Crisis Corpus (8 tests):", "Devanagari, Hindi, Hinglish, and English distress phrasing with clause negation bounds.")
-    add_bullet_point(tf_cov, "Storage & Persistence (5 tests):", "Cross-session isolation, restart survival, zero-reflection schema guarantees, and complete 2-step data purge.")
-    add_bullet_point(tf_cov, "Analytics Aggregation (6 tests):", "Bounded windows, edge math, zero division safety, and clinical terminology rejection.")
+    pe5 = tf_end.add_paragraph()
+    pe5.text = "Thank you!\nQuestions & Live Demo"
+    pe5.font.name = FONT_HEADING
+    pe5.font.size = Pt(16)
+    pe5.font.bold = True
+    pe5.font.color.rgb = COLOR_TEXT_MAIN
 
-    s9.notes_slide.notes_text_frame.text = (
-        "Emphasize our software engineering quality: 226 automated tests passing in under 6 seconds. "
-        "Zero linting errors with Ruff, full WCAG AA accessibility compliance, and verified GitHub Actions CI."
-    )
-
-    # =========================================================================
-    # SLIDE 10: Live Demo Journey & Conclusion
-    # =========================================================================
-    s10 = prs.slides.add_slide(blank_layout)
-    set_slide_background(s10, COLOR_BG)
-    add_header(s10, "Hackathon Live Demo Journey & Summary", "10 — LIVE DEMO")
-
-    add_card(s10, Inches(0.8), Inches(1.6), Inches(7.4), Inches(5.2))
-    tb_demo = s10.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(7.0), Inches(4.8))
-    tf_demo = tb_demo.text_frame
-    tf_demo.word_wrap = True
-    p = tf_demo.paragraphs[0]
-    p.text = "5-Minute Live Judging Walkthrough"
-    p.font.bold = True
-    p.font.size = Pt(18)
-    p.font.color.rgb = COLOR_PRIMARY
-    p.space_after = Pt(12)
-    add_bullet_point(tf_demo, "1. 3D Mascot Sanctuary:", "Open localhost:3000 — interact with the calm lavender clay blob.")
-    add_bullet_point(tf_demo, "2. Daily Check-In Flow:", "Submit synthetic steady check-in (Mood 4, Stress 2, Sleep 7.5h).")
-    add_bullet_point(tf_demo, "3. Deterministic Safety:", "Show 'Doing okay' badge and supportive pacing encouragement.")
-    add_bullet_point(tf_demo, "4. Personal Insights & Breather:", "View interactive Recharts trends and start the 5-min breather timer.")
-    add_bullet_point(tf_demo, "5. THE HIGH-ROUTE SAFETY PROOF:", "Submit synthetic crisis text -> Prove live that AI is 100% bypassed and Tele-MANAS (14416) escalates immediately.")
-    add_bullet_point(tf_demo, "6. Privacy & 2-Step Wipe:", "Settings tab -> Delete all data -> Verify database is instantly purged.")
-
-    # Right Card: Conclusion
-    add_card(s10, Inches(8.5), Inches(1.6), Inches(4.0), Inches(5.2), COLOR_SURFACE)
-    tb_ccl = s10.shapes.add_textbox(Inches(8.7), Inches(1.8), Inches(3.6), Inches(4.8))
-    tf_ccl = tb_ccl.text_frame
-    tf_ccl.word_wrap = True
-    p = tf_ccl.paragraphs[0]
-    p.text = "Calmspace Impact"
-    p.font.bold = True
-    p.font.size = Pt(18)
-    p.font.color.rgb = COLOR_TEXT_MAIN
-    p.space_after = Pt(12)
-
-    p_quote = tf_ccl.add_paragraph()
-    p_quote.text = "« Rules decide safety.\nAI supports language.\nHumans provide care. »"
-    p_quote.font.italic = True
-    p_quote.font.bold = True
-    p_quote.font.size = Pt(14)
-    p_quote.font.color.rgb = COLOR_PRIMARY
-    p_quote.space_after = Pt(16)
-
-    p_repo = tf_ccl.add_paragraph()
-    p_repo.text = "GitHub Repository:\ngithub.com/nikhi20-900/calmspace\n\nContributors:\n• Nikhil Chhetri (@nikhi20-900)\n• Roushan (@roushan-23)\n\nThank you!"
-    p_repo.font.size = Pt(12)
-    p_repo.font.color.rgb = COLOR_TEXT_MUTED
-
-    s10.notes_slide.notes_text_frame.text = (
-        "Wrap up with our demonstration journey and impact statement. "
-        "Invite the judges to try the 3D blob and review our deterministic AI bypass and privacy guarantees. "
-        "Open for QA."
-    )
-
-    # Save presentation
-    output_path = "Calmspace_Presentation.pptx"
+    output_path = os.path.join(repo_root, "Calmspace_Presentation.pptx")
     prs.save(output_path)
-    print(f"Presentation successfully generated and saved to {output_path}")
+    print(f"Generated {output_path} ({len(prs.slides)} slides)")
 
 
 if __name__ == "__main__":
