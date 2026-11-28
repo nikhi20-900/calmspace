@@ -1,20 +1,65 @@
-# Calmspace Blob (mascot)
+# Mascot Components
 
-Three.js soft-clay mascot. One long-lived scene per mount; props are read from refs each frame, so hover and breathing changes never rebuild it.
+This folder contains the interactive Calmspace blob, the 3D cat and dog companions, and Mochi, a small page-wide SVG cat. Pick the component that matches the surface; the three scenes have different interaction and rendering needs.
 
-| File | Role |
+## Choose a component
+
+| Component | Use | Notes |
+|---|---|---|
+| [`BlobScene.tsx`](./BlobScene.tsx) | Interactive blob on the landing and companion pages | Three.js/WebGL scene with expressions, pointer and keyboard input, reduced-motion support, and a CSS fallback if WebGL is unavailable. |
+| [`PetScene.tsx`](./PetScene.tsx) | 3D cat or dog in the voice companion | Pass `type="cat"` or `type="dog"`; speaking, listening, thinking, and voice level drive subtle movement. Requires WebGL. |
+| [`RoamingPet.tsx`](./RoamingPet.tsx) | Small companion that walks along the app edge | Lightweight inline SVG and CSS. It can show a short message, link to Calm, or be hidden. |
+
+## Use `BlobScene`
+
+Give the scene a parent with a real height. The component fills its parent, so an auto-height wrapper can leave the canvas at zero height.
+
+```tsx
+<div className="h-64 w-full">
+  <BlobScene
+    expression={isListening ? 'listening' : 'idle'}
+    voiceLevel={voiceLevel}
+    bodyColor={0xa79de3}
+    onBlobClick={handleBlobClick}
+    className="h-full w-full"
+  />
+</div>
+```
+
+`BlobSceneProps` also includes `isCtaHovered`, `isBreathingActive`, `audioLevel`, and `breathingPhase`. Expressions are defined by `BlobExpression` in `BlobScene.tsx`. `bodyColor` is a numeric hex color.
+
+The blob can be activated by click, Enter, or Space and dragged with a pointer. The canvas itself is hidden from assistive technology; the wrapper exposes a button role and label. When reduced motion is enabled, ambient animation is limited while direct interactions still work.
+
+## Use `PetScene`
+
+`PetScene` also fills a sized parent. Its props are `type`, `speaking`, `listening`, `thinking`, `voiceLevel`, and `className`.
+
+```tsx
+<div className="h-80 w-full">
+  <PetScene type="cat" listening={isListening} voiceLevel={voiceLevel} />
+</div>
+```
+
+The component observes its container size and disposes its renderer, geometries, and materials when it unmounts. Unlike `BlobScene`, it currently has no non-WebGL fallback.
+
+## Files and ownership
+
+| File | Responsibility |
 |---|---|
-| `BlobScene.tsx` | React component: renderer, render loop, pointer/touch/keyboard input, visibility, context-loss recovery |
-| `BlobController.ts` | Builds the hierarchy, applies pose + physics each frame, disposes everything it owns |
-| `BlobPhysics.ts` | Single source of truth for springs (body, jelly lag, wobble modes, poke) |
-| `BlobAnimations.ts` | Expression blending, blinking, gaze, breathing |
-| `BlobMaterials.ts` | Body material (GPU deformation + clay shading), light rig, eye/mouth/shadow materials |
-| `BlobGeometry.ts` | SDF body mesh (cached per quality tier), eye and mouth geometry |
+| `BlobScene.tsx` | React wrapper, input, sizing, render-loop visibility, reduced motion, WebGL fallback, and context recovery |
+| `BlobController.ts` | Scene hierarchy, per-frame pose updates, quality settings, and owned-resource cleanup |
+| `BlobPhysics.ts` | Body and jelly motion, wobble, drag, and tap response |
+| `BlobAnimations.ts` | Expression targets, gaze, blinking, and breathing |
+| `BlobMaterials.ts` | Clay shader, lighting, and scene environment |
+| `BlobGeometry.ts` | Procedural body, eye, and mouth geometry |
+| `PetScene.tsx` | Procedural cat and dog scenes for voice interaction |
+| `RoamingPet.tsx` | App-wide Mochi SVG, short messages, and hide/show controls |
+| `blobColorways.ts` | Available blob colors and best-effort local preference storage |
 
-## Known limitations
+## Change checklist
 
-- **Residual per-mount GPU objects.** About 4 textures, 3 framebuffers and 1 buffer stay behind per remount. This reproduces in a bare Three.js renderer with only the environment bake, so it is not from this code. The browser frees them with the canvas. `forceContextLoss()` is deliberately not called, because React StrictMode reuses the same canvas and a force-lost context cannot be reacquired.
-- **Timing checks.** The headless GPU used for testing is slow, so the tap-squash peak was too fast to sample. Squash, drag and release were confirmed visually in frames, not by number. The Enter-key reaction was not confirmed by a measurement. Feel and frame rate should be checked on a real phone.
-- **Vertical drag on touch.** It scrolls the page instead (the cost of `touch-action: pan-y`, which keeps the blob from trapping page scroll). Horizontal drag, press and tap still work. Real touch scrolling was verified by CSS only, not by a gesture test.
-- **Pixel ratio.** Dynamic resolution only steps down, never back up.
-- **Landing page untouched.** `HeroSection` and the rest of the landing page are unchanged, including the hero's own 2.6 s expression-revert timeout.
+- Keep the blob scene long-lived for one mount. Its React props are read through refs so ordinary state updates do not rebuild WebGL resources.
+- Dispose geometries, materials, renderers, observers, and animation frames when adding scene resources or listeners.
+- Preserve the `BlobScene` keyboard activation, accessible label, reduced-motion behavior, and fallback.
+- Keep the roaming cat's reduced-motion rules in `frontend/src/styles/animations.css` when changing its CSS animations.
+- Check each scene at phone and desktop sizes; its parent must provide a non-zero height.

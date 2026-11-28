@@ -14,14 +14,51 @@
   <img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB?style=flat-square" alt="Frontend: React 18 + TypeScript" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square" alt="Backend: FastAPI" />
   <img src="https://img.shields.io/badge/Persistence-SQLite%20WAL-003B57?style=flat-square" alt="Persistence: SQLite WAL" />
-  <img src="https://img.shields.io/badge/Backend%20Tests-271%20Passing-245532?style=flat-square" alt="Backend Tests: 271 Passing" />
-  <img src="https://img.shields.io/badge/Safety%20Engine-98%25%20Coverage-5554B8?style=flat-square" alt="Safety Engine: 98% Coverage" />
+  <img src="https://img.shields.io/badge/Safety-Deterministic%20routing-5554B8?style=flat-square" alt="Safety: deterministic routing" />
 </p>
 
 ---
 
+## Quick Start
+
+Run the frontend and API locally in two terminals. The default AI provider is `mock`, so the app starts without an external AI key.
+
+**1. Install frontend dependencies and prepare the backend:**
+
+```bash
+npm --prefix frontend install
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+**2. Start the API in the first terminal:**
+
+```bash
+npm run backend
+```
+
+**3. Start the web app in the second terminal:**
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). The Vite development server forwards `/api` requests to the backend at `http://127.0.0.1:8000`.
+
+**Useful checks:**
+
+```bash
+npm run test:backend
+npm --prefix frontend test
+npm run build
+```
+
+See [Getting Started, Environment & CI Verification](#13--getting-started-environment--ci-verification) for optional configuration and the full local verification workflow.
+
 ## Navigation
 
+- [Quick Start](#quick-start)
 - [01 — The Idea & Non-Clinical Boundary](#01--the-idea--non-clinical-boundary)
 - [02 — Design Philosophy & Visual Tokens](#02--design-philosophy--visual-tokens)
 - [03 — Student Experience Flow](#03--student-experience-flow)
@@ -136,13 +173,13 @@ flowchart TD
 
 | Layer | Implemented Technology |
 |---|---|
-| **Frontend** | React 18 (`^18.3.1`), React Router DOM (`^6.28.1`), TypeScript (`^5.7.2`), Vite (`^6.0.7`) |
+| **Frontend** | React 18 (`^18.3.1`), React Router DOM (`^6.30.6`), TypeScript (`^5.7.2`), Vite (`^6.0.7`) |
 | **Styling & Motion** | Tailwind CSS (`^3.4.17`), custom CSS design tokens, Framer Motion (`^11.15.0`), Lucide icons |
 | **Charts & 3D** | Recharts (`^2.15.0`), Three.js (`^0.187.0`) custom GLSL lavender mascot |
 | **Backend** | Python 3.12+, FastAPI (`>=0.110.0`), Uvicorn (`>=0.28.0`), Pydantic (`>=2.6.0`) |
 | **Persistence** | SQLite in WAL mode (`calmspace.db`, `backend/app/services/storage.py`) |
 | **AI Providers** | `mock` (offline deterministic default) and `gemini` (`x-goog-api-key` header) with fail-closed fallback |
-| **Quality & CI** | Pytest (`271` passing tests), `pytest-cov` (`98%` on `safety_evaluator.py`), Ruff lint/format, `tsc && vite build` |
+| **Quality & CI** | Pytest and `pytest-cov`, Ruff lint/format, TypeScript checking, and Vite production builds |
 
 ---
 
@@ -323,7 +360,7 @@ flowchart LR
 |---|---|---|
 | **#1 – #4** | Architecture, deterministic safety engine (`safety_evaluator.py`), multilingual crisis corpus, high-risk escalation | **Closed** |
 | **#5 – #9** | AI guidance adapter + fallback, check-in UX, dashboard shell, Insights UI, Study Planner + breather timer | **Closed** |
-| **#10 – #14** | SQLite WAL persistence, Privacy UI + retention pruning + canary leak suite, Support Directory, 262-test suite, Analytics | **Closed** |
+| **#10 – #14** | SQLite WAL persistence, privacy UI, retention pruning, Support Directory, automated checks, Analytics | **Closed** |
 | **#16 – #17** | End-to-end hackathon demo script (`docs/demo_journey.md`) & documentation reconciliation | **Closed** |
 | **#15** | Live HTTPS hosting, persistent disk restart verification, and production secrets injection (`@roushan-23`, `@mu368651-eng`) | **Open** *(Repo artifacts merged via PR #37; live host deployment pending)* |
 
@@ -390,7 +427,7 @@ calmspace/
 │   │       ├── analytics.py         # Session-scoped non-diagnostic trend aggregation
 │   │       ├── support_directory.py # Verified helpline & demo campus resource registry
 │   │       └── storage.py           # SQLite WAL engine, pruning & atomic deletion
-│   └── tests/                       # 271 automated tests across 12 test modules
+│   └── tests/                       # Backend safety, API, persistence, analytics, and companion tests
 ├── frontend/
 │   ├── Dockerfile                   # Multi-stage Node 20 build -> Nginx 1.27 static/proxy server
 │   ├── nginx.conf                   # Security headers, /api proxy & SPA routing
@@ -438,7 +475,7 @@ npm --prefix frontend install
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ```
 
-- Open `http://127.0.0.1:5173` (running `npm --prefix frontend run dev` without flags binds port `3000` per `frontend/vite.config.ts`).
+- Open `http://localhost:3000` (the port configured in `frontend/vite.config.ts`).
 
 ### 3. Environment Variables Reference (`backend/.env.example` & `frontend/.env.example`)
 
@@ -457,7 +494,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ### 4. Local CI Parity Verification
 
 ```bash
-# Backend formatting, linting, and 271-test suite with safety evaluator coverage
+# Backend formatting, linting, and test suite
 cd backend
 ruff format --check .
 ruff check .
