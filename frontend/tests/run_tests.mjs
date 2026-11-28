@@ -41,6 +41,8 @@ await build({
     path.join(frontendRoot, 'src/services/checkinState.ts'),
     path.join(frontendRoot, 'src/services/api.ts'),
     path.join(frontendRoot, 'src/utils/moodTrend.ts'),
+    path.join(frontendRoot, 'src/utils/wellnessStorage.ts'),
+    path.join(frontendRoot, 'src/data/wellnessContent.ts'),
   ],
   outbase: path.join(frontendRoot, 'src'),
   outdir: tempOutDir,
@@ -57,6 +59,8 @@ await build({
 const checkinState = await import(pathToFileURL(path.join(tempOutDir, 'services/checkinState.mjs')).href);
 const apiModule = await import(pathToFileURL(path.join(tempOutDir, 'services/api.mjs')).href);
 const moodTrendModule = await import(pathToFileURL(path.join(tempOutDir, 'utils/moodTrend.mjs')).href);
+const wellnessStorage = await import(pathToFileURL(path.join(tempOutDir, 'utils/wellnessStorage.mjs')).href);
+const wellnessContent = await import(pathToFileURL(path.join(tempOutDir, 'data/wellnessContent.mjs')).href);
 
 test.after(() => {
   rmSync(tempOutDir, { recursive: true, force: true });
@@ -406,6 +410,57 @@ test('filterAndAggregateMoodHistory filters 7/14/30-day ranges, preserves chrono
   ]);
 });
 
+test('Wellness features: Daily Highlights, Explore, Daily Challenges, and Sound Lounge persistence', () => {
+  globalThis.localStorage.clear();
+
+  // 1. Daily Highlights: 5 categories & date-based read reset
+  const highlights = wellnessContent.getDailyHighlightsForDate('2026-11-28');
+  assert.equal(highlights.length, 5);
+  wellnessStorage.saveReadHighlightIds([highlights[0].id], '2026-11-28');
+  assert.deepEqual(wellnessStorage.loadReadHighlightIds('2026-11-28'), [highlights[0].id]);
+  assert.deepEqual(wellnessStorage.loadReadHighlightIds('2026-11-29'), []);
+
+  // 2. Explore & Relax: Likes & Bookmarks persistence
+  wellnessStorage.saveExploreLikes(['exp-mindful-grounding']);
+  wellnessStorage.saveExploreBookmarks(['exp-sleep-buffer']);
+  assert.deepEqual(wellnessStorage.loadExploreLikes(), ['exp-mindful-grounding']);
+  assert.deepEqual(wellnessStorage.loadExploreBookmarks(), ['exp-sleep-buffer']);
+
+  // 3. Daily Challenges: no duplicate same-day completion + weekly progress count
+  const ch = wellnessContent.getDailyChallengeForDate('2026-11-28');
+  assert.ok(ch.title.length > 0);
+  const s1 = wellnessStorage.markChallengeCompleted('2026-11-28', ch.id, 'Grateful for calm');
+  assert.equal(s1.completedDates['2026-11-28'], ch.id);
+  assert.equal(s1.responses['2026-11-28'], 'Grateful for calm');
+  // Second attempt on same day does not overwrite
+  const s2 = wellnessStorage.markChallengeCompleted('2026-11-28', 'other-id', 'Different');
+  assert.equal(s2.completedDates['2026-11-28'], ch.id);
+  assert.equal(
+    wellnessStorage.countWeeklyCompletedChallenges(s2.completedDates, new Date(2026, 10, 28)),
+    1
+  );
+
+  // 4. Sound Lounge: exact 3 tracks + favourites & volume persistence
+  assert.deepEqual(
+    wellnessContent.SOUND_LOUNGE_TRACKS.map((t) => t.title),
+    ['Meditation Calm', 'Ocean Waves', 'Night Calm']
+  );
+  wellnessStorage.saveSoundFavourites(['meditation']);
+  wellnessStorage.saveSoundVolume(0.45);
+  assert.deepEqual(wellnessStorage.loadSoundFavourites(), ['meditation']);
+  assert.equal(wellnessStorage.loadSoundVolume(), 0.45);
+
+  // 5. Breathing Bubble stats persistence
+  assert.deepEqual(wellnessStorage.loadBreathingStats(), {
+    sessionsCompleted: 0,
+    totalMinutes: 0,
+    bestSyncStreak: 0,
+  });
+  const b1 = wellnessStorage.recordBreathingCompletion(3, 5);
+  assert.deepEqual(b1, { sessionsCompleted: 1, totalMinutes: 3, bestSyncStreak: 5 });
+  const b2 = wellnessStorage.recordBreathingCompletion(1, 2);
+  assert.deepEqual(b2, { sessionsCompleted: 2, totalMinutes: 4, bestSyncStreak: 5 });
+});
 test('api companion methods send X-Session-ID and AbortSignal', async () => {
   globalThis.localStorage.clear();
   const seenCalls = [];

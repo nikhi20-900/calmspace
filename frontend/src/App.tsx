@@ -31,6 +31,9 @@ const SupportNetworkPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
+const ExplorePage = lazy(() =>
+  import('./pages/ExplorePage').then((m) => ({ default: m.ExplorePage }))
+);
 
 export const App: React.FC = () => {
   return (
@@ -52,6 +55,7 @@ export const App: React.FC = () => {
               <Route path="/planner" element={<PlannerPage />} />
               <Route path="/support" element={<SupportNetworkPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/explore" element={<ExplorePage />} />
             </Route>
 
             {/* Fallback route */}

@@ -39,6 +39,11 @@ import {
   computeMoodTrendSummary,
   filterAndAggregateMoodHistory,
 } from '../utils/moodTrend';
+import { DailyHighlightsSection } from '../components/wellness/DailyHighlightsSection';
+import { BreathingBubbleSection } from '../components/wellness/BreathingBubbleSection';
+import { ExploreRelaxSection } from '../components/wellness/ExploreRelaxSection';
+import { DailyChallengeSection } from '../components/wellness/DailyChallengeSection';
+import { SoundLoungeSection } from '../components/wellness/SoundLoungeSection';
 
 interface MoodTooltipProps {
   active?: boolean;
@@ -226,6 +231,9 @@ export const OverviewPage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Feature 1: Daily Highlights */}
+      <DailyHighlightsSection />
 
       {/* Quick Human Support Bar */}
       <section
@@ -621,6 +629,18 @@ export const OverviewPage: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Feature 2: Breathing Bubble */}
+      <BreathingBubbleSection />
+
+      {/* Feature 3: Explore & Relax */}
+      <ExploreRelaxSection previewOnly />
+
+      {/* Feature 4: Today's Mindful Challenge */}
+      <DailyChallengeSection />
+
+      {/* Feature 5: Sound Lounge */}
+      <SoundLoungeSection />
 
       {/* Privacy Footnote */}
       <div className="flex flex-wrap items-center justify-center gap-2 pt-4 pb-2 text-xs text-[#625F78] text-center">
