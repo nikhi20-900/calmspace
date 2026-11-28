@@ -240,9 +240,9 @@ const FRAGMENT_OUTPUT = /* glsl */ `
 #include <opaque_fragment>
 `;
 
-export function createBlobBodyMaterial(uniforms: BlobUniforms): THREE.MeshPhysicalMaterial {
+export function createBlobBodyMaterial(uniforms: BlobUniforms, color = 0xa79de3): THREE.MeshPhysicalMaterial {
   const material = new THREE.MeshPhysicalMaterial({
-    color: 0xa79de3, // lavender identity colour (unchanged hue; no longer blown out)
+    color, // lavender is the default identity; companion profiles may choose another tint
     roughness: 0.52,
     metalness: 0.0,
     clearcoat: 0.1,

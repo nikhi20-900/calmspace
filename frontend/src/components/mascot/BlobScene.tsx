@@ -13,6 +13,10 @@ export interface BlobSceneProps {
   isBreathingActive?: boolean;
   audioLevel?: number;
   breathingPhase?: number | null;
+  /** Normalized microphone activity (0–1), smoothed into a subtle body pulse. */
+  voiceLevel?: number;
+  /** Hex tint for the companion's procedural clay body. */
+  bodyColor?: number;
   onBlobClick?: () => void;
   className?: string;
 }
@@ -48,6 +52,8 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
   isBreathingActive = false,
   audioLevel = 0,
   breathingPhase = null,
+  voiceLevel = 0,
+  bodyColor = 0xa79de3,
   onBlobClick,
   className = '',
 }) => {
@@ -65,6 +71,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
   const breathingRef = useRef(isBreathingActive);
   const audioLevelRef = useRef(audioLevel);
   const breathingPhaseRef = useRef(breathingPhase);
+  const voiceLevelRef = useRef(voiceLevel);
   const reducedRef = useRef(isReducedMotion);
   const onClickRef = useRef(onBlobClick);
   const engineRef = useRef<BlobEngine | null>(null);
@@ -87,10 +94,11 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     breathingRef.current = isBreathingActive;
     audioLevelRef.current = audioLevel;
     breathingPhaseRef.current = breathingPhase;
+    voiceLevelRef.current = voiceLevel;
     reducedRef.current = isReducedMotion;
     onClickRef.current = onBlobClick;
     engineRef.current?.wake();
-  }, [expression, isCtaHovered, isBreathingActive, audioLevel, breathingPhase, isReducedMotion, onBlobClick]);
+  }, [expression, isCtaHovered, isBreathingActive, audioLevel, breathingPhase, voiceLevel, isReducedMotion, onBlobClick]);
 
   /* ------------------------------------------------------------------------------------
    * Engine: created once per mount. Everything below is torn down in the cleanup.
@@ -131,7 +139,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     try {
       studioEnv = setupStudioEnvironment(renderer, scene);
       scene.add(createLightRig());
-      controller = new BlobController(coarse ? BLOB_QUALITY_MOBILE : BLOB_QUALITY_HIGH);
+      controller = new BlobController(coarse ? BLOB_QUALITY_MOBILE : BLOB_QUALITY_HIGH, bodyColor);
       scene.add(controller.rootGroup);
     } catch (e) {
       console.warn('Blob scene setup failed, using fallback', e);
@@ -202,9 +210,22 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
       controller.setAudioLevel(audioLevelRef.current);
       controller.setExternalBreath(breathingPhaseRef.current);
 
-      // Gaze: the CTA wins, then the pointer anywhere on the page, then idle wandering.
+      // During conversation the blob keeps a gentle, steady gaze toward the user.
+      // Direct manipulation and the hero CTA still take precedence.
       if (ctaHoveredRef.current) {
         controller.setGaze(0, -0.75, true);
+      } else if (inter.pressed) {
+        const rect = container.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height * 0.42;
+        const range = Math.max(rect.width, 480) * 0.7;
+        controller.setGaze(
+          THREE.MathUtils.clamp((inter.clientX - cx) / range, -1, 1),
+          THREE.MathUtils.clamp(-(inter.clientY - cy) / (range * 0.85), -1, 1),
+          true
+        );
+      } else if (['listening', 'speaking', 'support', 'breathing'].includes(exp)) {
+        controller.setGaze(0, 0.08, true);
       } else if (now - inter.lastMove < GAZE_MEMORY_MS) {
         const rect = container.getBoundingClientRect();
         const cx = rect.left + rect.width / 2;
@@ -219,6 +240,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
         controller.setGaze(0, 0, false);
       }
 
+      controller.setVoiceLevel(voiceLevelRef.current);
       controller.step(dt, (now - t0) / 1000, reduced);
       renderer.render(scene, camera);
 
@@ -342,7 +364,7 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
       // *same* canvas, and a force-lost context cannot be reacquired.
       renderer.dispose();
     };
-  }, []);
+  }, [bodyColor]);
 
   /* ------------------------------------------------------------------------------------
    * Pointer, touch and keyboard interaction
@@ -472,13 +494,14 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
             }}
           >
             <div className="flex gap-10 mb-4">
-              <div className="w-4 h-5 rounded-full bg-[#25233B]" />
-              <div className="w-4 h-5 rounded-full bg-[#25233B]" />
+              <div className="w-4 h-5 rounded-full bg-[#25233B] transition-transform duration-200" style={{ transform: `scaleY(${isBreathingActive || expression === 'breathing' || expression === 'support' ? 0.76 : expression === 'listening' ? 1.12 : 1})` }} />
+              <div className="w-4 h-5 rounded-full bg-[#25233B] transition-transform duration-200" style={{ transform: `scaleY(${isBreathingActive || expression === 'breathing' || expression === 'support' ? 0.76 : expression === 'listening' ? 1.12 : 1})` }} />
             </div>
             <div
               className={`border-b-2 border-[#48436E] rounded-full transition-all duration-150 ${
                 expression === 'speaking' ? 'w-7 h-3' : 'w-6 h-2'
               }`}
+              style={expression === 'speaking' ? { transform: `scaleY(${0.35 + Math.min(Math.max(audioLevel, 0), 1) * 1.4})` } : undefined}
             />
           </div>
           <span className="text-xs text-[#625F78] mt-4 font-medium">
