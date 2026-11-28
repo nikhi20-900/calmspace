@@ -26,11 +26,42 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
 } from 'recharts';
 import { api } from '../services/api';
 import { InsightSummary, CheckInRecord, UserSettings } from '../types';
 import { usePrivacyModal } from '../context/PrivacyModalContext';
-import { aggregateDailyMoodTrend } from '../utils/moodTrend';
+import {
+  MOOD_RANGE_OPTIONS,
+  MoodRangeDays,
+  aggregateDailyMoodTrend,
+  computeMoodTrendSummary,
+  filterAndAggregateMoodHistory,
+} from '../utils/moodTrend';
+
+interface MoodTooltipProps {
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload?: { mood?: number; count?: number } }>;
+  label?: string | number;
+}
+
+const MoodChartTooltip: React.FC<MoodTooltipProps> = ({ active, payload, label }) => {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+  const point = payload[0]?.payload;
+  const avg = typeof point?.mood === 'number' ? point.mood.toFixed(1) : '—';
+  const count = point?.count ?? 1;
+  return (
+    <div className="bg-white border border-[#E8E6F1] rounded-xl px-3 py-2 shadow-soft text-xs space-y-0.5">
+      <p className="font-bold text-[#25233B]">{label}</p>
+      <p className="text-[#5554B8] font-semibold">Average mood: {avg} / 5</p>
+      <p className="text-[#625F78]">
+        {count} {count === 1 ? 'check-in' : 'check-ins'}
+      </p>
+    </div>
+  );
+};
 
 export const OverviewPage: React.FC = () => {
   const { openPrivacyModal } = usePrivacyModal();
@@ -46,6 +77,7 @@ export const OverviewPage: React.FC = () => {
     data_retention_days: 30,
   });
   const [breakTaken, setBreakTaken] = useState(false);
+  const [moodRangeDays, setMoodRangeDays] = useState<MoodRangeDays>(7);
 
   useEffect(() => {
     async function loadData() {
@@ -90,9 +122,16 @@ export const OverviewPage: React.FC = () => {
     return 'Good evening';
   };
 
-  const dailyMoodTrend = useMemo(
-    () => aggregateDailyMoodTrend(insights?.mood_trend),
-    [insights?.mood_trend]
+  const dailyMoodTrend = useMemo(() => {
+    if (history.length > 0) {
+      return filterAndAggregateMoodHistory(history, moodRangeDays);
+    }
+    return aggregateDailyMoodTrend(insights?.mood_trend);
+  }, [history, moodRangeDays, insights?.mood_trend]);
+
+  const moodSummary = useMemo(
+    () => computeMoodTrendSummary(dailyMoodTrend),
+    [dailyMoodTrend]
   );
 
   if (loading) {
@@ -303,34 +342,197 @@ export const OverviewPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Weekly Mood Trend Rechart */}
             <Card padding="lg" className="lg:col-span-2 min-w-0 space-y-4">
-              <div className="flex flex-wrap items-start sm:items-center justify-between gap-2">
+              <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-bold text-[#25233B]">
-                    Weekly Mood Pattern
+                    Mood Trend
                   </h2>
                   <p className="text-xs text-[#625F78] mt-0.5">
-                    Daily average mood across your recent check-in days.
+                    Daily average mood across your last {moodRangeDays} days.
                   </p>
                 </div>
-                <Link
-                  to="/insights"
-                  className="text-xs font-semibold text-[#5554B8] hover:text-[#4645A7] flex items-center gap-1 shrink-0"
-                >
-                  <span>Detailed insights</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div
+                    role="group"
+                    aria-label="Select mood trend time range"
+                    className="inline-flex flex-wrap items-center gap-1 p-1 bg-[#F7F6FB] rounded-button border border-[#E8E6F1]"
+                  >
+                    {MOOD_RANGE_OPTIONS.map((rangeOption) => {
+                      const active = moodRangeDays === rangeOption;
+                      return (
+                        <button
+                          key={rangeOption}
+                          type="button"
+                          onClick={() => setMoodRangeDays(rangeOption)}
+                          aria-pressed={active}
+                          className={`px-2.5 py-1 text-xs font-semibold rounded-input transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                            active
+                              ? 'bg-[#5554B8] text-white shadow-xs'
+                              : 'text-[#625F78] hover:text-[#25233B] hover:bg-white'
+                          }`}
+                        >
+                          {rangeOption} Days
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <Link
+                    to="/insights"
+                    className="text-xs font-semibold text-[#5554B8] hover:text-[#4645A7] flex items-center gap-1 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] rounded px-1 py-1"
+                  >
+                    <span>Detailed insights</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
 
-              {dailyMoodTrend.length >= 1 ? (
-                <div className="w-full min-w-0 pt-2 space-y-2">
-                  <div className="h-48 w-full min-w-0">
+              {/* Compact Mood Summary Strip */}
+              {moodSummary.dayCount > 0 && (
+                <div
+                  className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+                  aria-label="Mood summary metrics for selected period"
+                >
+                  <div className="p-2.5 rounded-input bg-[#F7F6FB] border border-[#E8E6F1] min-w-0">
+                    <span className="text-[11px] font-medium text-[#625F78] block">
+                      Period Average
+                    </span>
+                    <span className="text-sm font-bold text-[#25233B] mt-0.5 block">
+                      {moodSummary.overallAverage !== null
+                        ? `${moodSummary.overallAverage.toFixed(1)} / 5`
+                        : '—'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-input bg-[#F7F6FB] border border-[#E8E6F1] min-w-0">
+                    <span className="text-[11px] font-medium text-[#625F78] block">
+                      Highest Day
+                    </span>
+                    <span className="text-sm font-bold text-[#25233B] mt-0.5 block truncate">
+                      {moodSummary.highestDay
+                        ? `${moodSummary.highestDay.day} (${moodSummary.highestDay.mood.toFixed(1)})`
+                        : '—'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-input bg-[#F7F6FB] border border-[#E8E6F1] min-w-0">
+                    <span className="text-[11px] font-medium text-[#625F78] block">
+                      Lowest Day
+                    </span>
+                    <span className="text-sm font-bold text-[#25233B] mt-0.5 block truncate">
+                      {moodSummary.lowestDay
+                        ? `${moodSummary.lowestDay.day} (${moodSummary.lowestDay.mood.toFixed(1)})`
+                        : '—'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-input bg-[#F7F6FB] border border-[#E8E6F1] min-w-0">
+                    <span className="text-[11px] font-medium text-[#625F78] block">
+                      Check-ins
+                    </span>
+                    <span className="text-sm font-bold text-[#25233B] mt-0.5 block">
+                      {moodSummary.totalCheckIns}{' '}
+                      <span className="text-[11px] font-normal text-[#625F78]">
+                        ({moodSummary.dayCount} {moodSummary.dayCount === 1 ? 'day' : 'days'})
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {dailyMoodTrend.length === 0 ? (
+                <div className="min-h-[11rem] flex flex-col items-center justify-center text-xs text-[#625F78] text-center p-5 bg-[#F7F6FB] rounded-button border border-[#E8E6F1]/70 space-y-2.5">
+                  <Calendar className="w-5 h-5 text-[#5554B8]" />
+                  <div className="space-y-1 max-w-sm">
+                    <p className="font-semibold text-[#25233B]">
+                      No mood check-ins in the last {moodRangeDays} days
+                    </p>
+                    <p>
+                      Logging your daily mood creates a personal trend to help you notice gentle patterns over time.
+                    </p>
+                  </div>
+                  <Link
+                    to="/checkin"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button bg-[#5554B8] text-white font-semibold hover:bg-[#4645A7] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+                  >
+                    <span>Log a check-in</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              ) : dailyMoodTrend.length === 1 ? (
+                <div
+                  role="region"
+                  aria-label={`Single-day mood baseline for ${dailyMoodTrend[0].day}: average ${dailyMoodTrend[0].mood.toFixed(1)} out of 5 across ${dailyMoodTrend[0].count} ${dailyMoodTrend[0].count === 1 ? 'check-in' : 'check-ins'}.`}
+                  className="w-full min-w-0 space-y-3"
+                >
+                  <div className="h-44 w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
                         data={dailyMoodTrend}
-                        margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
+                        margin={{ top: 12, right: 16, left: -12, bottom: 4 }}
                       >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ECEAF5" />
                         <XAxis
                           dataKey="day"
+                          stroke="#8E8AA7"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={{ stroke: '#E8E6F1' }}
+                          tickMargin={8}
+                        />
+                        <YAxis
+                          domain={[1, 5]}
+                          ticks={[1, 2, 3, 4, 5]}
+                          width={32}
+                          stroke="#8E8AA7"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={{ stroke: '#E8E6F1' }}
+                        />
+                        <Tooltip content={<MoodChartTooltip />} />
+                        <Line
+                          type="monotone"
+                          dataKey="mood"
+                          name="Daily Average Mood"
+                          stroke="#5554B8"
+                          strokeWidth={0}
+                          isAnimationActive={false}
+                          dot={{ r: 5.5, fill: '#5554B8', strokeWidth: 2, stroke: '#FFFFFF' }}
+                          activeDot={{ r: 7, fill: '#4645A7', stroke: '#E9E7FB', strokeWidth: 4 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-[#625F78] bg-[#F7F6FB] border border-[#E8E6F1] rounded-input p-2.5 text-center">
+                    <strong>{dailyMoodTrend[0].day}:</strong> Daily average{' '}
+                    <span className="font-semibold text-[#25233B]">
+                      {dailyMoodTrend[0].mood.toFixed(1)} / 5
+                    </span>{' '}
+                    from {dailyMoodTrend[0].count}{' '}
+                    {dailyMoodTrend[0].count === 1 ? 'check-in' : 'check-ins'}. More days of check-ins will help build your trend line.
+                  </p>
+                </div>
+              ) : (
+                <div
+                  role="region"
+                  aria-label={`Mood trend line chart for the last ${moodRangeDays} days. Period average ${moodSummary.overallAverage?.toFixed(1)} out of 5 across ${moodSummary.totalCheckIns} check-ins.`}
+                  className="w-full min-w-0 pt-1 space-y-2"
+                >
+                  <p className="sr-only">
+                    Mood trend over the last {moodRangeDays} days across {moodSummary.dayCount} days ({moodSummary.totalCheckIns} check-ins): average {moodSummary.overallAverage?.toFixed(1)} out of 5, highest day {moodSummary.highestDay?.day} ({moodSummary.highestDay?.mood.toFixed(1)}), lowest day {moodSummary.lowestDay?.day} ({moodSummary.lowestDay?.mood.toFixed(1)}).
+                  </p>
+                  <div className="h-52 w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={dailyMoodTrend}
+                        margin={{ top: 12, right: 16, left: -12, bottom: 4 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ECEAF5" />
+                        <XAxis
+                          dataKey="day"
+                          interval="preserveStartEnd"
+                          tickMargin={8}
                           stroke="#8E8AA7"
                           fontSize={11}
                           tickLine={false}
@@ -339,56 +541,31 @@ export const OverviewPage: React.FC = () => {
                         <YAxis
                           domain={[1, 5]}
                           ticks={[1, 2, 3, 4, 5]}
+                          width={32}
                           stroke="#8E8AA7"
                           fontSize={11}
                           tickLine={false}
                           axisLine={{ stroke: '#E8E6F1' }}
                         />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#FFFFFF',
-                            borderColor: '#E8E6F1',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 20px rgba(91,91,214,0.08)',
-                            fontSize: '12px',
-                          }}
-                          labelFormatter={(label) => `Day: ${label}`}
-                          formatter={(value: unknown, _name: unknown, item: { payload?: { count?: number } }) => {
-                            const avg = typeof value === 'number' ? value.toFixed(1) : '—';
-                            const count = item?.payload?.count ?? 1;
-                            return [
-                              `${avg} / 5 (${count} ${count === 1 ? 'check-in' : 'check-ins'})`,
-                              'Daily Average Mood',
-                            ];
-                          }}
-                        />
+                        <Tooltip content={<MoodChartTooltip />} />
                         <Line
                           type="monotone"
                           dataKey="mood"
                           name="Daily Average Mood"
                           stroke="#5554B8"
-                          strokeWidth={dailyMoodTrend.length > 1 ? 2.5 : 0}
-                          dot={{ r: 4, fill: '#5554B8', strokeWidth: 2, stroke: '#FFFFFF' }}
-                          activeDot={{ r: 6, fill: '#4645A7' }}
+                          strokeWidth={2.5}
+                          isAnimationActive={false}
+                          dot={{ r: 4.5, fill: '#5554B8', strokeWidth: 2, stroke: '#FFFFFF' }}
+                          activeDot={{ r: 6.5, fill: '#4645A7', stroke: '#E9E7FB', strokeWidth: 4 }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
-                  {dailyMoodTrend.length === 1 && (
-                    <p className="text-xs text-[#625F78] text-center">
-                      Single-day baseline recorded ({dailyMoodTrend[0].day}: {dailyMoodTrend[0].mood.toFixed(1)} / 5). Check in on another day to see your multi-day trend line.
-                    </p>
-                  )}
-                  {insights?.plain_summary && (
+                  {moodRangeDays === 7 && insights?.plain_summary && (
                     <p className="text-xs text-[#625F78] text-center italic">
                       "{insights.plain_summary}"
                     </p>
                   )}
-                </div>
-              ) : (
-                <div className="h-40 flex flex-col items-center justify-center text-xs text-[#625F78] text-center p-4 bg-[#F7F6FB] rounded-button border border-[#E8E6F1]/50">
-                  <Calendar className="w-5 h-5 text-[#8E8AA7] mb-1.5" />
-                  <span>Complete check-ins across 2 or more days to view your personal trend graph.</span>
                 </div>
               )}
             </Card>
