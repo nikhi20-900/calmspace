@@ -5,6 +5,7 @@ export const WELLNESS_STORAGE_KEYS = {
   CHALLENGES_STATE: 'calmspace_daily_challenges_v1',
   SOUND_FAVOURITES: 'calmspace_sound_favourites_v1',
   SOUND_VOLUME: 'calmspace_sound_volume_v1',
+  BREATHING_STATS: 'calmspace_breathing_stats_v1',
 } as const;
 
 export function getLocalDateKey(date: Date = new Date()): string {
@@ -179,4 +180,51 @@ export function saveSoundVolume(volume: number): void {
   } catch {
     // Ignore storage errors safely
   }
+}
+
+// ---------------------------------------------------------------------------
+// Feature 2: Breathing Bubble Stats
+// ---------------------------------------------------------------------------
+export interface BreathingStats {
+  sessionsCompleted: number;
+  totalMinutes: number;
+  bestSyncStreak: number;
+}
+
+export function loadBreathingStats(): BreathingStats {
+  const raw = readJson<Partial<BreathingStats> | null>(
+    WELLNESS_STORAGE_KEYS.BREATHING_STATS,
+    null
+  );
+  if (!raw || typeof raw !== 'object') {
+    return { sessionsCompleted: 0, totalMinutes: 0, bestSyncStreak: 0 };
+  }
+  return {
+    sessionsCompleted:
+      typeof raw.sessionsCompleted === 'number' && Number.isFinite(raw.sessionsCompleted)
+        ? Math.max(0, Math.floor(raw.sessionsCompleted))
+        : 0,
+    totalMinutes:
+      typeof raw.totalMinutes === 'number' && Number.isFinite(raw.totalMinutes)
+        ? Math.max(0, Math.floor(raw.totalMinutes))
+        : 0,
+    bestSyncStreak:
+      typeof raw.bestSyncStreak === 'number' && Number.isFinite(raw.bestSyncStreak)
+        ? Math.max(0, Math.floor(raw.bestSyncStreak))
+        : 0,
+  };
+}
+
+export function recordBreathingCompletion(
+  minutes: number,
+  syncStreak: number
+): BreathingStats {
+  const current = loadBreathingStats();
+  const next: BreathingStats = {
+    sessionsCompleted: current.sessionsCompleted + 1,
+    totalMinutes: current.totalMinutes + Math.max(1, Math.floor(minutes)),
+    bestSyncStreak: Math.max(current.bestSyncStreak, Math.max(0, Math.floor(syncStreak))),
+  };
+  writeJson(WELLNESS_STORAGE_KEYS.BREATHING_STATS, next);
+  return next;
 }

@@ -449,4 +449,15 @@ test('Wellness features: Daily Highlights, Explore, Daily Challenges, and Sound 
   wellnessStorage.saveSoundVolume(0.45);
   assert.deepEqual(wellnessStorage.loadSoundFavourites(), ['meditation']);
   assert.equal(wellnessStorage.loadSoundVolume(), 0.45);
+
+  // 5. Breathing Bubble stats persistence
+  assert.deepEqual(wellnessStorage.loadBreathingStats(), {
+    sessionsCompleted: 0,
+    totalMinutes: 0,
+    bestSyncStreak: 0,
+  });
+  const b1 = wellnessStorage.recordBreathingCompletion(3, 5);
+  assert.deepEqual(b1, { sessionsCompleted: 1, totalMinutes: 3, bestSyncStreak: 5 });
+  const b2 = wellnessStorage.recordBreathingCompletion(1, 2);
+  assert.deepEqual(b2, { sessionsCompleted: 2, totalMinutes: 4, bestSyncStreak: 5 });
 });

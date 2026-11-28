@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Wind,
   Play,
@@ -8,62 +9,119 @@ import {
   VolumeX,
   CheckCircle2,
   Sparkles,
+  Zap,
+  Award,
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { loadBreathingStats, recordBreathingCompletion } from '../../utils/wellnessStorage';
 
-type BreathingPhase = 'inhale' | 'hold' | 'exhale';
+type BreathingPhase = 'inhale' | 'hold' | 'exhale' | 'rest';
 type DurationMinutes = 1 | 3 | 5;
+type PatternId = '4-4-4' | '4-7-8' | '4-4-4-4' | '3-2-4';
 
-const PHASE_DURATION_MS = 4000; // 4-4-4 breathing pattern
-const CYCLE_DURATION_MS = PHASE_DURATION_MS * 3;
+interface BreathingPattern {
+  id: PatternId;
+  name: string;
+  label: string;
+  steps: Array<{ phase: BreathingPhase; seconds: number }>;
+}
+
+const BREATHING_PATTERNS: readonly BreathingPattern[] = [
+  {
+    id: '4-4-4',
+    name: 'Calm Focus',
+    label: '4–4–4',
+    steps: [
+      { phase: 'inhale', seconds: 4 },
+      { phase: 'hold', seconds: 4 },
+      { phase: 'exhale', seconds: 4 },
+    ],
+  },
+  {
+    id: '4-7-8',
+    name: 'Deep Relax',
+    label: '4–7–8',
+    steps: [
+      { phase: 'inhale', seconds: 4 },
+      { phase: 'hold', seconds: 7 },
+      { phase: 'exhale', seconds: 8 },
+    ],
+  },
+  {
+    id: '4-4-4-4',
+    name: 'Box Grounding',
+    label: '4–4–4–4',
+    steps: [
+      { phase: 'inhale', seconds: 4 },
+      { phase: 'hold', seconds: 4 },
+      { phase: 'exhale', seconds: 4 },
+      { phase: 'rest', seconds: 4 },
+    ],
+  },
+  {
+    id: '3-2-4',
+    name: 'Quick Reset',
+    label: '3–2–4',
+    steps: [
+      { phase: 'inhale', seconds: 3 },
+      { phase: 'hold', seconds: 2 },
+      { phase: 'exhale', seconds: 4 },
+    ],
+  },
+];
+
 const DURATION_OPTIONS: readonly DurationMinutes[] = [1, 3, 5];
-
-const PHASE_ORDER: readonly BreathingPhase[] = ['inhale', 'hold', 'exhale'];
 
 const PHASE_LABELS: Record<BreathingPhase, string> = {
   inhale: 'Breathe In',
   hold: 'Hold',
   exhale: 'Breathe Out',
+  rest: 'Rest',
 };
 
 const PHASE_GUIDANCE: Record<BreathingPhase, string> = {
   inhale: 'Draw air in slowly through your nose',
   hold: 'Rest gently with full lungs',
   exhale: 'Release tension softly through your mouth',
+  rest: 'Pause softly before the next breath',
 };
 
-function getPhaseStateFromMs(elapsedMs: number): {
+function getPatternPhaseState(
+  pattern: BreathingPattern,
+  elapsedMs: number
+): {
   phase: BreathingPhase;
+  stepIndex: number;
   phaseProgress: number;
   phaseSecondsLeft: number;
   cyclesCompleted: number;
 } {
-  const cyclePosMs = elapsedMs % CYCLE_DURATION_MS;
-  const cyclesCompleted = Math.floor(elapsedMs / CYCLE_DURATION_MS);
+  const cycleMs = pattern.steps.reduce((acc, s) => acc + s.seconds * 1000, 0);
+  const cyclesCompleted = Math.floor(elapsedMs / cycleMs);
+  let remainingInCycle = elapsedMs % cycleMs;
 
-  if (cyclePosMs < PHASE_DURATION_MS) {
-    return {
-      phase: 'inhale',
-      phaseProgress: cyclePosMs / PHASE_DURATION_MS,
-      phaseSecondsLeft: Math.ceil((PHASE_DURATION_MS - cyclePosMs) / 1000),
-      cyclesCompleted,
-    };
+  for (let i = 0; i < pattern.steps.length; i += 1) {
+    const step = pattern.steps[i];
+    const stepMs = step.seconds * 1000;
+    if (remainingInCycle < stepMs) {
+      return {
+        phase: step.phase,
+        stepIndex: i,
+        phaseProgress: remainingInCycle / stepMs,
+        phaseSecondsLeft: Math.ceil((stepMs - remainingInCycle) / 1000),
+        cyclesCompleted,
+      };
+    }
+    remainingInCycle -= stepMs;
   }
-  if (cyclePosMs < PHASE_DURATION_MS * 2) {
-    const pos = cyclePosMs - PHASE_DURATION_MS;
-    return {
-      phase: 'hold',
-      phaseProgress: pos / PHASE_DURATION_MS,
-      phaseSecondsLeft: Math.ceil((PHASE_DURATION_MS - pos) / 1000),
-      cyclesCompleted,
-    };
-  }
-  const pos = cyclePosMs - PHASE_DURATION_MS * 2;
+
+  const first = pattern.steps[0];
   return {
-    phase: 'exhale',
-    phaseProgress: pos / PHASE_DURATION_MS,
-    phaseSecondsLeft: Math.ceil((PHASE_DURATION_MS - pos) / 1000),
+    phase: first.phase,
+    stepIndex: 0,
+    phaseProgress: 0,
+    phaseSecondsLeft: first.seconds,
     cyclesCompleted,
   };
 }
@@ -75,20 +133,34 @@ function formatClock(totalSeconds: number): string {
 }
 
 export const BreathingBubbleSection: React.FC = () => {
+  const [patternId, setPatternId] = useState<PatternId>('4-4-4');
   const [durationMinutes, setDurationMinutes] = useState<DurationMinutes>(1);
   const [status, setStatus] = useState<'idle' | 'running' | 'paused' | 'completed'>('idle');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(false); // Muted by default
 
+  // Rhythm Sync Game Mode + Persistent Stats + Post-session check
+  const [syncStreak, setSyncStreak] = useState(0);
+  const [lastSyncedStepKey, setLastSyncedStepKey] = useState<string | null>(null);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [stats, setStats] = useState(() => loadBreathingStats());
+  const [postMood, setPostMood] = useState<'calmer' | 'grounded' | 'tense' | null>(null);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const lastCuePhaseRef = useRef<BreathingPhase | null>(null);
+  const lastCuePhaseRef = useRef<string | null>(null);
+  const completionRecordedRef = useRef(false);
+
+  const pattern =
+    BREATHING_PATTERNS.find((p) => p.id === patternId) || BREATHING_PATTERNS[0];
 
   const totalMs = durationMinutes * 60 * 1000;
   const remainingSeconds = Math.max(0, Math.ceil((totalMs - elapsedMs) / 1000));
   const sessionProgress = Math.min(100, (elapsedMs / totalMs) * 100);
 
-  const { phase, phaseProgress, phaseSecondsLeft, cyclesCompleted } =
-    getPhaseStateFromMs(elapsedMs);
+  const { phase, stepIndex, phaseProgress, phaseSecondsLeft, cyclesCompleted } =
+    getPatternPhaseState(pattern, elapsedMs);
+
+  const currentStepKey = `${cyclesCompleted}-${stepIndex}`;
 
   const playSoftCue = (currentPhase: BreathingPhase) => {
     if (!soundEnabled || typeof window === 'undefined') return;
@@ -108,7 +180,13 @@ export const BreathingBubbleSection: React.FC = () => {
       const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.value =
-        currentPhase === 'inhale' ? 432 : currentPhase === 'hold' ? 518 : 346;
+        currentPhase === 'inhale'
+          ? 432
+          : currentPhase === 'hold'
+            ? 518
+            : currentPhase === 'exhale'
+              ? 346
+              : 288;
 
       gain.gain.setValueAtTime(0.001, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.08);
@@ -126,8 +204,8 @@ export const BreathingBubbleSection: React.FC = () => {
   useEffect(() => {
     if (status !== 'running') return;
 
-    if (lastCuePhaseRef.current !== phase) {
-      lastCuePhaseRef.current = phase;
+    if (lastCuePhaseRef.current !== currentStepKey) {
+      lastCuePhaseRef.current = currentStepKey;
       playSoftCue(phase);
     }
 
@@ -143,7 +221,15 @@ export const BreathingBubbleSection: React.FC = () => {
     }, 100);
 
     return () => window.clearInterval(interval);
-  }, [status, phase, totalMs, soundEnabled]);
+  }, [status, phase, currentStepKey, totalMs, soundEnabled]);
+
+  useEffect(() => {
+    if (status === 'completed' && !completionRecordedRef.current) {
+      completionRecordedRef.current = true;
+      const updated = recordBreathingCompletion(durationMinutes, syncStreak);
+      setStats(updated);
+    }
+  }, [status, durationMinutes, syncStreak]);
 
   useEffect(() => {
     return () => {
@@ -153,16 +239,29 @@ export const BreathingBubbleSection: React.FC = () => {
     };
   }, []);
 
-  const handleSelectDuration = (mins: DurationMinutes) => {
-    setDurationMinutes(mins);
+  const resetSession = () => {
     setStatus('idle');
     setElapsedMs(0);
+    setSyncStreak(0);
+    setLastSyncedStepKey(null);
+    setSyncFeedback(null);
+    setPostMood(null);
     lastCuePhaseRef.current = null;
+    completionRecordedRef.current = false;
+  };
+
+  const handleSelectPattern = (id: PatternId) => {
+    setPatternId(id);
+    resetSession();
+  };
+
+  const handleSelectDuration = (mins: DurationMinutes) => {
+    setDurationMinutes(mins);
+    resetSession();
   };
 
   const handleStart = () => {
-    setElapsedMs(0);
-    lastCuePhaseRef.current = null;
+    resetSession();
     setStatus('running');
   };
 
@@ -175,9 +274,7 @@ export const BreathingBubbleSection: React.FC = () => {
   };
 
   const handleRestart = () => {
-    setElapsedMs(0);
-    lastCuePhaseRef.current = null;
-    setStatus('idle');
+    resetSession();
   };
 
   const handleBubbleClick = () => {
@@ -190,6 +287,18 @@ export const BreathingBubbleSection: React.FC = () => {
     }
   };
 
+  const handleSyncTap = () => {
+    if (status !== 'running') return;
+    if (lastSyncedStepKey === currentStepKey) {
+      setSyncFeedback('Already synced for this phase');
+      return;
+    }
+    setLastSyncedStepKey(currentStepKey);
+    const nextStreak = syncStreak + 1;
+    setSyncStreak(nextStreak);
+    setSyncFeedback(`In rhythm! (${nextStreak} streak)`);
+  };
+
   // Continuous smooth bubble scale based on exact ms progress
   const bubbleScale =
     status === 'idle' || status === 'completed'
@@ -198,12 +307,11 @@ export const BreathingBubbleSection: React.FC = () => {
         ? 0.78 + 0.34 * phaseProgress
         : phase === 'hold'
           ? 1.12
-          : 1.12 - 0.34 * phaseProgress;
+          : phase === 'exhale'
+            ? 1.12 - 0.34 * phaseProgress
+            : 0.78;
 
-  const haloScale =
-    status === 'running'
-      ? bubbleScale + 0.14
-      : 1.0;
+  const haloScale = status === 'running' ? bubbleScale + 0.14 : 1.0;
 
   // SVG Ring Math
   const ringRadius = 92;
@@ -220,23 +328,33 @@ export const BreathingBubbleSection: React.FC = () => {
       ? '#5554B8'
       : phase === 'hold'
         ? '#245532'
-        : '#7C7AD6';
+        : phase === 'exhale'
+          ? '#7C7AD6'
+          : '#8E8AA7';
 
   return (
     <section aria-label="Breathing Bubble">
       <Card padding="lg" className="space-y-5">
-        {/* Header & Duration / Sound Controls */}
+        {/* Header & Duration / Sound / Stats Controls */}
         <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#5554B8]">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#5554B8]">
               <Wind className="w-4 h-4" />
-              <span>4–4–4 Guided Breathing</span>
+              <span>{pattern.label} Guided Breathing</span>
+              {stats.sessionsCompleted > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E9E7FB] text-[#5554B8] normal-case tracking-normal text-[11px]">
+                  <Award className="w-3 h-3" />
+                  <span>
+                    {stats.sessionsCompleted} {stats.sessionsCompleted === 1 ? 'session' : 'sessions'} • {stats.totalMinutes}m
+                  </span>
+                </span>
+              )}
             </div>
             <h2 className="text-base sm:text-lg font-bold text-[#25233B] mt-0.5">
               Breathing Bubble
             </h2>
             <p className="text-xs text-[#625F78]">
-              Inhale 4s • Hold 4s • Exhale 4s. Tap the bubble or press Start.
+              Choose a rhythm, tap the bubble to start, and sync each breath phase.
             </p>
           </div>
 
@@ -287,28 +405,58 @@ export const BreathingBubbleSection: React.FC = () => {
           </div>
         </div>
 
+        {/* Breathing Pattern Selector */}
+        <div
+          role="group"
+          aria-label="Select breathing pattern"
+          className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+        >
+          {BREATHING_PATTERNS.map((p) => {
+            const active = patternId === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleSelectPattern(p.id)}
+                aria-pressed={active}
+                className={`p-2.5 rounded-input border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                  active
+                    ? 'bg-[#E9E7FB]/60 border-[#5554B8] shadow-subtle'
+                    : 'bg-[#F7F6FB] border-[#E8E6F1] hover:bg-white'
+                }`}
+              >
+                <span className="text-xs font-bold text-[#25233B] block">{p.name}</span>
+                <span className="text-[11px] font-medium text-[#5554B8]">{p.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Interactive Breathing Stage */}
         <div className="p-5 sm:p-6 flex flex-col items-center justify-center gap-5 bg-[#F7F6FB] rounded-card border border-[#E8E6F1]/80">
-          {/* Live 3-Phase Indicator Pills */}
+          {/* Live Phase Indicator Pills */}
           <div
             className="flex flex-wrap items-center justify-center gap-2"
             aria-label="Breathing cycle phases"
           >
-            {PHASE_ORDER.map((pKey, idx) => {
-              const isCurrent = (status === 'running' || status === 'paused') && phase === pKey;
+            {pattern.steps.map((step, idx) => {
+              const isCurrent =
+                (status === 'running' || status === 'paused') && stepIndex === idx;
               return (
                 <div
-                  key={pKey}
+                  key={`${step.phase}-${idx}`}
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
                     isCurrent
-                      ? pKey === 'hold'
+                      ? step.phase === 'hold'
                         ? 'bg-[#DCE9DF] text-[#245532] border-[#BCD4C3] shadow-subtle'
                         : 'bg-[#5554B8] text-white border-[#5554B8] shadow-subtle'
                       : 'bg-white text-[#625F78] border-[#E8E6F1]'
                   }`}
                 >
-                  <span>{idx + 1}. {PHASE_LABELS[pKey]}</span>
-                  <span className="opacity-75">4s</span>
+                  <span>
+                    {idx + 1}. {PHASE_LABELS[step.phase]}
+                  </span>
+                  <span className="opacity-75">{step.seconds}s</span>
                 </div>
               );
             })}
@@ -325,10 +473,10 @@ export const BreathingBubbleSection: React.FC = () => {
 
             {/* Floating calm particles */}
             {[
-              { top: '14%', left: '20%', delay: '0s', size: 'w-2.5 h-2.5' },
-              { top: '20%', right: '16%', delay: '0.4s', size: 'w-2 h-2' },
-              { bottom: '18%', left: '16%', delay: '0.8s', size: 'w-2 h-2' },
-              { bottom: '14%', right: '20%', delay: '1.2s', size: 'w-2.5 h-2.5' },
+              { top: '14%', left: '20%', size: 'w-2.5 h-2.5' },
+              { top: '20%', right: '16%', size: 'w-2 h-2' },
+              { bottom: '18%', left: '16%', size: 'w-2 h-2' },
+              { bottom: '14%', right: '20%', size: 'w-2.5 h-2.5' },
             ].map((orb, idx) => (
               <span
                 key={idx}
@@ -428,13 +576,78 @@ export const BreathingBubbleSection: React.FC = () => {
             </button>
           </div>
 
-          {/* Phase Guidance & Stats */}
-          <div className="w-full max-w-md space-y-2.5 text-center">
+          {/* Interactive Rhythm Sync Mini-Game Bar (while running) */}
+          {status === 'running' && (
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<Zap className="w-3.5 h-3.5 text-[#5554B8]" />}
+                onClick={handleSyncTap}
+              >
+                Sync Breath ({syncStreak})
+              </Button>
+              {syncFeedback && (
+                <span className="text-xs font-semibold text-[#245532] bg-[#DCE9DF] px-2.5 py-1 rounded-full">
+                  {syncFeedback}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Phase Guidance & Post-Session Check */}
+          <div className="w-full max-w-md space-y-3 text-center">
             {status === 'completed' ? (
-              <p className="text-xs sm:text-sm font-semibold text-[#245532]">
-                Well done! You completed {cyclesCompleted} calm breathing{' '}
-                {cyclesCompleted === 1 ? 'cycle' : 'cycles'} ({durationMinutes} min).
-              </p>
+              <div className="space-y-3 bg-white p-4 rounded-card border border-[#E8E6F1]">
+                <p className="text-xs sm:text-sm font-semibold text-[#245532]">
+                  Well done! You completed {cyclesCompleted} {pattern.name} breathing{' '}
+                  {cyclesCompleted === 1 ? 'cycle' : 'cycles'} ({durationMinutes} min)
+                  {syncStreak > 0 ? ` • Sync streak: ${syncStreak}` : ''}.
+                </p>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-[#625F78]">
+                    How do you feel right now?
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {[
+                      { id: 'calmer', label: 'Calmer' },
+                      { id: 'grounded', label: 'Grounded' },
+                      { id: 'tense', label: 'Still tense' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() =>
+                          setPostMood(opt.id as 'calmer' | 'grounded' | 'tense')
+                        }
+                        aria-pressed={postMood === opt.id}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                          postMood === opt.id
+                            ? 'bg-[#5554B8] text-white border-[#5554B8]'
+                            : 'bg-[#F7F6FB] text-[#25233B] border-[#E8E6F1] hover:bg-[#E9E7FB]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {postMood === 'tense' && (
+                    <p className="text-xs text-[#625F78] pt-1">
+                      It&apos;s okay if tension lingers. You can try another slow round or visit the{' '}
+                      <Link to="/support" className="text-[#5554B8] font-semibold underline">
+                        Support Network
+                      </Link>
+                      .
+                    </p>
+                  )}
+                  {(postMood === 'calmer' || postMood === 'grounded') && (
+                    <p className="text-xs text-[#245532] font-medium pt-1">
+                      Glad that helped create a little breathing room.
+                    </p>
+                  )}
+                </div>
+              </div>
             ) : (
               <p className="text-xs font-medium text-[#25233B]">
                 {status === 'idle'
@@ -456,6 +669,15 @@ export const BreathingBubbleSection: React.FC = () => {
                 <span>
                   Cycles:{' '}
                   <strong className="text-[#25233B] font-semibold">{cyclesCompleted}</strong>
+                  {stats.bestSyncStreak > 0 && (
+                    <>
+                      {' '}
+                      • Best sync:{' '}
+                      <strong className="text-[#25233B] font-semibold">
+                        {stats.bestSyncStreak}
+                      </strong>
+                    </>
+                  )}
                 </span>
               </div>
               <div
