@@ -37,7 +37,9 @@ def _headers(prefix: str = "calm-test") -> tuple[str, dict[str, str]]:
 
 def test_companion_routes_require_valid_session_header():
     for bad_headers in ({}, {"X-Session-ID": "short"}, {"X-Session-ID": "anonymous"}):
-        assert client.post("/api/companion/start", headers=bad_headers).status_code == 422
+        assert (
+            client.post("/api/companion/start", headers=bad_headers).status_code == 422
+        )
         assert (
             client.post(
                 "/api/companion/turn",
@@ -167,13 +169,18 @@ def test_multi_turn_example_conversation_and_study_plan_persistence():
 def test_breathing_insights_support_and_urgent_help_tools():
     _sid, headers = _headers("tools")
     try:
-        cid = client.post("/api/companion/start", headers=headers).json()["conversation_id"]
+        cid = client.post("/api/companion/start", headers=headers).json()[
+            "conversation_id"
+        ]
 
         # 1. Guided breathing
         breath = client.post(
             "/api/companion/turn",
             headers=headers,
-            json={"conversation_id": cid, "message": "Help me relax, I want to breathe"},
+            json={
+                "conversation_id": cid,
+                "message": "Help me relax, I want to breathe",
+            },
         ).json()
         assert breath["blob_state"] == "breathing"
         assert breath["action_cards"][0]["card_type"] == "breathing"
@@ -232,13 +239,18 @@ def test_breathing_insights_support_and_urgent_help_tools():
 def test_reminder_requires_confirmation_and_supports_cancel():
     _sid, headers = _headers("rem")
     try:
-        cid = client.post("/api/companion/start", headers=headers).json()["conversation_id"]
+        cid = client.post("/api/companion/start", headers=headers).json()[
+            "conversation_id"
+        ]
 
         # Request reminder -> must NOT persist before confirmation
         r1 = client.post(
             "/api/companion/turn",
             headers=headers,
-            json={"conversation_id": cid, "message": "Remind me to take a break in 20 minutes"},
+            json={
+                "conversation_id": cid,
+                "message": "Remind me to take a break in 20 minutes",
+            },
         ).json()
         assert r1["pending_confirmation"] is not None
         assert r1["pending_confirmation"]["tool_name"] == "create_reminder"
@@ -261,7 +273,10 @@ def test_reminder_requires_confirmation_and_supports_cancel():
         r2 = client.post(
             "/api/companion/turn",
             headers=headers,
-            json={"conversation_id": cid, "message": "Remind me to drink water in 15 minutes"},
+            json={
+                "conversation_id": cid,
+                "message": "Remind me to drink water in 15 minutes",
+            },
         ).json()
         assert r2["pending_confirmation"] is not None
 
@@ -283,13 +298,24 @@ def test_crisis_statement_bypasses_ai_provider_completely():
         def __init__(self):
             self.called = 0
 
-        def generate_support(self, system_instruction, user_prompt, timeout_seconds=5.0, max_tokens=350):
+        def generate_support(
+            self, system_instruction, user_prompt, timeout_seconds=5.0, max_tokens=350
+        ):
             self.called += 1
             return ProviderRawResponse(raw_text="{}", model_name="spy")
 
-        def generate_companion_turn(self, system_instruction, contents, tool_declarations, timeout_seconds=8.0, max_tokens=350):
+        def generate_companion_turn(
+            self,
+            system_instruction,
+            contents,
+            tool_declarations,
+            timeout_seconds=8.0,
+            max_tokens=350,
+        ):
             self.called += 1
-            return CompanionProviderTurn(reply_text="Should never be called", model_name="spy")
+            return CompanionProviderTurn(
+                reply_text="Should never be called", model_name="spy"
+            )
 
     sid, headers = _headers("crisis")
     spy = SpyProvider()
@@ -311,7 +337,9 @@ def test_crisis_statement_bypasses_ai_provider_completely():
         client.delete("/api/settings/data", headers=headers)
 
 
-def test_unauthorized_and_malformed_tool_calls_rejected_and_failures_honest(monkeypatch):
+def test_unauthorized_and_malformed_tool_calls_rejected_and_failures_honest(
+    monkeypatch,
+):
     sid, headers = _headers("toolval")
     try:
         # 1. Unknown / unauthorized tool rejected
@@ -319,10 +347,14 @@ def test_unauthorized_and_malformed_tool_calls_rejected_and_failures_honest(monk
         assert unknown.record.status == "rejected"
 
         # 2. Malformed parameters rejected
-        bad_args = execute_validated_tool("create_reminder", {"title": " ", "delay_minutes": 999}, sid)
+        bad_args = execute_validated_tool(
+            "create_reminder", {"title": " ", "delay_minutes": 999}, sid
+        )
         assert bad_args.record.status == "rejected"
 
-        bad_checkin = execute_validated_tool("commit_checkin", {"mood": 99, "stress": -1, "sleep_hours": 50}, sid)
+        bad_checkin = execute_validated_tool(
+            "commit_checkin", {"mood": 99, "stress": -1, "sleep_hours": 50}, sid
+        )
         assert bad_checkin.record.status == "rejected"
 
         # 3. Direct persistent call without confirmation is gated
@@ -397,7 +429,12 @@ def test_gemini_companion_tool_calling_and_safety_filter(monkeypatch):
     monkeypatch.setattr(httpx.Client, "post", mock_post)
 
     try:
-        cfg = AIServiceConfig(provider="gemini", model="gemini-1.5-flash", api_key="test-gemini-secret", enabled=True)
+        cfg = AIServiceConfig(
+            provider="gemini",
+            model="gemini-1.5-flash",
+            api_key="test-gemini-secret",
+            enabled=True,
+        )
         res = process_companion_turn(
             session_id=sid,
             message="Can you guide me through box breathing?",
@@ -419,11 +456,16 @@ def test_cross_session_isolation_and_zero_transcript_persistence():
     _sid_b, headers_b = _headers("iso-b")
     secret_phrase = "UNIQUE_VOICE_TRANSCRIPT_SHOULD_NEVER_BE_IN_SQLITE"
     try:
-        cid_a = client.post("/api/companion/start", headers=headers_a).json()["conversation_id"]
+        cid_a = client.post("/api/companion/start", headers=headers_a).json()[
+            "conversation_id"
+        ]
         turn_a = client.post(
             "/api/companion/turn",
             headers=headers_a,
-            json={"conversation_id": cid_a, "message": f"Remind me to rest: {secret_phrase}"},
+            json={
+                "conversation_id": cid_a,
+                "message": f"Remind me to rest: {secret_phrase}",
+            },
         ).json()
         action_id = turn_a["pending_confirmation"]["action_id"]
 
@@ -449,8 +491,16 @@ def test_cross_session_isolation_and_zero_transcript_persistence():
 
         # Verify SQLite has ZERO stored conversation transcripts
         conn: sqlite3.Connection = storage._get_connection()
-        for table in ("checkins", "tasks", "reminders", "companion_preferences", "user_settings"):
-            rows = conn.execute(f"SELECT * FROM {table} WHERE session_id = ?;", (sid_a,)).fetchall()
+        for table in (
+            "checkins",
+            "tasks",
+            "reminders",
+            "companion_preferences",
+            "user_settings",
+        ):
+            rows = conn.execute(
+                f"SELECT * FROM {table} WHERE session_id = ?;", (sid_a,)
+            ).fetchall()
             for r in rows:
                 assert secret_phrase not in str(dict(r))
     finally:
@@ -465,7 +515,11 @@ def test_reminder_lifecycle_complete_snooze_and_isolation():
         created = client.post(
             "/api/companion/reminders",
             headers=headers_a,
-            json={"title": "Stand and stretch", "category": "break", "delay_minutes": 1},
+            json={
+                "title": "Stand and stretch",
+                "category": "break",
+                "delay_minutes": 1,
+            },
         )
         assert created.status_code == 200
         rem = created.json()

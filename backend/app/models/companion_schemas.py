@@ -54,7 +54,9 @@ class ReminderCreate(BaseModel):
     def validate_non_blank_title(cls, v: str) -> str:
         stripped = v.strip()
         if len(stripped) < 2:
-            raise ValueError("Reminder title must contain at least 2 non-space characters.")
+            raise ValueError(
+                "Reminder title must contain at least 2 non-space characters."
+            )
         return stripped
 
 
@@ -157,9 +159,7 @@ class CompanionTurnResponse(BaseModel):
     generated_by_ai: bool = False
     fallback_used: bool = False
     ai_provider: str = "mock"
-    disclaimer: str = (
-        "Calm is an AI wellbeing companion, not a human, therapist, or medical professional."
-    )
+    disclaimer: str = "Calm is an AI wellbeing companion, not a human, therapist, or medical professional."
 
 
 class CompanionStartResponse(BaseModel):
@@ -170,6 +170,4 @@ class CompanionStartResponse(BaseModel):
     ai_provider: str = "mock"
     reminders: list[ReminderRecord] = []
     preferences: CompanionPreferences = CompanionPreferences()
-    disclaimer: str = (
-        "Calm is an AI wellbeing companion, not a human, therapist, or medical professional."
-    )
+    disclaimer: str = "Calm is an AI wellbeing companion, not a human, therapist, or medical professional."
