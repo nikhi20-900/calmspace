@@ -272,7 +272,12 @@ test('UI source contracts verify Safe Exit destination, Planner editNotice, and 
     'utf8'
   );
   assert.ok(overviewPage.includes('aggregateDailyMoodTrend'));
+  assert.ok(overviewPage.includes('filterAndAggregateMoodHistory'));
+  assert.ok(overviewPage.includes('computeMoodTrendSummary'));
   assert.ok(overviewPage.includes('data={dailyMoodTrend}'));
+  assert.ok(overviewPage.includes('Period Average'));
+  assert.ok(overviewPage.includes('Highest Day'));
+  assert.ok(overviewPage.includes('Lowest Day'));
 
   const insightsPage = readFileSync(
     path.join(frontendRoot, 'src/pages/InsightsPage.tsx'),
@@ -312,9 +317,91 @@ test('aggregateDailyMoodTrend safely ignores missing or invalid entries', () => 
     { day: null, mood: 3 },
     { day: 'Mon 23', mood: Number.NaN },
     { day: 'Mon 23', mood: null },
+    { day: 'Mon 23', mood: 0 },
+    { day: 'Mon 23', mood: 6 },
     { day: 'Tue 24', mood: 4 },
     { day: 'Tue 24', mood: 5 },
   ]);
 
   assert.deepEqual(aggregated, [{ day: 'Tue 24', mood: 4.5, count: 2 }]);
+});
+
+test('computeMoodTrendSummary calculates average, highest/lowest days, counts, and handles empty/single-day states', () => {
+  const { computeMoodTrendSummary } = moodTrendModule;
+
+  assert.deepEqual(computeMoodTrendSummary([]), {
+    overallAverage: null,
+    highestDay: null,
+    lowestDay: null,
+    totalCheckIns: 0,
+    dayCount: 0,
+  });
+
+  // Single-day state
+  assert.deepEqual(computeMoodTrendSummary([{ day: 'Fri 27', mood: 3.7, count: 3 }]), {
+    overallAverage: 3.7,
+    highestDay: { day: 'Fri 27', mood: 3.7 },
+    lowestDay: { day: 'Fri 27', mood: 3.7 },
+    totalCheckIns: 3,
+    dayCount: 1,
+  });
+
+  // Multi-day state
+  assert.deepEqual(
+    computeMoodTrendSummary([
+      { day: 'Wed 25', mood: 2.5, count: 2 },
+      { day: 'Thu 26', mood: 4.5, count: 1 },
+      { day: 'Fri 27', mood: 3.7, count: 3 },
+    ]),
+    {
+      overallAverage: 3.6,
+      highestDay: { day: 'Thu 26', mood: 4.5 },
+      lowestDay: { day: 'Wed 25', mood: 2.5 },
+      totalCheckIns: 6,
+      dayCount: 3,
+    }
+  );
+});
+
+test('filterAndAggregateMoodHistory filters 7/14/30-day ranges, preserves chronological order, and skips invalid records', () => {
+  const { filterAndAggregateMoodHistory } = moodTrendModule;
+  const refDate = new Date('2026-11-28T12:00:00Z');
+
+  const records = [
+    // 25 days ago (within 30d, outside 14d & 7d)
+    { id: '1', session_id: 's', timestamp: '2026-11-03T10:00:00Z', mood: 2, stress: 4, sleep_hours: 6, route: 'MEDIUM' },
+    // 10 days ago (within 14d & 30d, outside 7d) - out of order intentionally
+    { id: '2', session_id: 's', timestamp: '2026-11-18T10:00:00Z', mood: 5, stress: 1, sleep_hours: 8, route: 'LOW' },
+    // 2 days ago (within 7d, 14d, 30d) - two entries on same day
+    { id: '3', session_id: 's', timestamp: '2026-11-26T08:00:00Z', mood: 3, stress: 3, sleep_hours: 7, route: 'LOW' },
+    { id: '4', session_id: 's', timestamp: '2026-11-26T20:00:00Z', mood: 4, stress: 2, sleep_hours: 7, route: 'LOW' },
+    // Today
+    { id: '5', session_id: 's', timestamp: '2026-11-28T09:00:00Z', mood: 4, stress: 2, sleep_hours: 7.5, route: 'LOW' },
+    // Invalid records
+    { id: '6', session_id: 's', timestamp: 'not-a-date', mood: 4, stress: 2, sleep_hours: 7, route: 'LOW' },
+    { id: '7', session_id: 's', timestamp: '2026-11-28T10:00:00Z', mood: 99, stress: 2, sleep_hours: 7, route: 'LOW' },
+    // Too old (> 30 days)
+    { id: '8', session_id: 's', timestamp: '2026-10-15T10:00:00Z', mood: 1, stress: 5, sleep_hours: 4, route: 'HIGH' },
+  ];
+
+  const r7 = filterAndAggregateMoodHistory(records, 7, refDate);
+  assert.deepEqual(r7, [
+    { day: 'Thu 26', mood: 3.5, count: 2 },
+    { day: 'Sat 28', mood: 4, count: 1 },
+  ]);
+
+  const r14 = filterAndAggregateMoodHistory(records, 14, refDate);
+  assert.deepEqual(r14, [
+    { day: 'Wed 18', mood: 5, count: 1 },
+    { day: 'Thu 26', mood: 3.5, count: 2 },
+    { day: 'Sat 28', mood: 4, count: 1 },
+  ]);
+
+  const r30 = filterAndAggregateMoodHistory(records, 30, refDate);
+  assert.deepEqual(r30, [
+    { day: 'Tue 03', mood: 2, count: 1 },
+    { day: 'Wed 18', mood: 5, count: 1 },
+    { day: 'Thu 26', mood: 3.5, count: 2 },
+    { day: 'Sat 28', mood: 4, count: 1 },
+  ]);
 });
