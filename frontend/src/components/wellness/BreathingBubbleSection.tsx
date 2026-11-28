@@ -7,6 +7,7 @@ import {
   Volume2,
   VolumeX,
   CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -14,8 +15,11 @@ import { Button } from '../ui/Button';
 type BreathingPhase = 'inhale' | 'hold' | 'exhale';
 type DurationMinutes = 1 | 3 | 5;
 
-const PHASE_DURATION_SECONDS = 4; // 4-4-4 breathing pattern
+const PHASE_DURATION_MS = 4000; // 4-4-4 breathing pattern
+const CYCLE_DURATION_MS = PHASE_DURATION_MS * 3;
 const DURATION_OPTIONS: readonly DurationMinutes[] = [1, 3, 5];
+
+const PHASE_ORDER: readonly BreathingPhase[] = ['inhale', 'hold', 'exhale'];
 
 const PHASE_LABELS: Record<BreathingPhase, string> = {
   inhale: 'Breathe In',
@@ -23,23 +27,44 @@ const PHASE_LABELS: Record<BreathingPhase, string> = {
   exhale: 'Breathe Out',
 };
 
-function getPhaseFromElapsed(elapsedSeconds: number): {
+const PHASE_GUIDANCE: Record<BreathingPhase, string> = {
+  inhale: 'Draw air in slowly through your nose',
+  hold: 'Rest gently with full lungs',
+  exhale: 'Release tension softly through your mouth',
+};
+
+function getPhaseStateFromMs(elapsedMs: number): {
   phase: BreathingPhase;
+  phaseProgress: number;
   phaseSecondsLeft: number;
+  cyclesCompleted: number;
 } {
-  const cyclePos = elapsedSeconds % (PHASE_DURATION_SECONDS * 3);
-  if (cyclePos < PHASE_DURATION_SECONDS) {
-    return { phase: 'inhale', phaseSecondsLeft: PHASE_DURATION_SECONDS - cyclePos };
-  }
-  if (cyclePos < PHASE_DURATION_SECONDS * 2) {
+  const cyclePosMs = elapsedMs % CYCLE_DURATION_MS;
+  const cyclesCompleted = Math.floor(elapsedMs / CYCLE_DURATION_MS);
+
+  if (cyclePosMs < PHASE_DURATION_MS) {
     return {
-      phase: 'hold',
-      phaseSecondsLeft: PHASE_DURATION_SECONDS * 2 - cyclePos,
+      phase: 'inhale',
+      phaseProgress: cyclePosMs / PHASE_DURATION_MS,
+      phaseSecondsLeft: Math.ceil((PHASE_DURATION_MS - cyclePosMs) / 1000),
+      cyclesCompleted,
     };
   }
+  if (cyclePosMs < PHASE_DURATION_MS * 2) {
+    const pos = cyclePosMs - PHASE_DURATION_MS;
+    return {
+      phase: 'hold',
+      phaseProgress: pos / PHASE_DURATION_MS,
+      phaseSecondsLeft: Math.ceil((PHASE_DURATION_MS - pos) / 1000),
+      cyclesCompleted,
+    };
+  }
+  const pos = cyclePosMs - PHASE_DURATION_MS * 2;
   return {
     phase: 'exhale',
-    phaseSecondsLeft: PHASE_DURATION_SECONDS * 3 - cyclePos,
+    phaseProgress: pos / PHASE_DURATION_MS,
+    phaseSecondsLeft: Math.ceil((PHASE_DURATION_MS - pos) / 1000),
+    cyclesCompleted,
   };
 }
 
@@ -52,20 +77,25 @@ function formatClock(totalSeconds: number): string {
 export const BreathingBubbleSection: React.FC = () => {
   const [durationMinutes, setDurationMinutes] = useState<DurationMinutes>(1);
   const [status, setStatus] = useState<'idle' | 'running' | 'paused' | 'completed'>('idle');
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(false); // Muted by default
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const lastCuePhaseRef = useRef<BreathingPhase | null>(null);
 
-  const totalSeconds = durationMinutes * 60;
-  const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
-  const { phase, phaseSecondsLeft } = getPhaseFromElapsed(elapsedSeconds);
+  const totalMs = durationMinutes * 60 * 1000;
+  const remainingSeconds = Math.max(0, Math.ceil((totalMs - elapsedMs) / 1000));
+  const sessionProgress = Math.min(100, (elapsedMs / totalMs) * 100);
+
+  const { phase, phaseProgress, phaseSecondsLeft, cyclesCompleted } =
+    getPhaseStateFromMs(elapsedMs);
 
   const playSoftCue = (currentPhase: BreathingPhase) => {
     if (!soundEnabled || typeof window === 'undefined') return;
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
       if (!audioCtxRef.current) {
         audioCtxRef.current = new AudioCtx();
@@ -78,7 +108,7 @@ export const BreathingBubbleSection: React.FC = () => {
       const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.value =
-        currentPhase === 'inhale' ? 440 : currentPhase === 'hold' ? 523.25 : 349.23;
+        currentPhase === 'inhale' ? 432 : currentPhase === 'hold' ? 518 : 346;
 
       gain.gain.setValueAtTime(0.001, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.08);
@@ -101,19 +131,19 @@ export const BreathingBubbleSection: React.FC = () => {
       playSoftCue(phase);
     }
 
-    const timer = window.setInterval(() => {
-      setElapsedSeconds((prev) => {
-        const next = prev + 1;
-        if (next >= totalSeconds) {
+    const interval = window.setInterval(() => {
+      setElapsedMs((prev) => {
+        const next = prev + 100;
+        if (next >= totalMs) {
           setStatus('completed');
-          return totalSeconds;
+          return totalMs;
         }
         return next;
       });
-    }, 1000);
+    }, 100);
 
-    return () => window.clearInterval(timer);
-  }, [status, phase, totalSeconds, soundEnabled]);
+    return () => window.clearInterval(interval);
+  }, [status, phase, totalMs, soundEnabled]);
 
   useEffect(() => {
     return () => {
@@ -126,12 +156,12 @@ export const BreathingBubbleSection: React.FC = () => {
   const handleSelectDuration = (mins: DurationMinutes) => {
     setDurationMinutes(mins);
     setStatus('idle');
-    setElapsedSeconds(0);
+    setElapsedMs(0);
     lastCuePhaseRef.current = null;
   };
 
   const handleStart = () => {
-    setElapsedSeconds(0);
+    setElapsedMs(0);
     lastCuePhaseRef.current = null;
     setStatus('running');
   };
@@ -145,22 +175,57 @@ export const BreathingBubbleSection: React.FC = () => {
   };
 
   const handleRestart = () => {
-    setElapsedSeconds(0);
+    setElapsedMs(0);
     lastCuePhaseRef.current = null;
     setStatus('idle');
   };
 
-  // Bubble scale by phase: expands on inhale, stays expanded on hold, contracts on exhale
-  const bubbleScaleClass =
+  const handleBubbleClick = () => {
+    if (status === 'idle' || status === 'completed') {
+      handleStart();
+    } else if (status === 'running') {
+      handlePause();
+    } else if (status === 'paused') {
+      handleResume();
+    }
+  };
+
+  // Continuous smooth bubble scale based on exact ms progress
+  const bubbleScale =
     status === 'idle' || status === 'completed'
-      ? 'scale-95'
-      : phase === 'inhale' || phase === 'hold'
-        ? 'scale-110'
-        : 'scale-75';
+      ? 0.92
+      : phase === 'inhale'
+        ? 0.78 + 0.34 * phaseProgress
+        : phase === 'hold'
+          ? 1.12
+          : 1.12 - 0.34 * phaseProgress;
+
+  const haloScale =
+    status === 'running'
+      ? bubbleScale + 0.14
+      : 1.0;
+
+  // SVG Ring Math
+  const ringRadius = 92;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset =
+    status === 'idle'
+      ? ringCircumference
+      : status === 'completed'
+        ? 0
+        : ringCircumference * (1 - phaseProgress);
+
+  const ringStrokeColor =
+    phase === 'inhale'
+      ? '#5554B8'
+      : phase === 'hold'
+        ? '#245532'
+        : '#7C7AD6';
 
   return (
     <section aria-label="Breathing Bubble">
       <Card padding="lg" className="space-y-5">
+        {/* Header & Duration / Sound Controls */}
         <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#5554B8]">
@@ -171,7 +236,7 @@ export const BreathingBubbleSection: React.FC = () => {
               Breathing Bubble
             </h2>
             <p className="text-xs text-[#625F78]">
-              Inhale 4s • Hold 4s • Exhale 4s. Follow the gentle rhythm.
+              Inhale 4s • Hold 4s • Exhale 4s. Tap the bubble or press Start.
             </p>
           </div>
 
@@ -222,20 +287,127 @@ export const BreathingBubbleSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Bubble Stage */}
-        <div className="py-4 flex flex-col items-center justify-center gap-4 bg-[#F7F6FB] rounded-card border border-[#E8E6F1]/80">
-          <div className="relative w-44 h-44 flex items-center justify-center">
+        {/* Interactive Breathing Stage */}
+        <div className="p-5 sm:p-6 flex flex-col items-center justify-center gap-5 bg-[#F7F6FB] rounded-card border border-[#E8E6F1]/80">
+          {/* Live 3-Phase Indicator Pills */}
+          <div
+            className="flex flex-wrap items-center justify-center gap-2"
+            aria-label="Breathing cycle phases"
+          >
+            {PHASE_ORDER.map((pKey, idx) => {
+              const isCurrent = (status === 'running' || status === 'paused') && phase === pKey;
+              return (
+                <div
+                  key={pKey}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    isCurrent
+                      ? pKey === 'hold'
+                        ? 'bg-[#DCE9DF] text-[#245532] border-[#BCD4C3] shadow-subtle'
+                        : 'bg-[#5554B8] text-white border-[#5554B8] shadow-subtle'
+                      : 'bg-white text-[#625F78] border-[#E8E6F1]'
+                  }`}
+                >
+                  <span>{idx + 1}. {PHASE_LABELS[pKey]}</span>
+                  <span className="opacity-75">4s</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Interactive Concentric Bubble + SVG Phase Progress Ring */}
+          <div className="relative w-56 h-56 flex items-center justify-center">
+            {/* Outer ambient halo */}
             <div
-              className={`w-36 h-36 rounded-full bg-gradient-to-br from-[#E9E7FB] via-[#DCD9F8] to-[#DCE9DF]/80 border-2 border-[#5554B8]/30 shadow-soft flex flex-col items-center justify-center text-center transition-transform duration-[4000ms] ease-in-out ${bubbleScaleClass}`}
+              aria-hidden="true"
+              className="absolute w-44 h-44 rounded-full bg-[#E9E7FB]/60 transition-transform duration-150 ease-out pointer-events-none"
+              style={{ transform: `scale(${haloScale})` }}
+            />
+
+            {/* Floating calm particles */}
+            {[
+              { top: '14%', left: '20%', delay: '0s', size: 'w-2.5 h-2.5' },
+              { top: '20%', right: '16%', delay: '0.4s', size: 'w-2 h-2' },
+              { bottom: '18%', left: '16%', delay: '0.8s', size: 'w-2 h-2' },
+              { bottom: '14%', right: '20%', delay: '1.2s', size: 'w-2.5 h-2.5' },
+            ].map((orb, idx) => (
+              <span
+                key={idx}
+                aria-hidden="true"
+                className={`absolute rounded-full ${orb.size} bg-[#5554B8]/25 transition-all duration-500 pointer-events-none`}
+                style={{
+                  top: orb.top,
+                  left: orb.left,
+                  right: orb.right,
+                  bottom: orb.bottom,
+                  transform:
+                    status === 'running'
+                      ? phase === 'inhale'
+                        ? 'scale(1.3)'
+                        : phase === 'hold'
+                          ? 'scale(1.15)'
+                          : 'scale(0.8)'
+                      : 'scale(1)',
+                }}
+              />
+            ))}
+
+            {/* SVG Circular Phase Progress Ring */}
+            <svg
+              className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none"
+              viewBox="0 0 220 220"
+              aria-hidden="true"
+            >
+              <circle
+                cx="110"
+                cy="110"
+                r={ringRadius}
+                fill="none"
+                stroke="#E8E6F1"
+                strokeWidth="5"
+              />
+              <circle
+                cx="110"
+                cy="110"
+                r={ringRadius}
+                fill="none"
+                stroke={ringStrokeColor}
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={ringCircumference}
+                strokeDashoffset={ringOffset}
+                className="transition-[stroke-dashoffset,stroke] duration-100 ease-linear"
+              />
+            </svg>
+
+            {/* Tactile Interactive Bubble Button */}
+            <button
+              type="button"
+              onClick={handleBubbleClick}
+              aria-label={
+                status === 'running'
+                  ? 'Pause breathing exercise'
+                  : status === 'paused'
+                    ? 'Resume breathing exercise'
+                    : 'Start breathing exercise'
+              }
+              style={{ transform: `scale(${bubbleScale})` }}
+              className={`relative z-10 w-36 h-36 rounded-full border-2 shadow-soft flex flex-col items-center justify-center text-center cursor-pointer transition-transform duration-150 ease-out hover:brightness-[0.98] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
+                status === 'completed'
+                  ? 'bg-gradient-to-br from-[#DCE9DF] to-[#E9E7FB] border-[#245532]/30'
+                  : phase === 'hold' && status === 'running'
+                    ? 'bg-gradient-to-br from-[#DCE9DF] via-[#E9E7FB] to-[#FFFFFF] border-[#245532]/30'
+                    : 'bg-gradient-to-br from-[#E9E7FB] via-[#DCD9F8] to-[#DCE9DF]/80 border-[#5554B8]/35'
+              }`}
             >
               {status === 'completed' ? (
                 <>
-                  <CheckCircle2 className="w-6 h-6 text-[#245532] mb-1" />
+                  <CheckCircle2 className="w-7 h-7 text-[#245532] mb-1" />
                   <span className="text-sm font-bold text-[#245532]">Complete</span>
                 </>
               ) : status === 'idle' ? (
                 <>
-                  <span className="text-sm font-bold text-[#25233B]">Ready</span>
+                  <Sparkles className="w-4 h-4 text-[#5554B8] mb-1" />
+                  <span className="text-sm font-bold text-[#25233B]">Tap to Start</span>
                   <span className="text-xs text-[#625F78] mt-0.5">
                     {formatClock(remainingSeconds)}
                   </span>
@@ -245,33 +417,65 @@ export const BreathingBubbleSection: React.FC = () => {
                   <span className="text-base font-bold text-[#25233B]" aria-live="polite">
                     {PHASE_LABELS[phase]}
                   </span>
-                  <span className="text-xs font-semibold text-[#5554B8] mt-0.5">
+                  <span className="text-sm font-bold text-[#5554B8] mt-0.5">
                     {phaseSecondsLeft}s
+                  </span>
+                  <span className="text-[10px] text-[#625F78] mt-0.5">
+                    {status === 'paused' ? 'Paused' : 'Tap to pause'}
                   </span>
                 </>
               )}
+            </button>
+          </div>
+
+          {/* Phase Guidance & Stats */}
+          <div className="w-full max-w-md space-y-2.5 text-center">
+            {status === 'completed' ? (
+              <p className="text-xs sm:text-sm font-semibold text-[#245532]">
+                Well done! You completed {cyclesCompleted} calm breathing{' '}
+                {cyclesCompleted === 1 ? 'cycle' : 'cycles'} ({durationMinutes} min).
+              </p>
+            ) : (
+              <p className="text-xs font-medium text-[#25233B]">
+                {status === 'idle'
+                  ? 'Settle your shoulders and tap the bubble whenever you are ready.'
+                  : PHASE_GUIDANCE[phase]}
+              </p>
+            )}
+
+            {/* Overall Session Progress Bar */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-[#625F78]">
+                <span>
+                  Time remaining:{' '}
+                  <strong className="text-[#25233B] font-semibold">
+                    {formatClock(remainingSeconds)}
+                  </strong>
+                  {status === 'paused' && ' • Paused'}
+                </span>
+                <span>
+                  Cycles:{' '}
+                  <strong className="text-[#25233B] font-semibold">{cyclesCompleted}</strong>
+                </span>
+              </div>
+              <div
+                className="h-1.5 w-full rounded-full bg-[#E8E6F1] overflow-hidden"
+                role="progressbar"
+                aria-valuenow={Math.round(sessionProgress)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Breathing session progress"
+              >
+                <div
+                  className="h-full bg-[#5554B8] rounded-full transition-all duration-150"
+                  style={{ width: `${sessionProgress}%` }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Remaining Time & Completion Message */}
-          <div className="text-center space-y-1 px-4">
-            {status === 'completed' ? (
-              <p className="text-xs sm:text-sm font-medium text-[#245532]">
-                Well done. You completed your {durationMinutes}-minute breathing pause.
-              </p>
-            ) : (
-              <p className="text-xs text-[#625F78]">
-                Time remaining:{' '}
-                <strong className="text-[#25233B] font-semibold">
-                  {formatClock(remainingSeconds)}
-                </strong>
-                {status === 'paused' && ' • Paused'}
-              </p>
-            )}
-          </div>
-
           {/* Controls */}
-          <div className="flex flex-wrap items-center justify-center gap-2.5 px-4">
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
             {status === 'idle' && (
               <Button
                 variant="primary"
