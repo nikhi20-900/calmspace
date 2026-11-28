@@ -183,24 +183,35 @@ export const EXPLORE_ARTICLES: readonly ExploreArticle[] = [
   },
   {
     id: 'exp-video-desk-reset',
-    title: '2-Minute Guided Desk De-Stress',
+    title: '2-Minute Neck & Eye Strain Relief',
     category: 'Stress Management',
     format: 'video',
-    shortDescription: 'Follow along with a calm visual reset to release shoulder and study tension.',
+    shortDescription: 'Guided desk stretches and 20-20-20 eye relaxation after long screen hours.',
     readTimeMinutes: 2,
     videoDurationSeconds: 60,
     videoScene: 'sunrise',
     videoCaptions: [
-      { timeSec: 0, text: 'Welcome. Step back slightly from your screen and rest your hands.' },
-      { timeSec: 12, text: 'Roll your shoulders slowly backward three times, letting them drop.' },
-      { timeSec: 26, text: 'Unclench your jaw and soften the muscles around your eyes.' },
-      { timeSec: 40, text: 'Take two slow breaths—inhale calm, exhale the last hour of effort.' },
-      { timeSec: 52, text: 'Return to your work whenever you feel ready, one small step at a time.' },
+      {
+        timeSec: 0,
+        text: 'Look away from your screen right now and focus on the farthest wall or window in your room.',
+      },
+      {
+        timeSec: 15,
+        text: 'Gently tilt your right ear toward your right shoulder, and hold for three slow counts.',
+      },
+      {
+        timeSec: 30,
+        text: 'Slowly switch sides—tilt your left ear toward your left shoulder and relax your jaw.',
+      },
+      {
+        timeSec: 45,
+        text: 'Interlace your fingers, stretch your palms upward toward the ceiling, and release your arms down.',
+      },
     ],
-    keywords: ['video', 'desk', 'stretch', 'tension', 'stress', 'guided'],
+    keywords: ['video', 'neck', 'eyes', 'stretch', 'desk', 'strain', 'guided'],
     fullArticle: [
-      'This short guided visual break helps release physical tension that builds up during long study blocks.',
-      'Watch the gentle sunrise motion, follow the captions, and let your shoulders settle downward.',
+      'A guided physical reset for students spending hours reading PDFs or coding.',
+      'Follow the spoken prompts to rest your eyes, lengthen your neck, and release upper-back stiffness.',
     ],
   },
   {
@@ -224,22 +235,34 @@ export const EXPLORE_ARTICLES: readonly ExploreArticle[] = [
   },
   {
     id: 'exp-video-sleep-drift',
-    title: 'Evening Wind-Down Visual Meditation',
+    title: 'Progressive Muscle Unwind for Sleep',
     category: 'Sleep',
     format: 'video',
-    shortDescription: 'A soothing night-sky guided visual to quiet racing thoughts before sleep.',
+    shortDescription: 'A guided tense-and-release body scan to melt away physical fatigue before bed.',
     readTimeMinutes: 2,
     videoDurationSeconds: 60,
     videoScene: 'nightfall',
     videoCaptions: [
-      { timeSec: 0, text: 'Dim your screen brightness and let today’s tasks wait until tomorrow.' },
-      { timeSec: 14, text: 'Watch the gentle stars drift slowly across the night sky.' },
-      { timeSec: 28, text: 'Let your breathing slow down—each exhale slightly longer than the inhale.' },
-      { timeSec: 44, text: 'Feel the weight of your body supported comfortably where you rest.' },
+      {
+        timeSec: 0,
+        text: 'Settle back comfortably and gently squeeze your hands into fists for four seconds, then let go.',
+      },
+      {
+        timeSec: 15,
+        text: 'Lift your shoulders up toward your ears briefly, then drop them heavy like warm stones.',
+      },
+      {
+        timeSec: 30,
+        text: 'Press your feet softly into the floor or mattress for three seconds, then release all effort.',
+      },
+      {
+        timeSec: 45,
+        text: 'Notice how heavy and warm your body feels now. Let tomorrow’s study list wait until morning.',
+      },
     ],
-    keywords: ['video', 'sleep', 'night', 'meditation', 'wind down'],
+    keywords: ['video', 'sleep', 'muscle', 'body scan', 'night', 'wind down'],
     fullArticle: [
-      'Use this calm 60-second evening visual right before putting your device away for the night.',
+      'Progressive muscle relaxation helps your nervous system transition out of study alertness into deep rest.',
     ],
   },
   {
@@ -263,21 +286,34 @@ export const EXPLORE_ARTICLES: readonly ExploreArticle[] = [
   },
   {
     id: 'exp-video-ocean-focus',
-    title: 'Mindful Horizon: Calm Wave Visual',
+    title: 'Mental Declutter: Watch Thoughts Drift',
     category: 'Mindfulness',
     format: 'video',
-    shortDescription: 'A tranquil animated ocean horizon to steady your attention between classes.',
+    shortDescription: 'A cognitive reset to clear racing thoughts and pick just one next study step.',
     readTimeMinutes: 1,
-    videoDurationSeconds: 45,
+    videoDurationSeconds: 60,
     videoScene: 'waves',
     videoCaptions: [
-      { timeSec: 0, text: 'Follow the gentle rise and fall of the tide.' },
-      { timeSec: 15, text: 'Thoughts come and go like waves—you only need to watch them pass.' },
-      { timeSec: 30, text: 'Take one steady breath in with the swell, and breathe out as it recedes.' },
+      {
+        timeSec: 0,
+        text: 'Before starting your next task, picture each worry or deadline floating gently on the water.',
+      },
+      {
+        timeSec: 15,
+        text: 'You do not need to solve everything in this minute—simply name the one task that matters next.',
+      },
+      {
+        timeSec: 30,
+        text: 'Watch the competing thoughts drift past like calm waves, without chasing them.',
+      },
+      {
+        timeSec: 45,
+        text: 'Bring your attention back to this room, clear and steady, ready to begin one small step.',
+      },
     ],
-    keywords: ['video', 'ocean', 'waves', 'mindfulness', 'calm'],
+    keywords: ['video', 'focus', 'declutter', 'thoughts', 'ocean', 'mindfulness'],
     fullArticle: [
-      'A brief visual mindfulness pause designed to calm mental chatter between lectures.',
+      'A guided cognitive reset designed to quiet multitasking overwhelm between classes.',
     ],
   },
   {
