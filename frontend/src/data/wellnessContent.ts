@@ -51,7 +51,7 @@ export interface DailyChallengeItem {
 }
 
 export interface SoundTrack {
-  id: 'rain' | 'ocean' | 'night';
+  id: 'birds' | 'ocean' | 'night';
   title: string;
   description: string;
   audioUrl: string;
@@ -306,10 +306,10 @@ export function getDailyChallengeForDate(dateKey: string): DailyChallengeItem {
 
 export const SOUND_LOUNGE_TRACKS: readonly SoundTrack[] = [
   {
-    id: 'rain',
-    title: 'Rain Sounds',
-    description: 'Heavy rainfall ambience for deep focus and relaxation.',
-    audioUrl: '/audio/rain.wav',
+    id: 'birds',
+    title: 'Bird Singing',
+    description: 'Peaceful morning birdsong for calm focus and uplift.',
+    audioUrl: '/audio/birds.wav',
   },
   {
     id: 'ocean',

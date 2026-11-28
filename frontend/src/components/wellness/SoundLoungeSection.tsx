@@ -6,7 +6,7 @@ import {
   Volume2,
   Star,
   Timer,
-  CloudRain,
+  Bird,
   Waves,
   Moon,
   AlertCircle,
@@ -25,13 +25,13 @@ type SleepTimerMinutes = 0 | 5 | 10 | 15;
 const SLEEP_TIMER_OPTIONS: readonly SleepTimerMinutes[] = [0, 5, 10, 15];
 
 const TRACK_ICONS: Record<SoundTrack['id'], React.ReactNode> = {
-  rain: <CloudRain className="w-4 h-4 text-[#5554B8]" />,
-  ocean: <Waves className="w-4 h-4 text-[#245532]" />,
+  birds: <Bird className="w-4 h-4 text-[#245532]" />,
+  ocean: <Waves className="w-4 h-4 text-[#5554B8]" />,
   night: <Moon className="w-4 h-4 text-[#5554B8]" />,
 };
 
 export const SoundLoungeSection: React.FC = () => {
-  const [selectedTrackId, setSelectedTrackId] = useState<SoundTrack['id']>('rain');
+  const [selectedTrackId, setSelectedTrackId] = useState<SoundTrack['id']>('birds');
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState<number>(() => loadSoundVolume());
   const [favourites, setFavourites] = useState<string[]>(() => loadSoundFavourites());
