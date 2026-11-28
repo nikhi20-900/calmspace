@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   Compass,
@@ -280,68 +281,72 @@ export const ExploreRelaxSection: React.FC<ExploreRelaxSectionProps> = ({
         </div>
       )}
 
-      {/* Full Article Modal */}
-      <Dialog
-        isOpen={Boolean(activeArticle)}
-        onClose={() => setActiveArticle(null)}
-        title={activeArticle?.title || ''}
-        description={
-          activeArticle
-            ? `${activeArticle.category} • ${activeArticle.readTimeMinutes} min read`
-            : undefined
-        }
-        maxWidth="md"
-      >
-        {activeArticle && (
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {activeArticle.fullArticle.map((paragraph, idx) => (
-                <p key={idx} className="text-sm text-[#25233B] leading-relaxed">
-                  {paragraph}
-                </p>
-              ))}
-            </div>
+      {/* Full Article Modal (portaled to body so it centers above Sidebar) */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <Dialog
+            isOpen={Boolean(activeArticle)}
+            onClose={() => setActiveArticle(null)}
+            title={activeArticle?.title || ''}
+            description={
+              activeArticle
+                ? `${activeArticle.category} • ${activeArticle.readTimeMinutes} min read`
+                : undefined
+            }
+            maxWidth="md"
+          >
+            {activeArticle && (
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  {activeArticle.fullArticle.map((paragraph, idx) => (
+                    <p key={idx} className="text-sm text-[#25233B] leading-relaxed">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-[#E8E6F1]">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={likedIds.includes(activeArticle.id) ? 'secondary' : 'outline'}
-                  size="sm"
-                  leftIcon={
-                    <Heart
-                      className={`w-4 h-4 ${
-                        likedIds.includes(activeArticle.id) ? 'fill-current text-[#B24823]' : ''
-                      }`}
-                    />
-                  }
-                  onClick={() => toggleLike(activeArticle.id)}
-                >
-                  {likedIds.includes(activeArticle.id) ? 'Liked' : 'Like'}
-                </Button>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-[#E8E6F1]">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={likedIds.includes(activeArticle.id) ? 'secondary' : 'outline'}
+                      size="sm"
+                      leftIcon={
+                        <Heart
+                          className={`w-4 h-4 ${
+                            likedIds.includes(activeArticle.id) ? 'fill-current text-[#B24823]' : ''
+                          }`}
+                        />
+                      }
+                      onClick={() => toggleLike(activeArticle.id)}
+                    >
+                      {likedIds.includes(activeArticle.id) ? 'Liked' : 'Like'}
+                    </Button>
 
-                <Button
-                  variant={bookmarkedIds.includes(activeArticle.id) ? 'secondary' : 'outline'}
-                  size="sm"
-                  leftIcon={
-                    <Bookmark
-                      className={`w-4 h-4 ${
-                        bookmarkedIds.includes(activeArticle.id) ? 'fill-current text-[#5554B8]' : ''
-                      }`}
-                    />
-                  }
-                  onClick={() => toggleBookmark(activeArticle.id)}
-                >
-                  {bookmarkedIds.includes(activeArticle.id) ? 'Saved' : 'Bookmark'}
-                </Button>
+                    <Button
+                      variant={bookmarkedIds.includes(activeArticle.id) ? 'secondary' : 'outline'}
+                      size="sm"
+                      leftIcon={
+                        <Bookmark
+                          className={`w-4 h-4 ${
+                            bookmarkedIds.includes(activeArticle.id) ? 'fill-current text-[#5554B8]' : ''
+                          }`}
+                        />
+                      }
+                      onClick={() => toggleBookmark(activeArticle.id)}
+                    >
+                      {bookmarkedIds.includes(activeArticle.id) ? 'Saved' : 'Bookmark'}
+                    </Button>
+                  </div>
+
+                  <Button variant="primary" size="sm" onClick={() => setActiveArticle(null)}>
+                    Done
+                  </Button>
+                </div>
               </div>
-
-              <Button variant="primary" size="sm" onClick={() => setActiveArticle(null)}>
-                Done
-              </Button>
-            </div>
-          </div>
+            )}
+          </Dialog>,
+          document.body
         )}
-      </Dialog>
     </section>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Sparkles,
   Bell,
@@ -149,41 +150,45 @@ export const DailyHighlightsSection: React.FC = () => {
         })}
       </div>
 
-      {/* Highlight Detail Modal */}
-      <Dialog
-        isOpen={Boolean(selectedHighlight)}
-        onClose={() => setSelectedHighlight(null)}
-        title={selectedHighlight?.title || ''}
-        description={selectedHighlight?.category}
-        maxWidth="sm"
-      >
-        {selectedHighlight && (
-          <div className="space-y-5">
-            <p className="text-sm text-[#25233B] leading-relaxed">
-              {selectedHighlight.fullContent}
-            </p>
+      {/* Highlight Detail Modal (portaled to body so it centers above Sidebar) */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <Dialog
+            isOpen={Boolean(selectedHighlight)}
+            onClose={() => setSelectedHighlight(null)}
+            title={selectedHighlight?.title || ''}
+            description={selectedHighlight?.category}
+            maxWidth="sm"
+          >
+            {selectedHighlight && (
+              <div className="space-y-5">
+                <p className="text-sm text-[#25233B] leading-relaxed">
+                  {selectedHighlight.fullContent}
+                </p>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#E8E6F1]">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedHighlight(null)}
-              >
-                Close
-              </Button>
-              <Button
-                variant={readIds.includes(selectedHighlight.id) ? 'secondary' : 'primary'}
-                size="sm"
-                leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                disabled={readIds.includes(selectedHighlight.id)}
-                onClick={() => handleMarkAsRead(selectedHighlight.id)}
-              >
-                {readIds.includes(selectedHighlight.id) ? 'Marked as Read' : 'Mark as Read'}
-              </Button>
-            </div>
-          </div>
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#E8E6F1]">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedHighlight(null)}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    variant={readIds.includes(selectedHighlight.id) ? 'secondary' : 'primary'}
+                    size="sm"
+                    leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                    disabled={readIds.includes(selectedHighlight.id)}
+                    onClick={() => handleMarkAsRead(selectedHighlight.id)}
+                  >
+                    {readIds.includes(selectedHighlight.id) ? 'Marked as Read' : 'Mark as Read'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Dialog>,
+          document.body
         )}
-      </Dialog>
     </section>
   );
 };
