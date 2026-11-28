@@ -440,11 +440,12 @@ test('Wellness features: Daily Highlights, Explore, Daily Challenges, and Sound 
     1
   );
 
-  // 4. Sound Lounge: exact 3 tracks + favourites & volume persistence
-  assert.deepEqual(
-    wellnessContent.SOUND_LOUNGE_TRACKS.map((t) => t.title),
-    ['Rain Sounds', 'Ocean Waves', 'Forest Ambience']
-  );
+  // 4. Sound Lounge: tracks + favourites & volume persistence
+  const titles = wellnessContent.SOUND_LOUNGE_TRACKS.map((t) => t.title);
+  assert.ok(titles.includes('Rain Sounds'));
+  assert.ok(titles.includes('Ocean Waves'));
+  assert.ok(titles.includes('Forest Ambience'));
+  assert.ok(titles.length >= 6);
   wellnessStorage.saveSoundFavourites(['rain']);
   wellnessStorage.saveSoundVolume(0.45);
   assert.deepEqual(wellnessStorage.loadSoundFavourites(), ['rain']);

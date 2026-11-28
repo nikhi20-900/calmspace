@@ -9,6 +9,9 @@ import {
   CloudRain,
   Waves,
   Trees,
+  Music,
+  Sparkles,
+  Moon,
   AlertCircle,
 } from 'lucide-react';
 import { Card } from '../ui/Card';
@@ -28,6 +31,9 @@ const TRACK_ICONS: Record<SoundTrack['id'], React.ReactNode> = {
   rain: <CloudRain className="w-4 h-4 text-[#5554B8]" />,
   ocean: <Waves className="w-4 h-4 text-[#245532]" />,
   forest: <Trees className="w-4 h-4 text-[#245532]" />,
+  lofi: <Music className="w-4 h-4 text-[#5554B8]" />,
+  bowl: <Sparkles className="w-4 h-4 text-[#7A4D05]" />,
+  night: <Moon className="w-4 h-4 text-[#5554B8]" />,
 };
 
 export const SoundLoungeSection: React.FC = () => {
@@ -44,6 +50,14 @@ export const SoundLoungeSection: React.FC = () => {
   const activeTrack =
     SOUND_LOUNGE_TRACKS.find((t) => t.id === selectedTrackId) || SOUND_LOUNGE_TRACKS[0];
 
+  const cleanupAudioElement = (audio: HTMLAudioElement | null) => {
+    if (!audio) return;
+    audio.onerror = null;
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+  };
+
   const stopAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -55,11 +69,8 @@ export const SoundLoungeSection: React.FC = () => {
   // Stop playback when the user leaves the page (component unmounts)
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = '';
-        audioRef.current = null;
-      }
+      cleanupAudioElement(audioRef.current);
+      audioRef.current = null;
     };
   }, []);
 
@@ -91,17 +102,16 @@ export const SoundLoungeSection: React.FC = () => {
   const startPlaybackForTrack = async (track: SoundTrack) => {
     setAudioError(null);
     try {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = '';
-      }
+      cleanupAudioElement(audioRef.current);
+      audioRef.current = null;
+
       const audio = new Audio(track.audioUrl);
       audio.loop = true;
       audio.volume = volume;
-      audio.addEventListener('error', () => {
+      audio.onerror = () => {
         setAudioError(`Unable to load "${track.title}". Please check your audio connection and retry.`);
         setIsPlaying(false);
-      });
+      };
       audioRef.current = audio;
       await audio.play();
       setIsPlaying(true);
