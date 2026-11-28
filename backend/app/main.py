@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import AIServiceConfig, load_local_env
 from app.routers.checkin import router as checkin_router
+from app.routers.companion import router as companion_router
 from app.routers.insights import router as insights_router
 from app.routers.planner import router as planner_router
 from app.routers.support_and_settings import settings_router, support_router
@@ -85,6 +86,7 @@ app.add_middleware(
 )
 
 app.include_router(checkin_router)
+app.include_router(companion_router)
 app.include_router(insights_router)
 app.include_router(planner_router)
 app.include_router(support_router)

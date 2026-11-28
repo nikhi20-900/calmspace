@@ -18,6 +18,7 @@ import {
   Phone,
   AlertCircle,
   ExternalLink,
+  AudioLines,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -217,6 +218,13 @@ export const OverviewPage: React.FC = () => {
                 </Button>
               </Link>
             )}
+            <Link
+              to="/companion"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button bg-white border border-[#D5D1E5] text-xs font-semibold text-[#5554B8] hover:bg-[#F2F1FD] transition-colors"
+            >
+              <AudioLines className="w-3.5 h-3.5" />
+              <span>Talk with Calm (Voice Companion)</span>
+            </Link>
             <span className="text-xs text-[#625F78]">
               Takes ~60 seconds • Your wellbeing check-in starts here
             </span>

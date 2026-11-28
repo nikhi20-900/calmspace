@@ -21,6 +21,8 @@ export interface CalmspaceBlobProps {
   expression?: BlobExpression;
   isCtaHovered?: boolean;
   isBreathingActive?: boolean;
+  audioLevel?: number;
+  breathingPhase?: number | null;
   onBlobClick?: () => void;
   showControls?: boolean;
   showReactionBadge?: boolean;
@@ -35,6 +37,8 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
   expression: propExpression,
   isCtaHovered = false,
   isBreathingActive: propBreathingActive,
+  audioLevel = 0,
+  breathingPhase = null,
   onBlobClick,
   showControls = false,
   showReactionBadge = true,
@@ -126,6 +130,8 @@ export const CalmspaceBlob: React.FC<CalmspaceBlobProps> = ({
             expression={activeExpression}
             isCtaHovered={isCtaHovered}
             isBreathingActive={isBreathing}
+            audioLevel={audioLevel}
+            breathingPhase={breathingPhase}
             onBlobClick={handleBlobClick}
           />
         </Suspense>

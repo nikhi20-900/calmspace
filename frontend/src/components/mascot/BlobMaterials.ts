@@ -27,6 +27,12 @@ export interface BlobUniforms {
   uBlush: THREE.IUniform<number>;
   uBlushL: THREE.IUniform<THREE.Vector3>;
   uBlushR: THREE.IUniform<THREE.Vector3>;
+  /** Smoothed audio reactivity (0..1) for voice/listening ripples. */
+  uAudio: THREE.IUniform<number>;
+  /** Thinking swirl intensity (0..1). */
+  uSwirl: THREE.IUniform<number>;
+  /** Subtle RGB state tint offset. */
+  uStateTint: THREE.IUniform<THREE.Vector3>;
 }
 
 export function createBlobUniforms(): BlobUniforms {
@@ -40,6 +46,9 @@ export function createBlobUniforms(): BlobUniforms {
     uBlush: { value: 0.52 },
     uBlushL: { value: new THREE.Vector3(-0.74, 0.06, 1.2) },
     uBlushR: { value: new THREE.Vector3(0.74, 0.06, 1.2) },
+    uAudio: { value: 0 },
+    uSwirl: { value: 0 },
+    uStateTint: { value: new THREE.Vector3(0, 0, 0) },
   };
 }
 
@@ -115,6 +124,8 @@ uniform vec3 uWobble;
 uniform vec4 uPoke;
 uniform float uBreath;
 uniform float uIdle;
+uniform float uAudio;
+uniform float uSwirl;
 varying vec3 vBlobPos;
 
 // Scalar displacement along the surface normal at base position p.
@@ -131,6 +142,14 @@ float blobField(vec3 p, vec3 n) {
       sin(p.x * 1.7 + t * 0.35) * sin(p.y * 1.3 - t * 0.27 + 1.7) * sin(p.z * 1.9 + t * 0.31 + 0.6)
     + 0.5 * sin(p.x * 3.1 - p.z * 2.3 + t * 0.5) * sin(p.y * 2.7 + 2.1);
   float d = uIdle * 0.02 * living;
+
+  // Voice & microphone harmonic ripple (gentle, organic)
+  float voiceWave = sin(p.y * 4.2 - t * 6.5) * cos(p.x * 3.1 + t * 4.0) * 0.045;
+  d += uAudio * (0.022 + voiceWave);
+
+  // Thinking swirl wave
+  float swirlWave = sin(atan(p.z, p.x) * 2.0 + p.y * 2.4 - t * 2.8) * 0.024;
+  d += uSwirl * swirlWave;
 
   // Breathing fills the belly/front more than the crown.
   float b = uBreath * 2.0 - 1.0;
@@ -176,6 +195,7 @@ const FRAGMENT_HEADER = /* glsl */ `
 uniform float uBlush;
 uniform vec3 uBlushL;
 uniform vec3 uBlushR;
+uniform vec3 uStateTint;
 varying vec3 vBlobPos;
 `;
 
@@ -183,7 +203,7 @@ const FRAGMENT_COLOR = /* glsl */ `
 #include <color_fragment>
 {
   vec3 bp = vBlobPos;
-  vec3 col = diffuseColor.rgb;
+  vec3 col = diffuseColor.rgb + uStateTint;
 
   // Crown a touch lighter, base a touch deeper: reads as volume, not a flat fill.
   col *= mix(0.85, 1.05, smoothstep(-1.45, 1.35, bp.y));
@@ -247,7 +267,7 @@ export function createBlobBodyMaterial(uniforms: BlobUniforms): THREE.MeshPhysic
       .replace('#include <color_fragment>', FRAGMENT_COLOR)
       .replace('#include <opaque_fragment>', FRAGMENT_OUTPUT);
   };
-  material.customProgramCacheKey = () => 'calmspace-blob-body-v2';
+  material.customProgramCacheKey = () => 'calmspace-blob-body-v3';
 
   return material;
 }
