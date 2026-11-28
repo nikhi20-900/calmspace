@@ -51,7 +51,7 @@ export interface DailyChallengeItem {
 }
 
 export interface SoundTrack {
-  id: 'rain' | 'ocean' | 'forest' | 'lofi' | 'bowl' | 'night';
+  id: 'rain' | 'ocean' | 'night';
   title: string;
   description: string;
   audioUrl: string;
@@ -308,37 +308,19 @@ export const SOUND_LOUNGE_TRACKS: readonly SoundTrack[] = [
   {
     id: 'rain',
     title: 'Rain Sounds',
-    description: 'Soft rainfall with gentle water droplets for focus.',
+    description: 'Clear, gentle rain droplets for relaxation and focus.',
     audioUrl: '/audio/rain.wav',
   },
   {
     id: 'ocean',
     title: 'Ocean Waves',
-    description: 'Deep, calm ocean swells and peaceful shore wash.',
+    description: 'Calm ocean waves and peaceful shore ambience.',
     audioUrl: '/audio/ocean.wav',
-  },
-  {
-    id: 'forest',
-    title: 'Forest Ambience',
-    description: 'Clear morning birdsong and soft woodland breeze.',
-    audioUrl: '/audio/forest.wav',
-  },
-  {
-    id: 'lofi',
-    title: 'Warm Piano Pad',
-    description: 'Soft ambient electric-piano chords for calm study.',
-    audioUrl: '/audio/lofi.wav',
-  },
-  {
-    id: 'bowl',
-    title: 'Singing Bowl',
-    description: 'Resonant meditation bowl harmonics for deep breathing.',
-    audioUrl: '/audio/bowl.wav',
   },
   {
     id: 'night',
     title: 'Night Calm',
-    description: 'Gentle evening crickets and warm nocturnal drone.',
+    description: 'Gentle evening crickets and peaceful night ambience.',
     audioUrl: '/audio/night.wav',
   },
 ];

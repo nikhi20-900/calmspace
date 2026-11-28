@@ -8,9 +8,6 @@ import {
   Timer,
   CloudRain,
   Waves,
-  Trees,
-  Music,
-  Sparkles,
   Moon,
   AlertCircle,
 } from 'lucide-react';
@@ -30,9 +27,6 @@ const SLEEP_TIMER_OPTIONS: readonly SleepTimerMinutes[] = [0, 5, 10, 15];
 const TRACK_ICONS: Record<SoundTrack['id'], React.ReactNode> = {
   rain: <CloudRain className="w-4 h-4 text-[#5554B8]" />,
   ocean: <Waves className="w-4 h-4 text-[#245532]" />,
-  forest: <Trees className="w-4 h-4 text-[#245532]" />,
-  lofi: <Music className="w-4 h-4 text-[#5554B8]" />,
-  bowl: <Sparkles className="w-4 h-4 text-[#7A4D05]" />,
   night: <Moon className="w-4 h-4 text-[#5554B8]" />,
 };
 
