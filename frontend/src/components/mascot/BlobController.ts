@@ -144,6 +144,14 @@ export class BlobController {
     this.animController.setState(state);
   }
 
+  setAudioLevel(level: number) {
+    this.animController.setAudioLevel(level);
+  }
+
+  setExternalBreath(phase01: number | null) {
+    this.animController.setExternalBreath(phase01);
+  }
+
   /** `active` = a real target (pointer / CTA); otherwise the eyes idle-wander. */
   setGaze(normX: number, normY: number, active = true) {
     this.animController.setTargetGaze(normX, normY, active);
@@ -229,6 +237,9 @@ export class BlobController {
     u.uIdle.value = isReducedMotion ? 0 : 1;
     u.uBreath.value = pose.breath;
     u.uBlush.value = pose.blushOpacity;
+    u.uAudio.value = pose.audioLevel;
+    u.uSwirl.value = pose.swirlAmount;
+    u.uStateTint.value.set(pose.tintR, pose.tintG, pose.tintB);
     _lag.set(ph.lagX.value, ph.lagY.value, ph.lagZ.value);
     u.uLag.value.copy(_lag);
     u.uWobble.value.set(ph.wobble0.value, ph.wobble1.value, ph.wobble2.value);

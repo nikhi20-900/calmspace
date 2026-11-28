@@ -206,3 +206,17 @@ All endpoints exchange JSON data unless otherwise specified.
     "message": "All session data has been permanently deleted."
   }
   ```
+
+---
+
+### 2.8 Calm Voice Companion
+- **Start Session**: `POST /api/companion/start` (`X-Session-ID` required) -> `CompanionStartResponse` (`conversation_id`, `greeting`, `blob_state`, `follow_up_prompts`, `reminders`, `preferences`, `disclaimer`).
+- **Send Turn**: `POST /api/companion/turn` (`X-Session-ID` required)
+  - Request: `{"conversation_id": "conv-...", "message": "...", "consent_ai_processing": false, "input_mode": "voice"}`
+  - Evaluates `message` via deterministic `safety_evaluator.py` **before** any AI call. HIGH/crisis routes bypass AI completely and return urgent contacts.
+  - Response: `CompanionTurnResponse` (`reply`, `blob_state`, `safety`, `tool_calls`, `pending_confirmation`, `action_cards`, `support_contacts`, `generated_by_ai`, `fallback_used`).
+- **Confirm or Cancel Pending Action**: `POST /api/companion/confirm` (`X-Session-ID` required)
+  - Request: `{"conversation_id": "conv-...", "action_id": "act-...", "approved": true}`
+- **End Session (Clear Volatile Memory)**: `DELETE /api/companion/session/{conversation_id}`
+- **Reminders**: `GET /api/companion/reminders`, `POST /api/companion/reminders`, `DELETE /api/companion/reminders/{reminder_id}`
+- **Opt-In Companion Preferences**: `GET /api/companion/preferences`, `PUT /api/companion/preferences`

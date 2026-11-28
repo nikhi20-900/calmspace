@@ -18,6 +18,7 @@ import uuid
 import weakref
 from datetime import UTC, datetime, timedelta
 
+from app.models.companion_schemas import CompanionPreferences, ReminderRecord
 from app.models.schemas import CheckInRecord, StudyTask, UserSettings
 
 
@@ -173,6 +174,42 @@ class CalmspaceStorage:
                 conn.execute(
                     "ALTER TABLE user_settings ADD COLUMN planner_seeded INTEGER NOT NULL DEFAULT 0;"
                 )
+
+            # Reminders table (session-scoped, created only after explicit user confirmation)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS reminders (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    delay_minutes INTEGER NOT NULL,
+                    remind_at TEXT NOT NULL,
+                    active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_reminders_session
+                ON reminders(session_id, created_at DESC);
+                """
+            )
+
+            # Companion preferences table (opt-in study goals & pacing preferences)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS companion_preferences (
+                    session_id TEXT PRIMARY KEY,
+                    study_goal TEXT,
+                    preferred_study_block_minutes INTEGER NOT NULL DEFAULT 25,
+                    preferred_break_minutes INTEGER NOT NULL DEFAULT 5,
+                    preferred_tone TEXT NOT NULL DEFAULT 'warm',
+                    updated_at TEXT NOT NULL
+                );
+                """
+            )
 
     def has_planner_seeded(self, session_id: str) -> bool:
         """Return True if starter planner tasks were already seeded for this session."""
@@ -530,17 +567,203 @@ class CalmspaceStorage:
             return cursor.rowcount > 0
 
     # --------------------------------------------------------------------------
+    # Companion Reminders & Opt-In Preferences (Session-Scoped)
+    # --------------------------------------------------------------------------
+    def add_reminder(
+        self,
+        session_id: str,
+        title: str,
+        category: str,
+        delay_minutes: int,
+    ) -> ReminderRecord:
+        reminder_id = str(uuid.uuid4())
+        now = datetime.now(UTC)
+        created_at = now.isoformat()
+        remind_at = (now + timedelta(minutes=delay_minutes)).isoformat()
+
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO reminders (
+                    id, session_id, title, category, delay_minutes, remind_at, active, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 1, ?);
+                """,
+                (
+                    reminder_id,
+                    session_id,
+                    title,
+                    category,
+                    delay_minutes,
+                    remind_at,
+                    created_at,
+                ),
+            )
+
+        return ReminderRecord(
+            id=reminder_id,
+            session_id=session_id,
+            title=title,
+            category=category,  # type: ignore[arg-type]
+            delay_minutes=delay_minutes,
+            remind_at=remind_at,
+            active=True,
+            created_at=created_at,
+        )
+
+    def get_reminders(
+        self, session_id: str, active_only: bool = True
+    ) -> list[ReminderRecord]:
+        conn = self._get_connection()
+        query = """
+            SELECT id, session_id, title, category, delay_minutes, remind_at, active, created_at
+            FROM reminders
+            WHERE session_id = ?
+        """
+        if active_only:
+            query += " AND active = 1"
+        query += " ORDER BY created_at DESC;"
+
+        rows = conn.execute(query, (session_id,)).fetchall()
+        return [
+            ReminderRecord(
+                id=r["id"],
+                session_id=r["session_id"],
+                title=r["title"],
+                category=r["category"],
+                delay_minutes=r["delay_minutes"],
+                remind_at=r["remind_at"],
+                active=bool(r["active"]),
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def delete_reminder(self, session_id: str, reminder_id: str) -> bool:
+        conn = self._get_connection()
+        with conn:
+            cursor = conn.execute(
+                "DELETE FROM reminders WHERE id = ? AND session_id = ?;",
+                (reminder_id, session_id),
+            )
+            return cursor.rowcount > 0
+
+    def complete_reminder(self, session_id: str, reminder_id: str) -> bool:
+        """Marks an active session-scoped reminder as completed/dismissed."""
+        conn = self._get_connection()
+        with conn:
+            cursor = conn.execute(
+                "UPDATE reminders SET active = 0 WHERE id = ? AND session_id = ?;",
+                (reminder_id, session_id),
+            )
+            return cursor.rowcount > 0
+
+    def snooze_reminder(
+        self, session_id: str, reminder_id: str, minutes: int = 10
+    ) -> ReminderRecord | None:
+        """Reschedules an active session-scoped reminder forward from now."""
+        now = datetime.now(UTC)
+        new_remind_at = (now + timedelta(minutes=minutes)).isoformat()
+        conn = self._get_connection()
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE reminders
+                SET delay_minutes = ?, remind_at = ?, active = 1
+                WHERE id = ? AND session_id = ?;
+                """,
+                (minutes, new_remind_at, reminder_id, session_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+
+        row = conn.execute(
+            """
+            SELECT id, session_id, title, category, delay_minutes, remind_at, active, created_at
+            FROM reminders
+            WHERE id = ? AND session_id = ?;
+            """,
+            (reminder_id, session_id),
+        ).fetchone()
+        if not row:
+            return None
+        return ReminderRecord(
+            id=row["id"],
+            session_id=row["session_id"],
+            title=row["title"],
+            category=row["category"],
+            delay_minutes=row["delay_minutes"],
+            remind_at=row["remind_at"],
+            active=bool(row["active"]),
+            created_at=row["created_at"],
+        )
+
+    def get_companion_preferences(self, session_id: str) -> CompanionPreferences:
+        conn = self._get_connection()
+        row = conn.execute(
+            """
+            SELECT study_goal, preferred_study_block_minutes, preferred_break_minutes, preferred_tone
+            FROM companion_preferences
+            WHERE session_id = ?;
+            """,
+            (session_id,),
+        ).fetchone()
+        if not row:
+            return CompanionPreferences()
+        return CompanionPreferences(
+            study_goal=row["study_goal"],
+            preferred_study_block_minutes=row["preferred_study_block_minutes"],
+            preferred_break_minutes=row["preferred_break_minutes"],
+            preferred_tone=row["preferred_tone"],
+        )
+
+    def update_companion_preferences(
+        self, session_id: str, prefs: CompanionPreferences
+    ) -> CompanionPreferences:
+        updated_at = datetime.now(UTC).isoformat()
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO companion_preferences (
+                    session_id, study_goal, preferred_study_block_minutes,
+                    preferred_break_minutes, preferred_tone, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    study_goal=excluded.study_goal,
+                    preferred_study_block_minutes=excluded.preferred_study_block_minutes,
+                    preferred_break_minutes=excluded.preferred_break_minutes,
+                    preferred_tone=excluded.preferred_tone,
+                    updated_at=excluded.updated_at;
+                """,
+                (
+                    session_id,
+                    prefs.study_goal,
+                    prefs.preferred_study_block_minutes,
+                    prefs.preferred_break_minutes,
+                    prefs.preferred_tone,
+                    updated_at,
+                ),
+            )
+        return prefs
+
+    # --------------------------------------------------------------------------
     # Privacy Data Erasure (2-Step Data Deletion)
     # --------------------------------------------------------------------------
     def delete_all_data(self, session_id: str) -> bool:
         """
         Permanently purges all records associated with this session token across
-        all tables: check-in records, study tasks, and user settings.
+        all tables: check-in records, study tasks, reminders, companion preferences, and user settings.
         """
         conn = self._get_connection()
         with conn:
             conn.execute("DELETE FROM checkins WHERE session_id = ?;", (session_id,))
             conn.execute("DELETE FROM tasks WHERE session_id = ?;", (session_id,))
+            conn.execute("DELETE FROM reminders WHERE session_id = ?;", (session_id,))
+            conn.execute(
+                "DELETE FROM companion_preferences WHERE session_id = ?;",
+                (session_id,),
+            )
             conn.execute(
                 "DELETE FROM user_settings WHERE session_id = ?;", (session_id,)
             )

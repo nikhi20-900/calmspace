@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(__dirname, '..');
@@ -40,7 +40,9 @@ await build({
   entryPoints: [
     path.join(frontendRoot, 'src/services/checkinState.ts'),
     path.join(frontendRoot, 'src/services/api.ts'),
+    path.join(frontendRoot, 'src/utils/moodTrend.ts'),
   ],
+  outbase: path.join(frontendRoot, 'src'),
   outdir: tempOutDir,
   bundle: true,
   format: 'esm',
@@ -52,8 +54,9 @@ await build({
   outExtension: { '.js': '.mjs' },
 });
 
-const checkinState = await import(path.join(tempOutDir, 'checkinState.mjs'));
-const apiModule = await import(path.join(tempOutDir, 'api.mjs'));
+const checkinState = await import(pathToFileURL(path.join(tempOutDir, 'services/checkinState.mjs')).href);
+const apiModule = await import(pathToFileURL(path.join(tempOutDir, 'services/api.mjs')).href);
+const moodTrendModule = await import(pathToFileURL(path.join(tempOutDir, 'utils/moodTrend.mjs')).href);
 
 test.after(() => {
   rmSync(tempOutDir, { recursive: true, force: true });
@@ -263,4 +266,228 @@ test('UI source contracts verify Safe Exit destination, Planner editNotice, and 
   assert.ok(!settingsPage.includes('Your Cryptographic Identity'));
   assert.ok(settingsPage.includes('disabled={Boolean(loadError)}'));
   assert.ok(settingsPage.includes('onClick={loadSettings}'));
+
+  const overviewPage = readFileSync(
+    path.join(frontendRoot, 'src/pages/OverviewPage.tsx'),
+    'utf8'
+  );
+  assert.ok(overviewPage.includes('aggregateDailyMoodTrend'));
+  assert.ok(overviewPage.includes('filterAndAggregateMoodHistory'));
+  assert.ok(overviewPage.includes('computeMoodTrendSummary'));
+  assert.ok(overviewPage.includes('data={dailyMoodTrend}'));
+  assert.ok(overviewPage.includes('Period Average'));
+  assert.ok(overviewPage.includes('Highest Day'));
+  assert.ok(overviewPage.includes('Lowest Day'));
+
+  const insightsPage = readFileSync(
+    path.join(frontendRoot, 'src/pages/InsightsV2Page.tsx'),
+    'utf8'
+  );
+  assert.ok(insightsPage.includes('7h reference'));
+});
+
+test('aggregateDailyMoodTrend merges repeated same-day check-ins and preserves chronological order', () => {
+  const { aggregateDailyMoodTrend } = moodTrendModule;
+
+  assert.deepEqual(aggregateDailyMoodTrend(null), []);
+  assert.deepEqual(aggregateDailyMoodTrend(undefined), []);
+  assert.deepEqual(aggregateDailyMoodTrend([]), []);
+
+  // Multiple check-ins on the same day + multi-day chronological ordering
+  const aggregated = aggregateDailyMoodTrend([
+    { day: 'Wed 25', mood: 3, route: 'MEDIUM' },
+    { day: 'Thu 26', mood: 4, route: 'LOW' },
+    { day: 'Fri 27', mood: 2, route: 'MEDIUM' },
+    { day: 'Fri 27', mood: 4, route: 'LOW' },
+    { day: 'Fri 27', mood: 5, route: 'LOW' },
+  ]);
+
+  assert.deepEqual(aggregated, [
+    { day: 'Wed 25', mood: 3, count: 1 },
+    { day: 'Thu 26', mood: 4, count: 1 },
+    { day: 'Fri 27', mood: 3.7, count: 3 },
+  ]);
+});
+
+test('aggregateDailyMoodTrend safely ignores missing or invalid entries', () => {
+  const { aggregateDailyMoodTrend } = moodTrendModule;
+
+  const aggregated = aggregateDailyMoodTrend([
+    { day: '', mood: 4 },
+    { day: null, mood: 3 },
+    { day: 'Mon 23', mood: Number.NaN },
+    { day: 'Mon 23', mood: null },
+    { day: 'Mon 23', mood: 0 },
+    { day: 'Mon 23', mood: 6 },
+    { day: 'Tue 24', mood: 4 },
+    { day: 'Tue 24', mood: 5 },
+  ]);
+
+  assert.deepEqual(aggregated, [{ day: 'Tue 24', mood: 4.5, count: 2 }]);
+});
+
+test('computeMoodTrendSummary calculates average, highest/lowest days, counts, and handles empty/single-day states', () => {
+  const { computeMoodTrendSummary } = moodTrendModule;
+
+  assert.deepEqual(computeMoodTrendSummary([]), {
+    overallAverage: null,
+    highestDay: null,
+    lowestDay: null,
+    totalCheckIns: 0,
+    dayCount: 0,
+  });
+
+  // Single-day state
+  assert.deepEqual(computeMoodTrendSummary([{ day: 'Fri 27', mood: 3.7, count: 3 }]), {
+    overallAverage: 3.7,
+    highestDay: { day: 'Fri 27', mood: 3.7 },
+    lowestDay: { day: 'Fri 27', mood: 3.7 },
+    totalCheckIns: 3,
+    dayCount: 1,
+  });
+
+  // Multi-day state
+  assert.deepEqual(
+    computeMoodTrendSummary([
+      { day: 'Wed 25', mood: 2.5, count: 2 },
+      { day: 'Thu 26', mood: 4.5, count: 1 },
+      { day: 'Fri 27', mood: 3.7, count: 3 },
+    ]),
+    {
+      overallAverage: 3.6,
+      highestDay: { day: 'Thu 26', mood: 4.5 },
+      lowestDay: { day: 'Wed 25', mood: 2.5 },
+      totalCheckIns: 6,
+      dayCount: 3,
+    }
+  );
+});
+
+test('filterAndAggregateMoodHistory filters 7/14/30-day ranges, preserves chronological order, and skips invalid records', () => {
+  const { filterAndAggregateMoodHistory } = moodTrendModule;
+  const refDate = new Date('2026-11-28T12:00:00Z');
+
+  const records = [
+    // 25 days ago (within 30d, outside 14d & 7d)
+    { id: '1', session_id: 's', timestamp: '2026-11-03T10:00:00Z', mood: 2, stress: 4, sleep_hours: 6, route: 'MEDIUM' },
+    // 10 days ago (within 14d & 30d, outside 7d) - out of order intentionally
+    { id: '2', session_id: 's', timestamp: '2026-11-18T10:00:00Z', mood: 5, stress: 1, sleep_hours: 8, route: 'LOW' },
+    // 2 days ago (within 7d, 14d, 30d) - two entries on same day
+    { id: '3', session_id: 's', timestamp: '2026-11-26T08:00:00Z', mood: 3, stress: 3, sleep_hours: 7, route: 'LOW' },
+    { id: '4', session_id: 's', timestamp: '2026-11-26T20:00:00Z', mood: 4, stress: 2, sleep_hours: 7, route: 'LOW' },
+    // Today
+    { id: '5', session_id: 's', timestamp: '2026-11-28T09:00:00Z', mood: 4, stress: 2, sleep_hours: 7.5, route: 'LOW' },
+    // Invalid records
+    { id: '6', session_id: 's', timestamp: 'not-a-date', mood: 4, stress: 2, sleep_hours: 7, route: 'LOW' },
+    { id: '7', session_id: 's', timestamp: '2026-11-28T10:00:00Z', mood: 99, stress: 2, sleep_hours: 7, route: 'LOW' },
+    // Too old (> 30 days)
+    { id: '8', session_id: 's', timestamp: '2026-10-15T10:00:00Z', mood: 1, stress: 5, sleep_hours: 4, route: 'HIGH' },
+  ];
+
+  const r7 = filterAndAggregateMoodHistory(records, 7, refDate);
+  assert.deepEqual(r7, [
+    { day: 'Thu 26', mood: 3.5, count: 2 },
+    { day: 'Sat 28', mood: 4, count: 1 },
+  ]);
+
+  const r14 = filterAndAggregateMoodHistory(records, 14, refDate);
+  assert.deepEqual(r14, [
+    { day: 'Wed 18', mood: 5, count: 1 },
+    { day: 'Thu 26', mood: 3.5, count: 2 },
+    { day: 'Sat 28', mood: 4, count: 1 },
+  ]);
+
+  const r30 = filterAndAggregateMoodHistory(records, 30, refDate);
+  assert.deepEqual(r30, [
+    { day: 'Tue 03', mood: 2, count: 1 },
+    { day: 'Wed 18', mood: 5, count: 1 },
+    { day: 'Thu 26', mood: 3.5, count: 2 },
+    { day: 'Sat 28', mood: 4, count: 1 },
+  ]);
+});
+
+test('api companion methods send X-Session-ID and AbortSignal', async () => {
+  globalThis.localStorage.clear();
+  const seenCalls = [];
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, opts) => {
+    seenCalls.push({ url, opts });
+    return {
+      ok: true,
+      json: async () => ({
+        conversation_id: 'conv-123456',
+        greeting: 'Hey!',
+        reply: 'Hello!',
+        blob_state: 'idle',
+        reminders: [],
+      }),
+    };
+  };
+
+  try {
+    await apiModule.api.startCompanion();
+    await apiModule.api.sendCompanionTurn({
+      conversation_id: 'conv-123456',
+      message: 'Hi',
+      consent_ai_processing: false,
+      input_mode: 'text',
+    });
+    await apiModule.api.confirmCompanionAction({
+      conversation_id: 'conv-123456',
+      action_id: 'act-123456',
+      approved: true,
+    });
+    await apiModule.api.getReminders();
+    await apiModule.api.completeReminder('rem-123');
+    await apiModule.api.snoozeReminder('rem-123', 10);
+    await apiModule.api.endCompanionSession('conv-123456');
+
+    assert.equal(seenCalls.length, 7);
+    for (const call of seenCalls) {
+      assert.ok(call.opts.signal instanceof AbortSignal, `Expected AbortSignal on ${call.url}`);
+      assert.match(call.opts.headers['X-Session-ID'], /^student-[a-z0-9]{8}$/i);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Calm voice companion & 3D blob contracts cover all states, fallbacks, and safety controls', () => {
+  const blobAnim = readFileSync(
+    path.join(frontendRoot, 'src/components/mascot/BlobAnimations.ts'),
+    'utf8'
+  );
+  for (const state of ['idle', 'listening', 'thinking', 'speaking', 'breathing', 'support', 'error']) {
+    assert.ok(blobAnim.includes(`'${state}'`), `BlobAnimations must support state '${state}'`);
+  }
+
+  const voiceService = readFileSync(
+    path.join(frontendRoot, 'src/services/voiceService.ts'),
+    'utf8'
+  );
+  assert.ok(voiceService.includes('track.stop()'), 'voiceService must release mic tracks on stop');
+  assert.ok(voiceService.includes('window.speechSynthesis.cancel()'), 'voiceService must cancel TTS on stop');
+
+  const hookSrc = readFileSync(
+    path.join(frontendRoot, 'src/hooks/useVoiceCompanion.ts'),
+    'utf8'
+  );
+  assert.ok(hookSrc.includes('speechInRef.current.abort()'), 'Must stop STT before TTS to avoid self-listening');
+  assert.ok(hookSrc.includes('endConversation'), 'Must expose endConversation cleanup');
+
+  const companionPage = readFileSync(
+    path.join(frontendRoot, 'src/pages/CompanionPage.tsx'),
+    'utf8'
+  );
+  assert.ok(companionPage.includes('companion-text-input'), 'Must include text-input fallback');
+  assert.ok(companionPage.includes('14416'), 'Must include accessible emergency 14416 helpline');
+  assert.ok(companionPage.includes('Interrupt & Speak'), 'Must allow interrupting Calm');
+
+  const appLayout = readFileSync(
+    path.join(frontendRoot, 'src/components/layout/AppLayout.tsx'),
+    'utf8'
+  );
+  assert.ok(appLayout.includes('useReminderScheduler'), 'AppLayout must run live reminder scheduler');
+  assert.ok(appLayout.includes('Snooze 10m'), 'AppLayout must support snoozing due reminders');
 });

@@ -20,6 +20,7 @@ export interface CheckInRecord {
 
 export interface SafetyEvaluation {
   route: RiskRoute;
+  crisis_flag?: boolean;
   status_label: string;
   status_summary: string;
   requires_human_escalation: boolean;
@@ -162,4 +163,88 @@ export interface UserSettings {
   reminder_interval_minutes: number;
   share_anonymous_analytics: boolean;
   data_retention_days: number;
+}
+
+export type BlobVisualState =
+  | 'idle'
+  | 'listening'
+  | 'thinking'
+  | 'speaking'
+  | 'breathing'
+  | 'support'
+  | 'error';
+
+export interface ReminderRecord {
+  id: string;
+  session_id: string;
+  title: string;
+  category: 'break' | 'study' | 'hydration' | 'wellbeing';
+  delay_minutes: number;
+  remind_at: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface CompanionPreferences {
+  study_goal?: string | null;
+  preferred_study_block_minutes: number;
+  preferred_break_minutes: number;
+  preferred_tone: 'warm' | 'concise';
+}
+
+export interface ToolExecutionRecord {
+  tool_name: string;
+  status: 'executed' | 'needs_info' | 'awaiting_confirmation' | 'rejected' | 'failed';
+  summary: string;
+  data: Record<string, any>;
+}
+
+export interface PendingConfirmation {
+  action_id: string;
+  tool_name: string;
+  title: string;
+  description: string;
+  args: Record<string, any>;
+}
+
+export interface CompanionActionCard {
+  card_type:
+    | 'study_plan'
+    | 'insights'
+    | 'breathing'
+    | 'checkin_prompt'
+    | 'checkin_saved'
+    | 'reminder'
+    | 'support_resources'
+    | 'crisis_support'
+    | 'preference_saved';
+  title: string;
+  data: Record<string, any>;
+}
+
+export interface CompanionStartResponse {
+  conversation_id: string;
+  greeting: string;
+  blob_state: BlobVisualState;
+  follow_up_prompts: string[];
+  ai_provider: string;
+  reminders: ReminderRecord[];
+  preferences: CompanionPreferences;
+  disclaimer: string;
+}
+
+export interface CompanionTurnResponse {
+  conversation_id: string;
+  reply: string;
+  blob_state: BlobVisualState;
+  safety: SafetyEvaluation;
+  follow_up_prompts: string[];
+  tool_calls: ToolExecutionRecord[];
+  pending_confirmation?: PendingConfirmation | null;
+  action_cards: CompanionActionCard[];
+  support_contacts: SupportContact[];
+  generated_by_ai: boolean;
+  fallback_used: boolean;
+  ai_provider: string;
+  disclaimer: string;
 }
