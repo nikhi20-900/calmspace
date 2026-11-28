@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(__dirname, '..');
@@ -40,7 +40,9 @@ await build({
   entryPoints: [
     path.join(frontendRoot, 'src/services/checkinState.ts'),
     path.join(frontendRoot, 'src/services/api.ts'),
+    path.join(frontendRoot, 'src/utils/moodTrend.ts'),
   ],
+  outbase: path.join(frontendRoot, 'src'),
   outdir: tempOutDir,
   bundle: true,
   format: 'esm',
@@ -52,8 +54,9 @@ await build({
   outExtension: { '.js': '.mjs' },
 });
 
-const checkinState = await import(path.join(tempOutDir, 'checkinState.mjs'));
-const apiModule = await import(path.join(tempOutDir, 'api.mjs'));
+const checkinState = await import(pathToFileURL(path.join(tempOutDir, 'services/checkinState.mjs')).href);
+const apiModule = await import(pathToFileURL(path.join(tempOutDir, 'services/api.mjs')).href);
+const moodTrendModule = await import(pathToFileURL(path.join(tempOutDir, 'utils/moodTrend.mjs')).href);
 
 test.after(() => {
   rmSync(tempOutDir, { recursive: true, force: true });
@@ -631,4 +634,55 @@ test('UI source contracts verify Safe Exit, Planner editNotice, Settings accessi
     'utf8'
   );
   assert.ok(dialog.includes("e.key === 'Tab'"), 'Dialog must trap keyboard Tab navigation');
+
+  const overviewPage = readFileSync(
+    path.join(frontendRoot, 'src/pages/OverviewPage.tsx'),
+    'utf8'
+  );
+  assert.ok(overviewPage.includes('aggregateDailyMoodTrend'));
+  assert.ok(overviewPage.includes('data={dailyMoodTrend}'));
+
+  const insightsPage = readFileSync(
+    path.join(frontendRoot, 'src/pages/InsightsPage.tsx'),
+    'utf8'
+  );
+  assert.ok(insightsPage.includes('7h Reference'));
+});
+
+test('aggregateDailyMoodTrend merges repeated same-day check-ins and preserves chronological order', () => {
+  const { aggregateDailyMoodTrend } = moodTrendModule;
+
+  assert.deepEqual(aggregateDailyMoodTrend(null), []);
+  assert.deepEqual(aggregateDailyMoodTrend(undefined), []);
+  assert.deepEqual(aggregateDailyMoodTrend([]), []);
+
+  // Multiple check-ins on the same day + multi-day chronological ordering
+  const aggregated = aggregateDailyMoodTrend([
+    { day: 'Wed 25', mood: 3, route: 'MEDIUM' },
+    { day: 'Thu 26', mood: 4, route: 'LOW' },
+    { day: 'Fri 27', mood: 2, route: 'MEDIUM' },
+    { day: 'Fri 27', mood: 4, route: 'LOW' },
+    { day: 'Fri 27', mood: 5, route: 'LOW' },
+  ]);
+
+  assert.deepEqual(aggregated, [
+    { day: 'Wed 25', mood: 3, count: 1 },
+    { day: 'Thu 26', mood: 4, count: 1 },
+    { day: 'Fri 27', mood: 3.7, count: 3 },
+  ]);
+});
+
+test('aggregateDailyMoodTrend safely ignores missing or invalid entries', () => {
+  const { aggregateDailyMoodTrend } = moodTrendModule;
+
+  const aggregated = aggregateDailyMoodTrend([
+    { day: '', mood: 4 },
+    { day: null, mood: 3 },
+    { day: 'Mon 23', mood: Number.NaN },
+    { day: 'Mon 23', mood: null },
+    { day: 'Tue 24', mood: 4 },
+    { day: 'Tue 24', mood: 5 },
+  ]);
+
+  assert.deepEqual(aggregated, [{ day: 'Tue 24', mood: 4.5, count: 2 }]);
 });

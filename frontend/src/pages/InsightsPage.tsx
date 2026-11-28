@@ -185,7 +185,7 @@ export const InsightsPage: React.FC = () => {
         <div
           role="group"
           aria-label="Select insight time range"
-          className="flex items-center gap-1.5 p-1 bg-white rounded-button border border-[#E8E6F1] shadow-subtle shrink-0 self-start sm:self-auto"
+          className="flex flex-wrap items-center gap-1.5 p-1 bg-white rounded-button border border-[#E8E6F1] shadow-subtle shrink-0 self-start sm:self-auto"
         >
           {[7, 14, 30].map((d) => (
             <button
@@ -552,8 +552,8 @@ export const InsightsPage: React.FC = () => {
           </div>
 
           {/* Accessible Data Table Section (Screen-Reader Optimized) */}
-          <div className="mt-8 bg-white p-5 rounded-card border border-[#E8E6F1] shadow-subtle space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="mt-8 bg-white p-4 sm:p-5 rounded-card border border-[#E8E6F1] shadow-subtle space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#625F78]">
                 <Table className="w-4 h-4 text-[#5554B8]" />
                 <span>Screen-Reader Accessible Data Table</span>
