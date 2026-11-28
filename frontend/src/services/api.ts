@@ -6,6 +6,10 @@ import {
   StudyTask,
   UserSettings,
   SupportContact,
+  CompanionStartResponse,
+  CompanionTurnResponse,
+  ReminderRecord,
+  CompanionPreferences,
 } from '../types';
 
 import { CANONICAL_SUPPORT_RESOURCES } from './supportResources';
@@ -179,5 +183,118 @@ export const api = {
       headers: DEFAULT_HEADERS(),
     });
     if (!res.ok) throw new Error('Failed to delete data');
+  },
+
+  // Calm Voice Companion
+  async startCompanion(): Promise<CompanionStartResponse> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/start`, {
+      method: 'POST',
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatErrorMessage(err.detail, 'Failed to start companion session'));
+    }
+    return res.json();
+  },
+
+  async sendCompanionTurn(data: {
+    conversation_id?: string | null;
+    message: string;
+    consent_ai_processing: boolean;
+    input_mode: 'voice' | 'text';
+  }): Promise<CompanionTurnResponse> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/turn`, {
+      method: 'POST',
+      headers: DEFAULT_HEADERS(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatErrorMessage(err.detail, 'Failed to process companion message'));
+    }
+    return res.json();
+  },
+
+  async confirmCompanionAction(data: {
+    conversation_id: string;
+    action_id: string;
+    approved: boolean;
+  }): Promise<CompanionTurnResponse> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/confirm`, {
+      method: 'POST',
+      headers: DEFAULT_HEADERS(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatErrorMessage(err.detail, 'Failed to confirm companion action'));
+    }
+    return res.json();
+  },
+
+  async endCompanionSession(conversationId: string): Promise<void> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/session/${encodeURIComponent(conversationId)}`, {
+      method: 'DELETE',
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to end companion session');
+    }
+  },
+
+  async getReminders(): Promise<ReminderRecord[]> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/reminders`, {
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch reminders');
+    return res.json();
+  },
+
+  async deleteReminder(reminderId: string): Promise<void> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/reminders/${encodeURIComponent(reminderId)}`, {
+      method: 'DELETE',
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) throw new Error('Failed to delete reminder');
+  },
+
+  async completeReminder(reminderId: string): Promise<void> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/reminders/${encodeURIComponent(reminderId)}/complete`, {
+      method: 'PATCH',
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) throw new Error('Failed to complete reminder');
+  },
+
+  async snoozeReminder(reminderId: string, minutes = 10): Promise<ReminderRecord> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/reminders/${encodeURIComponent(reminderId)}/snooze`, {
+      method: 'PATCH',
+      headers: DEFAULT_HEADERS(),
+      body: JSON.stringify({ minutes }),
+    });
+    if (!res.ok) throw new Error('Failed to snooze reminder');
+    return res.json();
+  },
+
+  async getCompanionPreferences(): Promise<CompanionPreferences> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/preferences`, {
+      headers: DEFAULT_HEADERS(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch companion preferences');
+    return res.json();
+  },
+
+  async updateCompanionPreferences(prefs: CompanionPreferences): Promise<CompanionPreferences> {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/companion/preferences`, {
+      method: 'PUT',
+      headers: DEFAULT_HEADERS(),
+      body: JSON.stringify(prefs),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatErrorMessage(err.detail, 'Failed to update preferences'));
+    }
+    return res.json();
   },
 };

@@ -7,8 +7,8 @@ import { Badge } from '../components/ui/Badge';
 import { LoadingState } from '../components/ui/LoadingState';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
@@ -30,7 +30,52 @@ import {
   HeartPulse,
   ShieldCheck,
   Table,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react';
+
+const TrendBadge: React.FC<{
+  values: number[];
+  positiveDirection: 'up' | 'down';
+  unit?: string;
+}> = ({ values, positiveDirection, unit = '' }) => {
+  if (values.length < 2) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#625F78] bg-[#F7F6FB] border border-[#E8E6F1] rounded-full px-2 py-1">
+        <Minus className="w-3 h-3" aria-hidden="true" />
+        Baseline
+      </span>
+    );
+  }
+
+  const change = values[values.length - 1] - values[0];
+  if (Math.abs(change) < 0.05) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#625F78] bg-[#F7F6FB] border border-[#E8E6F1] rounded-full px-2 py-1">
+        <Minus className="w-3 h-3" aria-hidden="true" />
+        Stable
+      </span>
+    );
+  }
+
+  const improving = positiveDirection === 'up' ? change > 0 : change < 0;
+  const Icon = change > 0 ? TrendingUp : TrendingDown;
+  const formattedChange = `${change > 0 ? '+' : ''}${change.toFixed(1)}${unit}`;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2 py-1 border ${
+        improving
+          ? 'text-[#245532] bg-[#F2F7F4] border-[#BCD4C3]'
+          : 'text-[#7A4D05] bg-[#FDF8F0] border-[#E8CEA5]'
+      }`}
+    >
+      <Icon className="w-3 h-3" aria-hidden="true" />
+      {formattedChange}
+    </span>
+  );
+};
 
 export const InsightsPage: React.FC = () => {
   const [days, setDays] = useState<number>(7);
@@ -330,6 +375,12 @@ export const InsightsPage: React.FC = () => {
               <div className="flex items-center gap-2 text-xs text-[#625F78]">
                 <span className="inline-block w-3 h-3 rounded-full bg-[#5554B8]" aria-hidden="true" />
                 <span>Mood rating</span>
+                <span className="ml-auto">
+                  <TrendBadge
+                    values={(insights?.mood_trend || []).map((entry) => entry.mood)}
+                    positiveDirection="up"
+                  />
+                </span>
               </div>
             </div>
 
@@ -340,16 +391,23 @@ export const InsightsPage: React.FC = () => {
 
             <div className="h-48 w-full mt-auto pt-1">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
+                <AreaChart
                   data={insights?.mood_trend}
-                  margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
+                  margin={{ top: 10, right: 12, left: -12, bottom: 5 }}
                 >
+                  <defs>
+                    <linearGradient id="moodFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#5554B8" stopOpacity={0.24} />
+                      <stop offset="100%" stopColor="#5554B8" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
                   <XAxis
                     dataKey="day"
                     stroke="#8E8AA7"
                     fontSize={11}
                     tickLine={false}
+                    interval="preserveStartEnd"
                     aria-label="Date of check-in"
                   />
                   <YAxis
@@ -373,17 +431,18 @@ export const InsightsPage: React.FC = () => {
                       'Mood Score',
                     ]}
                   />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="mood"
                     name="Mood Score"
                     stroke="#5554B8"
                     strokeWidth={(insights?.mood_trend?.length ?? 0) > 1 ? 2.5 : 0}
+                    fill="url(#moodFill)"
                     connectNulls={false}
                     dot={{ r: 5, fill: '#5554B8', stroke: '#FFFFFF', strokeWidth: 2 }}
                     activeDot={{ r: 7, stroke: '#5554B8', strokeWidth: 2, fill: '#FFFFFF' }}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </Card>
@@ -409,6 +468,13 @@ export const InsightsPage: React.FC = () => {
                 <div className="flex items-center gap-1.5 text-xs text-[#625F78]">
                   <span className="inline-block w-3 h-3 bg-[#245532] rounded-xs" aria-hidden="true" />
                   <span>Sleep duration</span>
+                  <span className="ml-auto">
+                    <TrendBadge
+                      values={(insights?.sleep_trend || []).map((entry) => entry.sleep)}
+                      positiveDirection="up"
+                      unit="h"
+                    />
+                  </span>
                 </div>
               </div>
 
@@ -429,9 +495,11 @@ export const InsightsPage: React.FC = () => {
                       stroke="#8E8AA7"
                       fontSize={11}
                       tickLine={false}
+                      interval="preserveStartEnd"
                     />
                     <YAxis
-                      domain={[0, 'auto']}
+                        domain={[0, 12]}
+                        ticks={[0, 3, 6, 7, 9, 12]}
                       stroke="#8E8AA7"
                       fontSize={11}
                       tickLine={false}
@@ -493,6 +561,12 @@ export const InsightsPage: React.FC = () => {
                 <div className="flex items-center gap-1.5 text-xs text-[#625F78]">
                   <span className="inline-block w-3 h-1 bg-[#7A4D05] border-t border-dashed border-[#7A4D05]" aria-hidden="true" />
                   <span>Stress rating</span>
+                  <span className="ml-auto">
+                    <TrendBadge
+                      values={(insights?.stress_trend || []).map((entry) => entry.stress)}
+                      positiveDirection="down"
+                    />
+                  </span>
                 </div>
               </div>
 
@@ -503,16 +577,23 @@ export const InsightsPage: React.FC = () => {
 
               <div className="h-48 w-full mt-auto pt-1">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
+                  <AreaChart
                     data={insights?.stress_trend}
-                    margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
+                    margin={{ top: 10, right: 12, left: -12, bottom: 5 }}
                   >
+                    <defs>
+                      <linearGradient id="stressFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#7A4D05" stopOpacity={0.18} />
+                        <stop offset="100%" stopColor="#7A4D05" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
                     <XAxis
                       dataKey="day"
                       stroke="#8E8AA7"
                       fontSize={11}
                       tickLine={false}
+                      interval="preserveStartEnd"
                     />
                     <YAxis
                       domain={[1, 5]}
@@ -534,18 +615,19 @@ export const InsightsPage: React.FC = () => {
                         'Stress Rating',
                       ]}
                     />
-                    <Line
+                      <Area
                       type="monotone"
                       dataKey="stress"
                       name="Stress Rating"
                       stroke="#7A4D05"
                       strokeWidth={(insights?.stress_trend?.length ?? 0) > 1 ? 2.5 : 0}
                       strokeDasharray="6 4"
+                        fill="url(#stressFill)"
                       connectNulls={false}
                       dot={{ r: 5, fill: '#FFFFFF', stroke: '#7A4D05', strokeWidth: 2 }}
                       activeDot={{ r: 7, stroke: '#7A4D05', strokeWidth: 2, fill: '#FFFFFF' }}
                     />
-                  </LineChart>
+                    </AreaChart>
                 </ResponsiveContainer>
               </div>
             </Card>

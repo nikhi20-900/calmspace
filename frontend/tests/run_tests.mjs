@@ -461,3 +461,88 @@ test('Wellness features: Daily Highlights, Explore, Daily Challenges, and Sound 
   const b2 = wellnessStorage.recordBreathingCompletion(1, 2);
   assert.deepEqual(b2, { sessionsCompleted: 2, totalMinutes: 4, bestSyncStreak: 5 });
 });
+test('api companion methods send X-Session-ID and AbortSignal', async () => {
+  globalThis.localStorage.clear();
+  const seenCalls = [];
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, opts) => {
+    seenCalls.push({ url, opts });
+    return {
+      ok: true,
+      json: async () => ({
+        conversation_id: 'conv-123456',
+        greeting: 'Hey!',
+        reply: 'Hello!',
+        blob_state: 'idle',
+        reminders: [],
+      }),
+    };
+  };
+
+  try {
+    await apiModule.api.startCompanion();
+    await apiModule.api.sendCompanionTurn({
+      conversation_id: 'conv-123456',
+      message: 'Hi',
+      consent_ai_processing: false,
+      input_mode: 'text',
+    });
+    await apiModule.api.confirmCompanionAction({
+      conversation_id: 'conv-123456',
+      action_id: 'act-123456',
+      approved: true,
+    });
+    await apiModule.api.getReminders();
+    await apiModule.api.completeReminder('rem-123');
+    await apiModule.api.snoozeReminder('rem-123', 10);
+    await apiModule.api.endCompanionSession('conv-123456');
+
+    assert.equal(seenCalls.length, 7);
+    for (const call of seenCalls) {
+      assert.ok(call.opts.signal instanceof AbortSignal, `Expected AbortSignal on ${call.url}`);
+      assert.match(call.opts.headers['X-Session-ID'], /^student-[a-z0-9]{8}$/i);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Calm voice companion & 3D blob contracts cover all states, fallbacks, and safety controls', () => {
+  const blobAnim = readFileSync(
+    path.join(frontendRoot, 'src/components/mascot/BlobAnimations.ts'),
+    'utf8'
+  );
+  for (const state of ['idle', 'listening', 'thinking', 'speaking', 'breathing', 'support', 'error']) {
+    assert.ok(blobAnim.includes(`'${state}'`), `BlobAnimations must support state '${state}'`);
+  }
+
+  const voiceService = readFileSync(
+    path.join(frontendRoot, 'src/services/voiceService.ts'),
+    'utf8'
+  );
+  assert.ok(voiceService.includes('track.stop()'), 'voiceService must release mic tracks on stop');
+  assert.ok(voiceService.includes('window.speechSynthesis.cancel()'), 'voiceService must cancel TTS on stop');
+
+  const hookSrc = readFileSync(
+    path.join(frontendRoot, 'src/hooks/useVoiceCompanion.ts'),
+    'utf8'
+  );
+  assert.ok(hookSrc.includes('speechInRef.current.abort()'), 'Must stop STT before TTS to avoid self-listening');
+  assert.ok(hookSrc.includes('endConversation'), 'Must expose endConversation cleanup');
+
+  const companionPage = readFileSync(
+    path.join(frontendRoot, 'src/pages/CompanionPage.tsx'),
+    'utf8'
+  );
+  assert.ok(companionPage.includes('companion-text-input'), 'Must include text-input fallback');
+  assert.ok(companionPage.includes('14416'), 'Must include accessible emergency 14416 helpline');
+  assert.ok(companionPage.includes('Interrupt & Speak'), 'Must allow interrupting Calm');
+
+  const appLayout = readFileSync(
+    path.join(frontendRoot, 'src/components/layout/AppLayout.tsx'),
+    'utf8'
+  );
+  assert.ok(appLayout.includes('useReminderScheduler'), 'AppLayout must run live reminder scheduler');
+  assert.ok(appLayout.includes('Snooze 10m'), 'AppLayout must support snoozing due reminders');
+});
