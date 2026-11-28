@@ -97,9 +97,15 @@ def compute_session_insights(
 
     for idx, c in enumerate(filtered_records):
         day_label = _format_day_label(c.timestamp, idx)
-        mood_trend.append({"day": day_label, "mood": c.mood, "route": c.route})
-        sleep_trend.append({"day": day_label, "sleep": round(c.sleep_hours, 1)})
-        stress_trend.append({"day": day_label, "stress": c.stress})
+        mood_trend.append(
+            {"day": day_label, "timestamp": c.timestamp, "mood": c.mood, "route": c.route}
+        )
+        sleep_trend.append(
+            {"day": day_label, "timestamp": c.timestamp, "sleep": round(c.sleep_hours, 1)}
+        )
+        stress_trend.append(
+            {"day": day_label, "timestamp": c.timestamp, "stress": c.stress}
+        )
 
     mood_word = _get_descriptive_mood_word(avg_mood)
     stress_word = _get_descriptive_stress_word(avg_stress)

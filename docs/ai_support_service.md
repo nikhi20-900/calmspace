@@ -31,7 +31,7 @@ All AI provider and runtime configurations are environment-driven via `backend/a
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `CALMSPACE_AI_PROVIDER` | `string` | `"mock"` | Active provider adapter: `"mock"` or `"gemini"`. Invalid values fail closed. |
-| `CALMSPACE_AI_MODEL` | `string` | `"gemini-1.5-flash"` | Target model identifier. |
+| `CALMSPACE_AI_MODEL` | `string` | `"gemini-3.8-flash"` | Target model identifier. |
 | `CALMSPACE_AI_API_KEY` | `string` | `None` | Authentication key (alias `GEMINI_API_KEY`). Transmitted via header only; never logged. |
 | `CALMSPACE_AI_TIMEOUT_SECONDS` | `float` | `5.0` | Bounded HTTP/generation timeout in seconds. |
 | `CALMSPACE_AI_MAX_TOKENS` | `int` | `350` | Maximum token budget for supportive generation. |

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, ArrowRight, ShieldCheck, HeartPulse } from 'lucide-react';
 import { CalmspaceBlob } from '../ui/calmspace-blob';
 import type { BlobExpression } from '../mascot/BlobScene';
+import { BLOB_COLORWAYS, readBlobColorway, saveBlobColorway, type BlobColorwayId } from '../mascot/blobColorways';
 
 export interface HeroSectionProps {
   onOpenSupportModal: () => void;
@@ -10,10 +11,16 @@ export interface HeroSectionProps {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenSupportModal: _onOpenSupportModal }) => {
   const navigate = useNavigate();
+  const [blobColorwayId, setBlobColorwayId] = useState<BlobColorwayId>(readBlobColorway);
+  const activeBlobColorway = BLOB_COLORWAYS.find((choice) => choice.id === blobColorwayId) ?? BLOB_COLORWAYS[0];
   const [isCtaHovered, setIsCtaHovered] = useState(false);
   const [isBreathingActive, setIsBreathingActive] = useState(false);
   const [currentExpression, setCurrentExpression] = useState<BlobExpression>('idle');
   const [blobReactionText, setBlobReactionText] = useState<string>('Pleased to meet you');
+
+  useEffect(() => {
+    saveBlobColorway(blobColorwayId);
+  }, [blobColorwayId]);
 
   const handleBlobClick = () => {
     setCurrentExpression('welcoming');
@@ -72,6 +79,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenSupportModal: _o
         {/* Centered Volumetric 3D Mascot Stage with Proper Spacing */}
         <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl my-6 sm:my-8 relative flex flex-col items-center">
           <CalmspaceBlob
+            bodyColor={activeBlobColorway.color}
             expression={currentExpression}
             isCtaHovered={isCtaHovered}
             isBreathingActive={isBreathingActive}
@@ -86,6 +94,24 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenSupportModal: _o
               setTimeout(() => setCurrentExpression('idle'), 2600);
             }}
           />
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2" role="group" aria-label="Choose blob color">
+            <span className="mr-1 text-[11px] font-semibold text-[#77738F]">Choose a color</span>
+            {BLOB_COLORWAYS.map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                aria-label={`${choice.name} blob`}
+                aria-pressed={activeBlobColorway.id === choice.id}
+                title={`${choice.name} blob`}
+                onClick={() => setBlobColorwayId(choice.id)}
+                className={`grid h-8 w-8 place-items-center rounded-full border-2 transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${activeBlobColorway.id === choice.id ? 'border-[#5554B8]' : 'border-white shadow-sm'}`}
+                style={{ backgroundColor: choice.swatch }}
+              >
+                {activeBlobColorway.id === choice.id && <span className="h-2 w-2 rounded-full bg-white shadow" />}
+              </button>
+            ))}
+            <span className="sr-only" aria-live="polite">{activeBlobColorway.name} selected</span>
+          </div>
         </div>
 
         {/* Primary & Secondary Call to Actions */}

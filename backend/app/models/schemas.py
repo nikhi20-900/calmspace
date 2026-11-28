@@ -96,6 +96,51 @@ class CheckInResponse(BaseModel):
     support_contacts: list[SupportContact]
 
 
+class CompanionTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=1200)
+
+
+class CompanionTurnRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1200)
+    history: list[CompanionTurn] = Field(default_factory=list, max_length=12)
+    consent_ai_processing: StrictBool = False
+    consent_voice_processing: StrictBool = False
+    voice_response: StrictBool = False
+
+
+class CompanionAction(BaseModel):
+    name: Literal[
+        "start_breathing",
+        "start_checkin",
+        "get_wellbeing_insights",
+        "generate_study_plan",
+        "get_support_resources",
+        "create_reminder",
+    ]
+    title: str = Field(..., min_length=1, max_length=120)
+    confirmation_required: bool = False
+
+
+class CompanionTurnResponse(BaseModel):
+    reply: str = Field(..., min_length=1, max_length=1200)
+    route: RiskRoute
+    visual_state: Literal["idle", "thinking", "speaking", "support", "error"]
+    action: CompanionAction | None = None
+    support_contacts: list[SupportContact] = Field(default_factory=list)
+    voice_provider: Literal["browser", "elevenlabs"] = "browser"
+    voice_status: str = Field(default="Using your device voice.", min_length=1, max_length=240)
+    speech_audio_base64: str | None = Field(default=None, max_length=2_700_000)
+    speech_mime_type: Literal["audio/mpeg"] | None = None
+
+
+class CompanionActionConfirmation(BaseModel):
+    action: Literal["create_reminder"]
+    confirmed: StrictBool
+    title: str = Field("Take a short break", min_length=2, max_length=120)
+    estimated_minutes: int = Field(5, ge=5, le=240)
+
+
 class InsightSummary(BaseModel):
     average_mood: float
     average_stress: float

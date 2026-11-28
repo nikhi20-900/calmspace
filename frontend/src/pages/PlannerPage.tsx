@@ -21,6 +21,7 @@ import {
   X,
   AlertCircle,
   RotateCcw,
+  Search,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StudyTask, UserSettings } from '../types';
@@ -44,6 +45,7 @@ export const PlannerPage: React.FC = () => {
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Add Task Form state
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
@@ -227,6 +229,7 @@ export const PlannerPage: React.FC = () => {
 
   // Filtered task collection
   const filteredTasks = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
     return tasks.filter((t) => {
       // Status filter
       if (statusFilter === 'active' && t.completed) return false;
@@ -234,13 +237,19 @@ export const PlannerPage: React.FC = () => {
 
       // Category filter
       if (categoryFilter !== 'All' && t.category !== categoryFilter) return false;
+      if (query && !`${t.title} ${t.category}`.toLowerCase().includes(query)) return false;
 
       return true;
     });
-  }, [tasks, statusFilter, categoryFilter]);
+  }, [tasks, statusFilter, categoryFilter, searchQuery]);
 
   const completedCount = tasks.filter((t) => t.completed).length;
   const activeCount = tasks.length - completedCount;
+  const plannedMinutes = tasks.reduce((sum, task) => sum + task.estimated_minutes, 0);
+  const remainingMinutes = tasks
+    .filter((task) => !task.completed)
+    .reduce((sum, task) => sum + task.estimated_minutes, 0);
+  const completionPercent = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
 
   if (loading) {
     return <LoadingState message="Loading your study-life balance planner..." />;
@@ -253,7 +262,7 @@ export const PlannerPage: React.FC = () => {
         <PageHeader
           tag="Study-Life Balance Planner"
           title="Intentional Pacing"
-          description="Gentle structure without productivity anxiety. Small, consistent steps honor your focus and wellbeing."
+          description="Break study into manageable blocks. Your plan is a guide, not a deadline."
         />
 
         <Button
@@ -263,9 +272,44 @@ export const PlannerPage: React.FC = () => {
           leftIcon={<Plus className="w-4 h-4" />}
           aria-expanded={showAddForm}
         >
-          {showAddForm ? 'Close Form' : 'Add Study Session'}
+          {showAddForm ? 'Close Form' : 'Add a focus block'}
         </Button>
       </div>
+
+      <Card padding="md" className="overflow-hidden border-[#E6E2F3] bg-gradient-to-r from-white via-[#FBFAFF] to-[#F2F0FC]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#7773A2]">
+              <CalendarCheck className="h-4 w-4 text-[#5554B8]" /> Your plan
+            </div>
+            <h2 className="mt-1 text-lg font-bold text-[#25233B]">
+              {tasks.length === 0 ? 'Start with one small block' : `${activeCount} ${activeCount === 1 ? 'block' : 'blocks'} left at your pace`}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#77738F]">
+              {tasks.length === 0
+                ? 'Add a focus block when you’re ready. You can change or remove it later.'
+                : `${remainingMinutes} minutes remain in your active plan. There’s no need to finish everything at once.`}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:min-w-[330px]">
+            <div className="rounded-xl border border-white bg-white/80 px-3 py-2.5 text-center shadow-subtle">
+              <p className="text-lg font-bold text-[#25233B]">{tasks.length}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#89869B]">Blocks</p>
+            </div>
+            <div className="rounded-xl border border-white bg-white/80 px-3 py-2.5 text-center shadow-subtle">
+              <p className="text-lg font-bold text-[#5554B8]">{plannedMinutes}<span className="ml-0.5 text-xs font-medium">min</span></p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#89869B]">Planned</p>
+            </div>
+            <div className="rounded-xl border border-white bg-white/80 px-3 py-2.5 text-center shadow-subtle">
+              <p className="text-lg font-bold text-[#38825D]">{completionPercent}<span className="text-xs font-medium">%</span></p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#89869B]">Complete</p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#E9E7F2]" role="progressbar" aria-label="Planner completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
+          <div className="h-full rounded-full bg-gradient-to-r from-[#7774CE] to-[#61A884] transition-all duration-500" style={{ width: `${completionPercent}%` }} />
+        </div>
+      </Card>
 
       {actionError && (
         <div
@@ -339,17 +383,12 @@ export const PlannerPage: React.FC = () => {
         </div>
       )}
 
-      {/* Stage 2: Reusable 5-Minute Breather Timer Experience */}
-      <div ref={breatherRef}>
-        <BreatherTimer initialMinutes={5} />
-      </div>
-
       {/* Stage 1: Add Task Form (Collapsible) */}
       {showAddForm && (
         <Card padding="lg" className="border-2 border-[#5554B8]/30 animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-[#25233B]">
-              Plan a gentle study block
+              Add a focus block
             </h2>
             <button
               type="button"
@@ -362,9 +401,9 @@ export const PlannerPage: React.FC = () => {
           </div>
 
           <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label htmlFor="task-title" className="block text-xs font-semibold text-[#625F78] mb-1">
-                What would you like to focus on?
+              <div>
+                <label htmlFor="task-title" className="block text-xs font-semibold text-[#625F78] mb-1">
+                  What’s one thing you’d like to work on?
               </label>
               <input
                 id="task-title"
@@ -429,7 +468,7 @@ export const PlannerPage: React.FC = () => {
                 size="sm"
                 isLoading={isCreating}
               >
-                Save Session Block
+                Add to my plan
               </Button>
             </div>
           </form>
@@ -508,6 +547,18 @@ export const PlannerPage: React.FC = () => {
               </button>
             ))}
           </div>
+
+          <label className="relative block w-full sm:w-48 shrink-0">
+            <span className="sr-only">Search planned blocks</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#89869B]" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Find a block"
+              className="w-full rounded-full border border-[#E8E6F1] bg-white py-2 pl-9 pr-3 text-xs text-[#25233B] outline-none transition focus:border-[#8C89D4] focus:ring-2 focus:ring-[#E9E7FB]"
+            />
+          </label>
         </div>
 
         {/* Task List */}
@@ -521,12 +572,16 @@ export const PlannerPage: React.FC = () => {
               <h2 className="text-base font-bold text-[#25233B]">
                 {tasks.length === 0
                   ? 'No study blocks scheduled right now'
-                  : 'No tasks match your selected filter'}
+                  : searchQuery.trim()
+                    ? `No blocks found for “${searchQuery.trim()}”`
+                    : 'No blocks match your selected filters'}
               </h2>
               <p className="text-xs text-[#625F78] leading-relaxed">
                 {tasks.length === 0
                   ? 'Plan a small, manageable block or pick a gentle starter below to get momentum without overwhelm.'
-                  : 'Try switching your status or category filters above to view other planned tasks.'}
+                  : searchQuery.trim()
+                    ? 'Try a different search phrase, or clear search to see your other blocks.'
+                    : 'Try switching your status or category filters above to view other planned blocks.'}
               </p>
             </div>
 
@@ -629,6 +684,11 @@ export const PlannerPage: React.FC = () => {
             ))}
           </div>
         )}
+      </div>
+
+      {/* The plan comes first; the breather stays available below it. */}
+      <div ref={breatherRef}>
+        <BreatherTimer initialMinutes={5} />
       </div>
 
       {/* Stage 1: Edit Task Modal Dialog */}

@@ -51,7 +51,7 @@ class AIServiceConfig(BaseModel):
         description="Active AI provider adapter ('mock' or 'gemini')",
     )
     model: str = Field(
-        default="gemini-1.5-flash",
+        default="gemini-3.8-flash",
         description="Provider-specific model identifier",
     )
     api_key: str | None = Field(
@@ -121,7 +121,7 @@ class AIServiceConfig(BaseModel):
                 "CALMSPACE_AI_PROVIDER is set to 'gemini' but neither CALMSPACE_AI_API_KEY nor GEMINI_API_KEY is configured."
             )
 
-        model = os.getenv("CALMSPACE_AI_MODEL", "gemini-1.5-flash").strip()
+        model = os.getenv("CALMSPACE_AI_MODEL", "gemini-3.8-flash").strip()
         timeout = float(os.getenv("CALMSPACE_AI_TIMEOUT_SECONDS", "5.0"))
         max_tokens = int(os.getenv("CALMSPACE_AI_MAX_TOKENS", "350"))
         rate_limit = int(os.getenv("CALMSPACE_AI_RATE_LIMIT_PER_MINUTE", "5"))

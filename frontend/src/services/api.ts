@@ -56,6 +56,11 @@ const DEFAULT_HEADERS = () => ({
   'X-Session-ID': getAnonymousSessionId(),
 });
 
+export interface CompanionMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 // Fallback verified resources using unified canonical directory
 export const FALLBACK_SUPPORT_RESOURCES: SupportContact[] = CANONICAL_SUPPORT_RESOURCES;
 

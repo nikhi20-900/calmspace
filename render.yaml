@@ -20,13 +20,21 @@ services:
       - key: CALMSPACE_AI_PROVIDER
         value: mock
       - key: CALMSPACE_AI_MODEL
-        value: gemini-1.5-flash
+        value: gemini-3.8-flash
       - key: CALMSPACE_AI_API_KEY
         sync: false
       - key: CALMSPACE_AI_ENABLED
         value: "true"
       - key: CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER
         value: "true"
+      - key: CALMSPACE_VOICE_PROVIDER
+        value: browser
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MODEL_ID
+        value: eleven_multilingual_v2
 
   - type: web
     name: calmspace-frontend

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { LoadingState } from './components/ui/LoadingState';
 import { PrivacyModalProvider } from './context/PrivacyModalContext';
+import { RoamingPet } from './components/mascot/RoamingPet';
 
 const LandingPage = lazy(() =>
   import('./pages/LandingPage').then((m) => ({ default: m.LandingPage }))
@@ -62,6 +63,7 @@ export const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        <RoamingPet />
       </PrivacyModalProvider>
     </BrowserRouter>
   );

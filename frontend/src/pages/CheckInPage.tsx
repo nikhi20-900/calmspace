@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MoodQuestion } from '../components/checkin/MoodQuestion';
@@ -19,6 +18,11 @@ import {
   AlertCircle,
   RefreshCw,
   Info,
+  Heart,
+  Activity,
+  Moon,
+  MessageCircle,
+  Sparkles,
 } from 'lucide-react';
 
 export const CheckInPage: React.FC = () => {
@@ -39,6 +43,8 @@ export const CheckInPage: React.FC = () => {
 
   // Duplicate same-day check-in detection state
   const [priorTodayCheckin, setPriorTodayCheckin] = useState<CheckInRecord | null>(null);
+  const stepContentRef = useRef<HTMLDivElement>(null);
+  const previousStepRef = useRef(currentStep);
 
   useEffect(() => {
     async function checkPriorCheckins() {
@@ -71,12 +77,20 @@ export const CheckInPage: React.FC = () => {
     checkPriorCheckins();
   }, []);
 
+  useEffect(() => {
+    if (previousStepRef.current !== currentStep) {
+      stepContentRef.current?.focus();
+      previousStepRef.current = currentStep;
+    }
+  }, [currentStep]);
+
   const stepTitles = [
     'Your Mood',
     'Stress Level',
     'Rest & Sleep',
     'Reflection (Optional)',
   ];
+  const stepIcons = [Heart, Activity, Moon, MessageCircle];
 
   /**
    * Client-side validation ensuring inputs adhere strictly to agreed ranges
@@ -177,17 +191,31 @@ export const CheckInPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-xl mx-auto">
-      <PageHeader
-        tag="Daily Check-in"
-        title="How are you arriving today?"
-        description="Takes about 60 seconds. Rules decide your safety, reflection text is never saved to your check-in history, and you remain anonymous."
-      />
+    <div className="max-w-3xl mx-auto pb-8 animate-fade-in">
+      <header className="relative overflow-hidden rounded-[1.75rem] border border-[#E4E1F2] bg-gradient-to-br from-white via-[#F7F6FF] to-[#EFF6F1] px-5 py-6 sm:px-8 sm:py-8 mb-6 sm:mb-8">
+        <div aria-hidden="true" className="absolute -right-8 -top-12 h-40 w-40 rounded-full bg-[#E9E7FB]/70 blur-2xl" />
+        <div className="relative">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#DCD9F5] bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5554B8]">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> A moment for you
+          </span>
+          <h1 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-[#25233B]">
+            How are you arriving today?
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm sm:text-base leading-relaxed text-[#625F78]">
+            A gentle check-in on mood, stress, and sleep. It takes about a minute, and you can skip the reflection.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-[#625F78]">
+            <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-[#39704B]" aria-hidden="true" /> Your reflection isn’t saved to check-in history</span>
+            <span className="hidden sm:inline text-[#C5C1D5]" aria-hidden="true">•</span>
+            <span>Take this at your own pace</span>
+          </div>
+        </div>
+      </header>
 
       {/* Same-day duplicate check-in notice */}
       {priorTodayCheckin && (
         <div
-          className="p-3.5 rounded-card bg-[#F0EFFC] border border-[#D5D1E5] text-xs text-[#25233B] flex items-start gap-2.5 animate-fade-in"
+          className="p-4 sm:px-5 rounded-2xl bg-[#F0EFFC] border border-[#D5D1E5] text-sm text-[#25233B] flex items-start gap-3 animate-fade-in mb-6"
           role="status"
         >
           <Info className="w-4 h-4 text-[#5554B8] shrink-0 mt-0.5" />
@@ -206,34 +234,59 @@ export const CheckInPage: React.FC = () => {
         </div>
       )}
 
-      {/* Progress Stepper Bar */}
+      {/* Progress through the four short check-in steps */}
       <div
-        className="mb-6 bg-white p-4 rounded-card border border-[#E8E6F1] shadow-subtle"
-        aria-label="Check-in progress"
+        className="mb-5 sm:mb-6 rounded-2xl bg-white p-4 sm:p-5 border border-[#E8E6F1] shadow-subtle"
+        aria-label={`Check-in progress: step ${currentStep} of ${totalSteps}, ${stepTitles[currentStep - 1]}`}
       >
-        <div className="flex items-center justify-between text-xs font-medium text-[#625F78] mb-2">
-          <span>
-            Step {currentStep} of {totalSteps}:{' '}
-            <strong className="text-[#25233B]">{stepTitles[currentStep - 1]}</strong>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#77738D]">Your check-in</p>
+            <p className="mt-0.5 text-sm font-semibold text-[#25233B]" aria-live="polite">
+              Step {currentStep} of {totalSteps} <span className="text-[#A5A1B6]" aria-hidden="true">·</span> {stepTitles[currentStep - 1]}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-[#F1F0FA] px-2.5 py-1 text-xs font-semibold text-[#5554B8]">
+            {Math.round((currentStep / totalSteps) * 100)}% complete
           </span>
-          <span>{Math.round((currentStep / totalSteps) * 100)}%</span>
         </div>
         <div
-          className="w-full bg-[#E8E6F1] h-1.5 rounded-full overflow-hidden"
+          className="w-full bg-[#E8E6F1] h-2 rounded-full overflow-hidden"
           role="progressbar"
+          aria-label="Check-in steps completed"
           aria-valuenow={currentStep}
           aria-valuemin={1}
           aria-valuemax={totalSteps}
         >
           <div
-            className="bg-[#5554B8] h-full transition-all duration-300 ease-out rounded-full"
+            className="bg-gradient-to-r from-[#5554B8] to-[#7772CF] h-full transition-all duration-300 ease-out rounded-full"
             style={{ width: `${(currentStep / totalSteps) * 100}%` }}
           />
         </div>
+        <ol className="grid grid-cols-4 gap-1 sm:gap-3 mt-4" aria-label="Check-in steps">
+          {stepTitles.map((title, index) => {
+            const StepIcon = stepIcons[index];
+            const stepNumber = index + 1;
+            const isComplete = stepNumber < currentStep;
+            const isCurrent = stepNumber === currentStep;
+            return (
+              <li
+                key={title}
+                aria-current={isCurrent ? 'step' : undefined}
+                className={`min-w-0 flex flex-col items-center gap-1.5 text-center ${isCurrent ? 'text-[#5554B8]' : isComplete ? 'text-[#39704B]' : 'text-[#9692A8]'}`}
+              >
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full border ${isCurrent ? 'border-[#5554B8] bg-[#F0EFFC]' : isComplete ? 'border-[#BCD4C3] bg-[#EFF6F1]' : 'border-[#E8E6F1] bg-[#FAF9FC]'}`}>
+                  <StepIcon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="text-[10px] sm:text-xs leading-tight font-medium">{title}</span>
+              </li>
+            );
+          })}
+        </ol>
       </div>
 
       {/* Step Card Content */}
-      <Card padding="lg" className="animate-fade-up">
+      <Card padding="lg" className="rounded-[1.75rem] border-[#E5E2F0] shadow-soft animate-fade-up !p-5 sm:!p-8">
         {errorMsg && (
           <div
             className={`p-3.5 mb-5 rounded-button text-xs flex items-start gap-2.5 ${
@@ -262,23 +315,31 @@ export const CheckInPage: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 1 && <MoodQuestion value={mood} onChange={setMood} />}
+        <div
+          ref={stepContentRef}
+          tabIndex={-1}
+          role="group"
+          aria-label={`Step ${currentStep} of ${totalSteps}: ${stepTitles[currentStep - 1]}`}
+          className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-4"
+        >
+          {currentStep === 1 && <MoodQuestion value={mood} onChange={setMood} />}
 
-        {currentStep === 2 && <StressQuestion value={stress} onChange={setStress} />}
+          {currentStep === 2 && <StressQuestion value={stress} onChange={setStress} />}
 
-        {currentStep === 3 && <SleepQuestion value={sleepHours} onChange={setSleepHours} />}
+          {currentStep === 3 && <SleepQuestion value={sleepHours} onChange={setSleepHours} />}
 
-        {currentStep === 4 && (
-          <ReflectionInput
-            value={reflection}
-            onChange={setReflection}
-            consent={consentAi}
-            onConsentChange={setConsentAi}
-          />
-        )}
+          {currentStep === 4 && (
+            <ReflectionInput
+              value={reflection}
+              onChange={setReflection}
+              consent={consentAi}
+              onConsentChange={setConsentAi}
+            />
+          )}
+        </div>
 
         {/* Action Controls */}
-        <div className="flex items-center justify-between pt-8 mt-6 border-t border-[#F0EFF7]">
+        <div className="flex items-center justify-between gap-3 pt-6 sm:pt-7 mt-6 border-t border-[#F0EFF7]">
           {currentStep > 1 ? (
             <Button
               type="button"
@@ -288,7 +349,7 @@ export const CheckInPage: React.FC = () => {
               disabled={isSubmitting}
               leftIcon={<ArrowLeft className="w-4 h-4" />}
             >
-              Previous
+              Back
             </Button>
           ) : (
             <span /> // Spacer
@@ -309,7 +370,7 @@ export const CheckInPage: React.FC = () => {
               )
             }
           >
-            {currentStep === totalSteps ? 'Complete Check-in' : 'Next Step'}
+            {currentStep === totalSteps ? 'Submit my check-in' : 'Continue'}
           </Button>
         </div>
       </Card>

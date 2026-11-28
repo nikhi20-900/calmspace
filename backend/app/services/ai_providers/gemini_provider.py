@@ -18,7 +18,7 @@ from app.services.ai_providers.base import (
 
 
 class GeminiAIProvider(BaseAIProvider):
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-3.8-flash"):
         self.api_key = api_key
         self.model = model
         self.call_count = 0

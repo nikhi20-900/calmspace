@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 
 export interface SliderProps {
   id?: string;
@@ -30,25 +30,33 @@ export const Slider: React.FC<SliderProps> = ({
   labelDescriptions,
   ariaLabel = 'Rating scale from 1 to 5',
 }) => {
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const steps: number[] = [];
   for (let i = min; i <= max; i += step) {
     steps.push(i);
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    let nextValue = value;
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
       e.preventDefault();
-      if (value < max) onChange(Math.min(max, value + step));
+      nextValue = Math.min(max, value + step);
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
       e.preventDefault();
-      if (value > min) onChange(Math.max(min, value - step));
+      nextValue = Math.max(min, value - step);
     } else if (e.key === 'Home') {
       e.preventDefault();
-      onChange(min);
+      nextValue = min;
     } else if (e.key === 'End') {
       e.preventDefault();
-      onChange(max);
+      nextValue = max;
+    } else {
+      return;
     }
+
+    onChange(nextValue);
+    const optionIndex = steps.indexOf(nextValue);
+    optionRefs.current[optionIndex]?.focus();
   };
 
   return (
@@ -65,6 +73,7 @@ export const Slider: React.FC<SliderProps> = ({
           return (
             <button
               key={num}
+              ref={(element) => { optionRefs.current[steps.indexOf(num)] = element; }}
               type="button"
               role="radio"
               aria-checked={isSelected}

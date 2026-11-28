@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -36,11 +36,35 @@ import {
 } from 'lucide-react';
 
 const TrendBadge: React.FC<{
-  values: number[];
+  values: Array<{ day: string; timestamp?: string; value: number }>;
   positiveDirection: 'up' | 'down';
   unit?: string;
 }> = ({ values, positiveDirection, unit = '' }) => {
-  if (values.length < 2) {
+  const byDay = new Map<string, { total: number; count: number; sortTime: number }>();
+  values.forEach(({ day, timestamp, value }) => {
+    const date = timestamp ? new Date(timestamp) : undefined;
+    const dateValue = date?.getTime() ?? Number.NaN;
+    const isValidDate = Number.isFinite(dateValue);
+    const dayKey = date && isValidDate
+      ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+      : day;
+    const existing = byDay.get(dayKey);
+    if (existing) {
+      existing.total += value;
+      existing.count += 1;
+    } else {
+      byDay.set(dayKey, {
+        total: value,
+        count: 1,
+        sortTime: isValidDate ? dateValue : byDay.size,
+      });
+    }
+  });
+  const dailyValues = Array.from(byDay.values())
+    .sort((a, b) => a.sortTime - b.sortTime)
+    .map(({ total, count }) => total / count);
+
+  if (dailyValues.length < 2) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#625F78] bg-[#F7F6FB] border border-[#E8E6F1] rounded-full px-2 py-1">
         <Minus className="w-3 h-3" aria-hidden="true" />
@@ -49,7 +73,7 @@ const TrendBadge: React.FC<{
     );
   }
 
-  const change = values[values.length - 1] - values[0];
+  const change = dailyValues[dailyValues.length - 1] - dailyValues[0];
   if (Math.abs(change) < 0.05) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#625F78] bg-[#F7F6FB] border border-[#E8E6F1] rounded-full px-2 py-1">
@@ -77,25 +101,43 @@ const TrendBadge: React.FC<{
   );
 };
 
+const formatCheckInLabel = (timestamp?: string, fallbackDay = ''): string => {
+  if (!timestamp) return fallbackDay;
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return fallbackDay;
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+};
+
 export const InsightsPage: React.FC = () => {
   const [days, setDays] = useState<number>(7);
+  const [displayDays, setDisplayDays] = useState<number>(7);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<boolean>(false);
   const [insights, setInsights] = useState<InsightSummary | null>(null);
   const [isTableVisible, setIsTableVisible] = useState<boolean>(true);
+  const requestId = useRef(0);
 
   const fetchInsights = useCallback(async () => {
+    const currentRequestId = ++requestId.current;
+    const requestedDays = days;
     setLoading(true);
     setLoadError(false);
     try {
-      const data = await api.getInsights(days);
+      const data = await api.getInsights(requestedDays);
+      if (currentRequestId !== requestId.current) return;
       setInsights(data);
+      setDisplayDays(requestedDays);
     } catch {
+      if (currentRequestId !== requestId.current) return;
       // Suppress detailed internal error objects from browser console
       setLoadError(true);
-      setInsights(null);
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestId.current) setLoading(false);
     }
   }, [days]);
 
@@ -103,76 +145,84 @@ export const InsightsPage: React.FC = () => {
     fetchInsights();
   }, [fetchInsights]);
 
-  // Join disparate series into stable date-keyed rows rather than assuming matching array indexes
+  // Join the parallel per-check-in series by timestamp, preserving multiple entries from one day.
   const tableRows = useMemo(() => {
     if (!insights) return [];
 
-    const dayMap = new Map<
+    const checkInMap = new Map<
       string,
       {
-        day: string;
+        timestamp?: string;
+        label: string;
         mood: number | null;
         sleep: number | null;
         stress: number | null;
         route?: RiskRoute;
       }
     >();
-
-    // 1. Ingest mood records
-    (insights.mood_trend || []).forEach((m) => {
-      if (!dayMap.has(m.day)) {
-        dayMap.set(m.day, {
-          day: m.day,
-          mood: m.mood ?? null,
-          sleep: null,
-          stress: null,
-          route: m.route,
-        });
-      } else {
-        const row = dayMap.get(m.day)!;
-        row.mood = m.mood ?? null;
-        if (m.route) row.route = m.route;
-      }
-    });
-
-    // 2. Ingest sleep records by day key
-    (insights.sleep_trend || []).forEach((s) => {
-      if (!dayMap.has(s.day)) {
-        dayMap.set(s.day, {
-          day: s.day,
-          mood: null,
-          sleep: s.sleep ?? null,
-          stress: null,
-        });
-      } else {
-        dayMap.get(s.day)!.sleep = s.sleep ?? null;
-      }
-    });
-
-    // 3. Ingest stress records by day key
-    (insights.stress_trend || []).forEach((st) => {
-      if (!dayMap.has(st.day)) {
-        dayMap.set(st.day, {
-          day: st.day,
+    const getRow = (day: string, timestamp: string | undefined, index: number) => {
+      const key = timestamp || `entry-${index}`;
+      if (!checkInMap.has(key)) {
+        checkInMap.set(key, {
+          timestamp,
+          label: formatCheckInLabel(timestamp, day),
           mood: null,
           sleep: null,
-          stress: st.stress ?? null,
+          stress: null,
         });
-      } else {
-        dayMap.get(st.day)!.stress = st.stress ?? null;
       }
+      return checkInMap.get(key)!;
+    };
+
+    (insights.mood_trend || []).forEach((entry, index) => {
+      const row = getRow(entry.day, entry.timestamp, index);
+      row.mood = entry.mood ?? null;
+      row.route = entry.route;
+    });
+    (insights.sleep_trend || []).forEach((entry, index) => {
+      const row = getRow(entry.day, entry.timestamp, index);
+      row.sleep = entry.sleep ?? null;
+    });
+    (insights.stress_trend || []).forEach((entry, index) => {
+      const row = getRow(entry.day, entry.timestamp, index);
+      row.stress = entry.stress ?? null;
     });
 
-    return Array.from(dayMap.values());
+    return Array.from(checkInMap.values()).sort((a, b) => {
+      if (!a.timestamp || !b.timestamp) return 0;
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
   }, [insights]);
 
-  // Loading State
-  if (loading) {
+  const moodChartData = useMemo(
+    () => (insights?.mood_trend || []).map((entry) => ({
+      ...entry,
+      day: formatCheckInLabel(entry.timestamp, entry.day),
+    })),
+    [insights]
+  );
+  const sleepChartData = useMemo(
+    () => (insights?.sleep_trend || []).map((entry) => ({
+      ...entry,
+      day: formatCheckInLabel(entry.timestamp, entry.day),
+    })),
+    [insights]
+  );
+  const stressChartData = useMemo(
+    () => (insights?.stress_trend || []).map((entry) => ({
+      ...entry,
+      day: formatCheckInLabel(entry.timestamp, entry.day),
+    })),
+    [insights]
+  );
+
+  // Keep the full loading screen for the initial request; range changes update inline.
+  if (loading && !insights) {
     return <LoadingState message="Compiling your personal insights..." />;
   }
 
   // Error State
-  if (loadError) {
+  if (loadError && !insights) {
     return (
       <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-4xl mx-auto">
         <PageHeader
@@ -264,6 +314,21 @@ export const InsightsPage: React.FC = () => {
         </div>
       </div>
 
+      {loading && insights && (
+        <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-[#D5D1E5] bg-white px-4 py-3 text-sm text-[#625F78]">
+          <RefreshCw className="h-4 w-4 animate-spin text-[#5554B8]" aria-hidden="true" />
+          Updating insights for the last {days} days. Showing the last {displayDays}-day view until they&apos;re ready.
+        </div>
+      )}
+      {loadError && insights && (
+        <div role="alert" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <span>We couldn&apos;t update this range. Your last successful {displayDays}-day view is still shown.</span>
+          <Button variant="outline" size="sm" onClick={fetchInsights} leftIcon={<RefreshCw className="h-4 w-4" />}>
+            Retry
+          </Button>
+        </div>
+      )}
+
       {!hasData ? (
         /* Empty State */
         <Card padding="lg" className="text-center py-16 space-y-4">
@@ -272,7 +337,7 @@ export const InsightsPage: React.FC = () => {
           </div>
           <div className="space-y-1.5 max-w-sm mx-auto">
             <h2 className="text-base sm:text-lg font-bold text-[#25233B]">
-              No check-ins logged for this {days}-day window
+              No check-ins logged for this {displayDays}-day window
             </h2>
             <p className="text-xs sm:text-sm text-[#625F78] leading-relaxed">
               Check-ins take about 60 seconds. Log how you are feeling today to start visualizing your personal mood, sleep, and stress rhythms.
@@ -297,7 +362,7 @@ export const InsightsPage: React.FC = () => {
               <Info className="w-4 h-4 text-[#7A4D05] shrink-0 mt-0.5" />
               <span>
                 <strong>Early observations:</strong> You have logged {insights?.check_in_count}{' '}
-                {insights?.check_in_count === 1 ? 'check-in' : 'check-ins'} in this {days}-day window. Averages and lines will reflect clearer patterns as you continue checking in.
+                {insights?.check_in_count === 1 ? 'check-in' : 'check-ins'} in this {displayDays}-day window. Averages and lines will reflect clearer patterns as you continue checking in.
               </span>
             </div>
           )}
@@ -363,7 +428,7 @@ export const InsightsPage: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm sm:text-base font-bold leading-snug text-[#25233B]">
-                    Mood Evolution (1 to 5)
+                    Mood by Check-in (1 to 5)
                   </h3>
                   <p className="text-xs text-[#625F78]">
                     Higher values reflect more balanced headspace. Average: {insights?.average_mood} / 5
@@ -377,7 +442,7 @@ export const InsightsPage: React.FC = () => {
                 <span>Mood rating</span>
                 <span className="ml-auto">
                   <TrendBadge
-                    values={(insights?.mood_trend || []).map((entry) => entry.mood)}
+                    values={(insights?.mood_trend || []).map((entry) => ({ ...entry, value: entry.mood }))}
                     positiveDirection="up"
                   />
                 </span>
@@ -386,13 +451,13 @@ export const InsightsPage: React.FC = () => {
 
             {/* Accompanying plain text summary */}
             <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-              <strong>Mood Summary:</strong> Average {insights?.average_mood} out of 5 across {insights?.check_in_count} {insights?.check_in_count === 1 ? 'check-in' : 'check-ins'} in the last {days} days.
+              <strong>Mood Summary:</strong> Average {insights?.average_mood} out of 5 across {insights?.check_in_count} {insights?.check_in_count === 1 ? 'check-in' : 'check-ins'} in the last {displayDays} days.
             </p>
 
             <div className="h-48 w-full mt-auto pt-1">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
-                  data={insights?.mood_trend}
+                  data={moodChartData}
                   margin={{ top: 10, right: 12, left: -12, bottom: 5 }}
                 >
                   <defs>
@@ -408,7 +473,7 @@ export const InsightsPage: React.FC = () => {
                     fontSize={11}
                     tickLine={false}
                     interval="preserveStartEnd"
-                    aria-label="Date of check-in"
+                    aria-label="Date and time of check-in"
                   />
                   <YAxis
                     domain={[1, 5]}
@@ -470,7 +535,7 @@ export const InsightsPage: React.FC = () => {
                   <span>Sleep duration</span>
                   <span className="ml-auto">
                     <TrendBadge
-                      values={(insights?.sleep_trend || []).map((entry) => entry.sleep)}
+                      values={(insights?.sleep_trend || []).map((entry) => ({ ...entry, value: entry.sleep }))}
                       positiveDirection="up"
                       unit="h"
                     />
@@ -480,13 +545,13 @@ export const InsightsPage: React.FC = () => {
 
               {/* Accompanying plain text summary */}
               <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-                <strong>Sleep Summary:</strong> Average nightly rest was {insights?.average_sleep} hours over the last {days} days. The dashed line marks 7 hours.
+                <strong>Sleep Summary:</strong> Average nightly rest was {insights?.average_sleep} hours over the last {displayDays} days. Each bar is one check-in; the dashed line marks 7 hours.
               </p>
 
               <div className="h-48 w-full mt-auto pt-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={insights?.sleep_trend}
+                    data={sleepChartData}
                     margin={{ top: 10, right: 12, left: -18, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EFF7" />
@@ -496,6 +561,7 @@ export const InsightsPage: React.FC = () => {
                       fontSize={11}
                       tickLine={false}
                       interval="preserveStartEnd"
+                      aria-label="Date and time of check-in"
                     />
                     <YAxis
                         domain={[0, 12]}
@@ -563,7 +629,7 @@ export const InsightsPage: React.FC = () => {
                   <span>Stress rating</span>
                   <span className="ml-auto">
                     <TrendBadge
-                      values={(insights?.stress_trend || []).map((entry) => entry.stress)}
+                      values={(insights?.stress_trend || []).map((entry) => ({ ...entry, value: entry.stress }))}
                       positiveDirection="down"
                     />
                   </span>
@@ -572,13 +638,13 @@ export const InsightsPage: React.FC = () => {
 
               {/* Accompanying plain text summary */}
               <p className="text-xs leading-relaxed text-[#625F78] bg-[#F7F6FB] p-2.5 rounded-input border border-[#E8E6F1]">
-                <strong>Stress Summary:</strong> Average load was {insights?.average_stress} out of 5 over the last {days} days.
+                <strong>Stress Summary:</strong> Average load was {insights?.average_stress} out of 5 over the last {displayDays} days. Each point is one check-in.
               </p>
 
               <div className="h-48 w-full mt-auto pt-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
-                    data={insights?.stress_trend}
+                    data={stressChartData}
                     margin={{ top: 10, right: 12, left: -12, bottom: 5 }}
                   >
                     <defs>
@@ -655,11 +721,11 @@ export const InsightsPage: React.FC = () => {
               <div id="accessible-insights-table" className="overflow-x-auto pt-1">
                 <table className="w-full text-left text-xs text-[#25233B]">
                   <caption className="sr-only">
-                    Tabular breakdown of your daily check-in ratings for mood, sleep duration, and stress level over the selected {days}-day period.
+                    Individual check-in ratings for mood, sleep duration, and stress level over the selected {displayDays}-day period.
                   </caption>
                   <thead className="border-b border-[#E8E6F1] text-[#625F78] bg-[#F7F6FB]">
                     <tr>
-                      <th scope="col" className="py-2.5 px-3 font-semibold">Entry Date / Label</th>
+                      <th scope="col" className="py-2.5 px-3 font-semibold">Check-in Date &amp; Time</th>
                       <th scope="col" className="py-2.5 px-3 font-semibold">Mood (1 to 5)</th>
                       <th scope="col" className="py-2.5 px-3 font-semibold">Sleep Duration</th>
                       <th scope="col" className="py-2.5 px-3 font-semibold">Stress Load (1 to 5)</th>
@@ -667,10 +733,10 @@ export const InsightsPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F0EFF7]">
-                    {tableRows.map((row) => (
-                      <tr key={row.day} className="hover:bg-[#F7F6FB]/60 transition-colors">
+                    {tableRows.map((row, index) => (
+                      <tr key={row.timestamp || `${row.label}-${index}`} className="hover:bg-[#F7F6FB]/60 transition-colors">
                         <th scope="row" className="py-2.5 px-3 font-medium text-[#25233B]">
-                          {row.day}
+                          {row.label}
                         </th>
                         <td className="py-2.5 px-3">
                           {row.mood != null ? `${row.mood} / 5` : 'Not recorded'}
