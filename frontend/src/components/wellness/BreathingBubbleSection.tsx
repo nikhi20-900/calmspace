@@ -209,43 +209,79 @@ export const BreathingBubbleSection: React.FC = () => {
 
   const currentStepKey = `${cyclesCompleted}-${stepIndex}`;
 
-  const playSoftCue = (currentPhase: BreathingPhase) => {
-    if (!soundEnabled || typeof window === 'undefined') return;
+  const ensureAudioContext = (): AudioContext | null => {
+    if (typeof window === 'undefined') return null;
     try {
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      if (!audioCtxRef.current) {
+      if (!AudioCtx) return null;
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
         audioCtxRef.current = new AudioCtx();
       }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
       }
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value =
-        currentPhase === 'inhale'
-          ? 432
-          : currentPhase === 'hold'
-            ? 518
-            : currentPhase === 'exhale'
-              ? 346
-              : 288;
+      return audioCtxRef.current;
+    } catch {
+      return null;
+    }
+  };
 
-      gain.gain.setValueAtTime(0.001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+  const playTone = (freq: number, durationSec: number, peakGain = 0.14, delaySec = 0) => {
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    try {
+      const startAt = ctx.currentTime + delaySec;
+      const osc = ctx.createOscillator();
+      const harmonic = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      harmonic.type = 'sine';
+      harmonic.frequency.setValueAtTime(freq * 2, startAt);
+
+      const harmonicGain = ctx.createGain();
+      harmonicGain.gain.setValueAtTime(0.18, startAt);
+
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(peakGain, startAt + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + durationSec);
 
       osc.connect(gain);
+      harmonic.connect(harmonicGain);
+      harmonicGain.connect(gain);
       gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
+
+      osc.start(startAt);
+      harmonic.start(startAt);
+      osc.stop(startAt + durationSec + 0.02);
+      harmonic.stop(startAt + durationSec + 0.02);
     } catch {
       // Ignore Web Audio errors safely
     }
+  };
+
+  const playSoftCue = (currentPhase: BreathingPhase, force = false) => {
+    if (!force && !soundEnabled) return;
+    const freq =
+      currentPhase === 'inhale'
+        ? 440
+        : currentPhase === 'hold'
+          ? 523.25
+          : currentPhase === 'exhale'
+            ? 349.23
+            : 293.66;
+    playTone(freq, 0.55, 0.14);
+  };
+
+  const playCompletionChime = () => {
+    if (!soundEnabled) return;
+    // Warm ascending C5 -> E5 -> G5 completion chime
+    playTone(523.25, 0.7, 0.14, 0.0);
+    playTone(659.25, 0.7, 0.14, 0.18);
+    playTone(783.99, 1.1, 0.16, 0.36);
   };
 
   useEffect(() => {
@@ -275,8 +311,9 @@ export const BreathingBubbleSection: React.FC = () => {
       completionRecordedRef.current = true;
       const updated = recordBreathingCompletion(durationMinutes, syncStreak);
       setStats(updated);
+      playCompletionChime();
     }
-  }, [status, durationMinutes, syncStreak]);
+  }, [status, durationMinutes, syncStreak, soundEnabled]);
 
   useEffect(() => {
     return () => {
@@ -308,6 +345,9 @@ export const BreathingBubbleSection: React.FC = () => {
   };
 
   const handleStart = () => {
+    if (soundEnabled) {
+      ensureAudioContext();
+    }
     resetSession();
     setStatus('running');
   };
@@ -317,7 +357,19 @@ export const BreathingBubbleSection: React.FC = () => {
   };
 
   const handleResume = () => {
+    if (soundEnabled) {
+      ensureAudioContext();
+    }
     setStatus('running');
+  };
+
+  const handleToggleSound = () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    if (next) {
+      ensureAudioContext();
+      playTone(523.25, 0.4, 0.12);
+    }
   };
 
   const handleRestart = () => {
@@ -436,20 +488,24 @@ export const BreathingBubbleSection: React.FC = () => {
             {/* Optional Sound Cue Toggle (Muted by default) */}
             <button
               type="button"
-              onClick={() => setSoundEnabled((prev) => !prev)}
+              onClick={handleToggleSound}
               aria-pressed={soundEnabled}
-              aria-label={soundEnabled ? 'Mute breathing sound cues' : 'Enable breathing sound cues'}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button border border-[#E8E6F1] bg-white text-xs font-medium text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8]"
+              aria-label={soundEnabled ? 'Turn breathing sound off' : 'Turn breathing sound on'}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button border text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
+                soundEnabled
+                  ? 'bg-[#E9E7FB] border-[#5554B8]/40 text-[#5554B8]'
+                  : 'bg-white border-[#E8E6F1] text-[#625F78] hover:text-[#25233B] hover:bg-[#F7F6FB]'
+              }`}
             >
               {soundEnabled ? (
                 <>
                   <Volume2 className="w-3.5 h-3.5 text-[#5554B8]" />
-                  <span>Cues On</span>
+                  <span>Sound On</span>
                 </>
               ) : (
                 <>
                   <VolumeX className="w-3.5 h-3.5" />
-                  <span>Muted</span>
+                  <span>Sound Off</span>
                 </>
               )}
             </button>
