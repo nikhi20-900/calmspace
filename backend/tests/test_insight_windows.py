@@ -118,9 +118,13 @@ def test_empty_selected_window_does_not_substitute_older_records():
 
 
 def test_v1_insights_endpoint_contract_remains_available():
-    response = TestClient(app).get(
-        "/api/insights", headers={"X-Session-ID": "insights-v1-compatibility"}
-    )
+    client = TestClient(app)
+    session = client.post("/api/sessions").json()
+    headers = {
+        "Authorization": f"{session['token_type']} {session['session_id']}.{session['session_secret']}"
+    }
+
+    response = client.get("/api/insights", headers=headers)
 
     assert response.status_code == 200
     assert set(response.json()) == {
@@ -133,6 +137,7 @@ def test_v1_insights_endpoint_contract_remains_available():
         "sleep_trend",
         "stress_trend",
     }
+    client.delete("/api/settings/data", headers=headers)
 
 
 @pytest.mark.parametrize("days", [0, -1, 91, True, 7.0])
