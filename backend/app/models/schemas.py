@@ -8,6 +8,19 @@ from typing import Literal
 from pydantic import BaseModel, Field, StrictBool, field_validator
 
 RiskRoute = Literal["LOW", "MEDIUM", "HIGH"]
+InsightWindowState = Literal[
+    "brand_new",
+    "empty_window",
+    "building_baseline",
+    "active",
+]
+PatternCategory = Literal[
+    "steady_rhythm",
+    "directional_shift",
+    "co_observation",
+    "varied_rhythm",
+]
+ComparisonState = Literal["ready", "not_enough_data"]
 
 
 class SessionCreateResponse(BaseModel):
@@ -117,6 +130,96 @@ class InsightSummary(BaseModel):
     mood_trend: list[dict]
     sleep_trend: list[dict]
     stress_trend: list[dict]
+
+
+class TimelineEntry(BaseModel):
+    """Individual check-in record projected into the caller's local calendar."""
+
+    id: str
+    timestamp: str
+    date_key: str
+    day_label: str
+    local_time_label: str
+    mood: int
+    stress: int
+    sleep_hours: float
+    route: RiskRoute
+
+
+class DailyInsightPoint(BaseModel):
+    """Deterministic daily chart point aggregated strictly for presentation."""
+
+    date_key: str
+    day_label: str
+    entry_count: int
+    average_mood: float
+    average_stress: float
+    average_sleep: float
+
+
+class MetricRange(BaseModel):
+    """Inclusive minimum and maximum observed within the active window."""
+
+    min: float
+    max: float
+
+
+class PatternHighlight(BaseModel):
+    """Conservative, non-diagnostic, non-causal descriptive observation."""
+
+    id: str
+    category: PatternCategory
+    title: str
+    summary: str
+    sample_basis: str
+
+
+class ComparisonMetric(BaseModel):
+    current_average: float
+    previous_average: float
+    difference: float
+
+
+class PeriodComparison(BaseModel):
+    state: ComparisonState
+    period_days: int
+    minimum_checkins_per_period: int
+    current_check_in_count: int
+    previous_check_in_count: int
+    current_active_days: int
+    previous_active_days: int
+    mood: ComparisonMetric | None = None
+    stress: ComparisonMetric | None = None
+    sleep: ComparisonMetric | None = None
+
+
+class InsightSummaryV2(BaseModel):
+    """Typed Insights V2 response keeping individual records as source of truth."""
+
+    window_days: int
+    timezone: str
+    window_start_date: str
+    window_end_date: str
+    retention_days: int
+    state: InsightWindowState
+    check_in_count: int
+    total_stored_count: int
+    distinct_local_days: int
+    sleep_7h_plus_count: int
+    sleep_7h_plus_day_count: int
+    average_checkins_per_week: float
+    active_day_rate: float
+    comparison: PeriodComparison
+    average_mood: float
+    average_stress: float
+    average_sleep: float
+    mood_range: MetricRange | None = None
+    stress_range: MetricRange | None = None
+    sleep_range: MetricRange | None = None
+    plain_summary: str
+    timeline_entries: list[TimelineEntry]
+    daily_series: list[DailyInsightPoint]
+    pattern_highlights: list[PatternHighlight]
 
 
 class StudyTask(BaseModel):
