@@ -11,6 +11,7 @@ import {
   Settings,
   HelpCircle,
   Sparkles,
+  AudioLines,
 } from 'lucide-react';
 import { usePrivacyModal } from '../../context/PrivacyModalContext';
 
@@ -117,6 +118,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
 
   const navItems = [
     { to: '/app', label: 'Overview', icon: LayoutDashboard },
+    { to: '/companion', label: 'Talk to Calm', icon: AudioLines },
     { to: '/checkin', label: 'Daily Check-in', icon: HeartPulse },
     { to: '/insights', label: 'My Insights', icon: LineChart },
     { to: '/planner', label: 'Study Planner', icon: CalendarCheck },
@@ -127,8 +129,8 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ onOpenSuppor
   // Quick primary items for bottom touch bar
   const bottomNavItems = [
     { to: '/app', label: 'Overview', icon: LayoutDashboard },
+    { to: '/companion', label: 'Calm', icon: AudioLines },
     { to: '/checkin', label: 'Check-in', icon: HeartPulse },
-    { to: '/insights', label: 'Insights', icon: LineChart },
     { to: '/planner', label: 'Planner', icon: CalendarCheck },
     { to: '/support', label: 'Support', icon: ShieldCheck },
   ];

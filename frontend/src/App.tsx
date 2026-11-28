@@ -10,6 +10,9 @@ const LandingPage = lazy(() =>
 const OverviewPage = lazy(() =>
   import('./pages/OverviewPage').then((m) => ({ default: m.OverviewPage }))
 );
+const CompanionPage = lazy(() =>
+  import('./pages/CompanionPage').then((m) => ({ default: m.CompanionPage }))
+);
 const CheckInPage = lazy(() =>
   import('./pages/CheckInPage').then((m) => ({ default: m.CheckInPage }))
 );
@@ -41,6 +44,7 @@ export const App: React.FC = () => {
             {/* Core Student Application Routes */}
             <Route element={<AppLayout />}>
               <Route path="/app" element={<OverviewPage />} />
+              <Route path="/companion" element={<CompanionPage />} />
               <Route path="/overview" element={<Navigate to="/app" replace />} />
               <Route path="/checkin" element={<CheckInPage />} />
               <Route path="/checkin/result" element={<CheckInResultPage />} />
