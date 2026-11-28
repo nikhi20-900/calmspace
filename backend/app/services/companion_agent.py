@@ -48,9 +48,7 @@ from app.services.support_directory import get_urgent_contacts
 
 logger = logging.getLogger("calmspace.companion_agent")
 
-COMPANION_DISCLAIMER = (
-    "Calm is an AI wellbeing companion, not a human, therapist, or medical professional."
-)
+COMPANION_DISCLAIMER = "Calm is an AI wellbeing companion, not a human, therapist, or medical professional."
 
 COMPANION_SYSTEM_INSTRUCTION = """You are Calm, a warm, reassuring, nonjudgmental AI wellbeing companion for university students inside Calmspace.
 
@@ -183,7 +181,9 @@ def start_companion_session(session_id: str) -> CompanionStartResponse:
         f"Hey{name_part}! I'm Calm, your AI wellbeing companion. "
         "I'm here and ready to chat — how are you feeling today?"
     )
-    companion_memory.append_turn(session_id, state.conversation_id, "assistant", greeting)
+    companion_memory.append_turn(
+        session_id, state.conversation_id, "assistant", greeting
+    )
 
     return CompanionStartResponse(
         conversation_id=state.conversation_id,
@@ -228,14 +228,19 @@ def _extract_subjects_and_timeline(text: str) -> tuple[list[str], str | None]:
     if named_match:
         raw = named_match.group(1)
         # Filter out generic filler like "3 subjects" or "exams"
-        if not re.fullmatch(r"\d+\s+subjects?|my\s+exams?|exams?", raw.strip(), re.IGNORECASE):
+        if not re.fullmatch(
+            r"\d+\s+subjects?|my\s+exams?|exams?", raw.strip(), re.IGNORECASE
+        ):
             parts = re.split(r"\s*(?:,|&|\band\b|/)\s*", raw)
             for p in parts:
-                cleaned = re.sub(r"^\d+\s+subjects?\s*[:\-]?\s*", "", p, flags=re.IGNORECASE).strip(" .!?")
+                cleaned = re.sub(
+                    r"^\d+\s+subjects?\s*[:\-]?\s*", "", p, flags=re.IGNORECASE
+                ).strip(" .!?")
                 if (
                     cleaned
                     and len(cleaned) >= 2
-                    and cleaned.lower() not in {"subjects", "subject", "exams", "exam", "prepare", "them"}
+                    and cleaned.lower()
+                    not in {"subjects", "subject", "exams", "exam", "prepare", "them"}
                 ):
                     subjects.append(cleaned.title() if cleaned.islower() else cleaned)
 
@@ -263,10 +268,14 @@ def _extract_checkin_metrics(
     stress = state.slots.get("stress_hint")
     sleep = state.slots.get("sleep_hint")
 
-    m_match = re.search(r"\bmood\s*(?:is|at|=|:|of)?\s*([1-5])(?:/5)?\b", text, re.IGNORECASE)
+    m_match = re.search(
+        r"\bmood\s*(?:is|at|=|:|of)?\s*([1-5])(?:/5)?\b", text, re.IGNORECASE
+    )
     if m_match:
         mood = int(m_match.group(1))
-    s_match = re.search(r"\bstress\s*(?:is|at|=|:|of)?\s*([1-5])(?:/5)?\b", text, re.IGNORECASE)
+    s_match = re.search(
+        r"\bstress\s*(?:is|at|=|:|of)?\s*([1-5])(?:/5)?\b", text, re.IGNORECASE
+    )
     if s_match:
         stress = int(s_match.group(1))
     sl_match = re.search(
@@ -287,11 +296,15 @@ def _extract_checkin_metrics(
 
 def _extract_reminder_details(text: str) -> tuple[str, int, str]:
     delay = 25
-    delay_match = re.search(r"\bin\s+(\d+)\s*(?:min|mins|minute|minutes)\b", text, re.IGNORECASE)
+    delay_match = re.search(
+        r"\bin\s+(\d+)\s*(?:min|mins|minute|minutes)\b", text, re.IGNORECASE
+    )
     if delay_match:
         delay = max(5, min(240, int(delay_match.group(1))))
     elif re.search(r"\bin\s+(\d+)\s*(?:hour|hours|hr|hrs)\b", text, re.IGNORECASE):
-        hr_match = re.search(r"\bin\s+(\d+)\s*(?:hour|hours|hr|hrs)\b", text, re.IGNORECASE)
+        hr_match = re.search(
+            r"\bin\s+(\d+)\s*(?:hour|hours|hr|hrs)\b", text, re.IGNORECASE
+        )
         if hr_match:
             delay = max(5, min(240, int(hr_match.group(1)) * 60))
 
@@ -341,8 +354,14 @@ def _run_context_aware_reasoner(
             blob_state = outcome.blob_state_hint  # type: ignore[assignment]
 
     # 1. Explicit urgent help
-    if re.search(r"\b(urgent help|crisis|emergency|can't cope|need help right now)\b", lower):
-        outcome = execute_validated_tool("activate_crisis_support", {"reason": "user requested urgent help"}, session_id)
+    if re.search(
+        r"\b(urgent help|crisis|emergency|can't cope|need help right now)\b", lower
+    ):
+        outcome = execute_validated_tool(
+            "activate_crisis_support",
+            {"reason": "user requested urgent help"},
+            session_id,
+        )
         record_outcome(outcome)
         reply = (
             "I'm really glad you reached out. Because things feel urgent right now, I've brought up "
@@ -360,8 +379,13 @@ def _run_context_aware_reasoner(
         }
 
     # 2. Support resources ("talk to someone", counsellor, helpline)
-    if re.search(r"\b(talk to someone|counsellor|counselor|helpline|human support|therapist|campus support)\b", lower):
-        outcome = execute_validated_tool("get_support_resources", {"category": "all"}, session_id)
+    if re.search(
+        r"\b(talk to someone|counsellor|counselor|helpline|human support|therapist|campus support)\b",
+        lower,
+    ):
+        outcome = execute_validated_tool(
+            "get_support_resources", {"category": "all"}, session_id
+        )
         record_outcome(outcome)
         reply = (
             "Talking with a trusted person or counsellor can make a real difference. "
@@ -379,7 +403,10 @@ def _run_context_aware_reasoner(
         }
 
     # 3. Guided breathing
-    if re.search(r"\b(breath|breathe|breathing|help me relax|calm down|relaxation|anxious|panic)\b", lower):
+    if re.search(
+        r"\b(breath|breathe|breathing|help me relax|calm down|relaxation|anxious|panic)\b",
+        lower,
+    ):
         pattern = "calm_4_4"
         if "box" in lower:
             pattern = "box"
@@ -411,8 +438,16 @@ def _run_context_aware_reasoner(
         r"\b(how have i been|insights|my mood|mood trend|sleep pattern|lately|past week|(?:check[- ]?in|mood|wellbeing|sleep)\s+history)\b",
         lower,
     ):
-        days = 30 if "month" in lower or "30" in lower else 14 if "14" in lower or "two weeks" in lower else 7
-        outcome = execute_validated_tool("get_wellbeing_insights", {"days": days}, session_id)
+        days = (
+            30
+            if "month" in lower or "30" in lower
+            else 14
+            if "14" in lower or "two weeks" in lower
+            else 7
+        )
+        outcome = execute_validated_tool(
+            "get_wellbeing_insights", {"days": days}, session_id
+        )
         record_outcome(outcome)
         data = outcome.record.data
         if data.get("check_in_count", 0) == 0:
@@ -440,7 +475,9 @@ def _run_context_aware_reasoner(
         }
 
     # 5. Reminder creation (always requests confirmation)
-    if re.search(r"\b(remind me|set a reminder|reminder to|break reminder|remind)\b", lower):
+    if re.search(
+        r"\b(remind me|set a reminder|reminder to|break reminder|remind)\b", lower
+    ):
         title, delay, cat = _extract_reminder_details(message)
         outcome = execute_validated_tool(
             "create_reminder",
@@ -464,7 +501,9 @@ def _run_context_aware_reasoner(
         }
 
     # 6. Preference saving (explicit confirmation)
-    if re.search(r"\b(my study goal|remember that i|save my preference|prefer \d+ min)\b", lower):
+    if re.search(
+        r"\b(my study goal|remember that i|save my preference|prefer \d+ min)\b", lower
+    ):
         blk = 25
         blk_match = re.search(r"(\d+)\s*(?:min|minute)", lower)
         if blk_match:
@@ -499,8 +538,10 @@ def _run_context_aware_reasoner(
     has_checkin_intent = bool(
         re.search(r"\b(check[- ]?in|log my mood|track my stress|rate my mood)\b", lower)
     )
-    if has_checkin_intent or state.slots.get("active_checkin_flow") or (
-        state.slots.get("offered_checkin") and _AFFIRMATIVE_RE.match(message)
+    if (
+        has_checkin_intent
+        or state.slots.get("active_checkin_flow")
+        or (state.slots.get("offered_checkin") and _AFFIRMATIVE_RE.match(message))
     ):
         state.slots["offered_checkin"] = False
         state.slots["active_checkin_flow"] = True
@@ -544,9 +585,7 @@ def _run_context_aware_reasoner(
 
     if study_stage == "offered" and _AFFIRMATIVE_RE.match(message):
         state.slots["study_plan_stage"] = "need_details"
-        reply = (
-            "Of course. How many subjects do you need to prepare for, and when is your first exam?"
-        )
+        reply = "Of course. How many subjects do you need to prepare for, and when is your first exam?"
         follow_ups = [
             "3 subjects: Math, Biology, and History, first exam in 4 days",
             "2 subjects, exam on Monday",
@@ -562,7 +601,10 @@ def _run_context_aware_reasoner(
         }
 
     if study_stage == "need_details" or (
-        re.search(r"\b(study plan|help me study|plan my study|exam schedule|revision plan)\b", lower)
+        re.search(
+            r"\b(study plan|help me study|plan my study|exam schedule|revision plan)\b",
+            lower,
+        )
     ):
         known_subjects = state.slots.get("subjects", [])
         known_timeline = state.slots.get("exam_timeline")
@@ -612,7 +654,10 @@ def _run_context_aware_reasoner(
         }
 
     # 9. Contextual stress / overwhelm follow-ups (avoids repetition across turns)
-    if re.search(r"\b(too much to study|falling behind|lot to study|so much syllabus|workload)\b", lower):
+    if re.search(
+        r"\b(too much to study|falling behind|lot to study|so much syllabus|workload)\b",
+        lower,
+    ):
         state.slots["study_plan_stage"] = "offered"
         state.slots["stress_topic"] = "study_load"
         reply = (
@@ -630,7 +675,10 @@ def _run_context_aware_reasoner(
             "follow_up_prompts": follow_ups,
         }
 
-    if re.search(r"\b(stressed|stress|overwhelmed|worried|exam|exams|test|deadline|tired|exhausted)\b", lower):
+    if re.search(
+        r"\b(stressed|stress|overwhelmed|worried|exam|exams|test|deadline|tired|exhausted)\b",
+        lower,
+    ):
         state.slots["stress_topic"] = "exams" if "exam" in lower else "general_stress"
         if state.slots.get("asked_stress_clarifier"):
             reply = (
@@ -638,7 +686,11 @@ def _run_context_aware_reasoner(
                 "Would it help more to break your workload into a gentle study plan, log a quick check-in, or take two minutes to breathe?"
             )
             state.slots["study_plan_stage"] = "offered"
-            follow_ups = ["Yes, make a study plan", "Start guided breathing", "Do a stress check-in"]
+            follow_ups = [
+                "Yes, make a study plan",
+                "Start guided breathing",
+                "Do a stress check-in",
+            ]
         else:
             state.slots["asked_stress_clarifier"] = True
             if "exam" in lower:
@@ -646,13 +698,21 @@ def _run_context_aware_reasoner(
                     "That sounds overwhelming. Are you worried about the amount you need to study, "
                     "or more about how your results will go?"
                 )
-                follow_ups = ["I have too much to study", "I'm worried about results", "Help me relax"]
+                follow_ups = [
+                    "I have too much to study",
+                    "I'm worried about results",
+                    "Help me relax",
+                ]
             else:
                 reply = (
                     "That sounds like a lot to carry right now. "
                     "What's feeling heaviest at the moment — coursework, sleep, or something else on your mind?"
                 )
-                follow_ups = ["Too much to study", "I haven't slept well", "Help me relax"]
+                follow_ups = [
+                    "Too much to study",
+                    "I haven't slept well",
+                    "Help me relax",
+                ]
         return {
             "reply": reply,
             "blob_state": blob_state,
@@ -664,7 +724,9 @@ def _run_context_aware_reasoner(
         }
 
     # 10. Natural greetings & casual conversation
-    if re.search(r"^(hi|hello|hey|good morning|good afternoon|good evening|how are you)\b", lower):
+    if re.search(
+        r"^(hi|hello|hey|good morning|good afternoon|good evening|how are you)\b", lower
+    ):
         if state.turn_count == 0:
             reply = "Hey! I'm here and ready to chat. How are you feeling today?"
         else:
@@ -743,7 +805,9 @@ def _run_gemini_agent_loop(
     contents.append(
         {
             "role": "user",
-            "parts": [{"text": f"<student_message>\n{sanitized_msg}\n</student_message>"}],
+            "parts": [
+                {"text": f"<student_message>\n{sanitized_msg}\n</student_message>"}
+            ],
         }
     )
 
@@ -764,7 +828,9 @@ def _run_gemini_agent_loop(
             )
             rate_limiter.record_call(session_id)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Companion AI provider call failed safely (%s).", type(exc).__name__)
+            logger.warning(
+                "Companion AI provider call failed safely (%s).", type(exc).__name__
+            )
             return None
 
         if not turn_res.tool_calls:
@@ -809,7 +875,9 @@ def _run_gemini_agent_loop(
                             "status": outcome.record.status,
                             "summary": outcome.record.summary,
                             "data": outcome.record.data,
-                            "requires_user_confirmation": bool(outcome.pending_confirmation),
+                            "requires_user_confirmation": bool(
+                                outcome.pending_confirmation
+                            ),
                         },
                     }
                 }
@@ -879,8 +947,12 @@ def process_companion_turn(
             "You don't have to handle this alone — I've surfaced free, confidential 24/7 human support lines "
             "like Tele-MANAS (14416) and Emergency Services (112) so you can talk to someone right away."
         )
-        companion_memory.append_turn(session_id, state.conversation_id, "user", "[redacted-high-route]")
-        companion_memory.append_turn(session_id, state.conversation_id, "assistant", crisis_reply)
+        companion_memory.append_turn(
+            session_id, state.conversation_id, "user", "[redacted-high-route]"
+        )
+        companion_memory.append_turn(
+            session_id, state.conversation_id, "assistant", crisis_reply
+        )
         return CompanionTurnResponse(
             conversation_id=state.conversation_id,
             reply=crisis_reply,
@@ -889,7 +961,9 @@ def process_companion_turn(
             follow_up_prompts=[],
             tool_calls=[crisis_outcome.record],
             pending_confirmation=None,
-            action_cards=[crisis_outcome.action_card] if crisis_outcome.action_card else [],
+            action_cards=[crisis_outcome.action_card]
+            if crisis_outcome.action_card
+            else [],
             support_contacts=contacts,
             generated_by_ai=False,
             fallback_used=False,
@@ -901,7 +975,9 @@ def process_companion_turn(
     latest_pending = companion_memory.get_latest_pending_confirmation(
         session_id, state.conversation_id
     )
-    if latest_pending and (_AFFIRMATIVE_RE.match(message) or _NEGATIVE_RE.match(message)):
+    if latest_pending and (
+        _AFFIRMATIVE_RE.match(message) or _NEGATIVE_RE.match(message)
+    ):
         approved = bool(_AFFIRMATIVE_RE.match(message))
         companion_memory.append_turn(session_id, state.conversation_id, "user", message)
         return confirm_pending_action(
@@ -923,7 +999,9 @@ def process_companion_turn(
     generated_by_ai = False
     fallback_used = config_failed
     result_bundle: dict[str, Any] | None = None
-    reported_provider = "fallback" if config_failed else (cfg.provider if cfg.enabled else "disabled")
+    reported_provider = (
+        "fallback" if config_failed else (cfg.provider if cfg.enabled else "disabled")
+    )
 
     wants_external_ai = (
         consent_ai_processing
@@ -962,7 +1040,9 @@ def process_companion_turn(
             # Provider does not implement conversational tool-calling; run context-aware reasoner
             result_bundle = None
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Companion AI resolution failed safely (%s).", type(exc).__name__)
+            logger.warning(
+                "Companion AI resolution failed safely (%s).", type(exc).__name__
+            )
             fallback_used = True
             reported_provider = "fallback"
             result_bundle = None
@@ -1020,7 +1100,9 @@ def confirm_pending_action(
     )
 
     if not approved:
-        reply = "No problem at all — I didn't save anything. What else can I help you with?"
+        reply = (
+            "No problem at all — I didn't save anything. What else can I help you with?"
+        )
         companion_memory.append_turn(session_id, conversation_id, "assistant", reply)
         return CompanionTurnResponse(
             conversation_id=conversation_id,

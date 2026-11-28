@@ -61,7 +61,9 @@ class CreateReminderArgs(BaseModel):
     def clean_title(cls, v: str) -> str:
         stripped = v.strip()
         if len(stripped) < 2:
-            raise ValueError("Reminder title must have at least 2 non-space characters.")
+            raise ValueError(
+                "Reminder title must have at least 2 non-space characters."
+            )
         return stripped
 
 
@@ -127,7 +129,9 @@ ALLOWED_TOOLS: dict[str, ToolSpec] = {
     "get_wellbeing_insights": ToolSpec(
         "get_wellbeing_insights", GetWellbeingInsightsArgs, False
     ),
-    "generate_study_plan": ToolSpec("generate_study_plan", GenerateStudyPlanArgs, False),
+    "generate_study_plan": ToolSpec(
+        "generate_study_plan", GenerateStudyPlanArgs, False
+    ),
     "save_study_plan": ToolSpec("save_study_plan", SaveStudyPlanArgs, True),
     "get_support_resources": ToolSpec(
         "get_support_resources", GetSupportResourcesArgs, False
@@ -151,8 +155,14 @@ GEMINI_FUNCTION_DECLARATIONS: list[dict[str, Any]] = [
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "mood": {"type": "INTEGER", "description": "Mood rating 1 (very low) to 5 (great)"},
-                "stress": {"type": "INTEGER", "description": "Stress level 1 (very low) to 5 (very high)"},
+                "mood": {
+                    "type": "INTEGER",
+                    "description": "Mood rating 1 (very low) to 5 (great)",
+                },
+                "stress": {
+                    "type": "INTEGER",
+                    "description": "Stress level 1 (very low) to 5 (very high)",
+                },
                 "sleep_hours": {"type": "NUMBER", "description": "Hours slept (0-24)"},
             },
         },
@@ -184,8 +194,14 @@ GEMINI_FUNCTION_DECLARATIONS: list[dict[str, Any]] = [
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "title": {"type": "STRING", "description": "Short reminder label, e.g. 'Take a 5-min stretch break'"},
-                "delay_minutes": {"type": "INTEGER", "description": "Minutes from now (5-240)"},
+                "title": {
+                    "type": "STRING",
+                    "description": "Short reminder label, e.g. 'Take a 5-min stretch break'",
+                },
+                "delay_minutes": {
+                    "type": "INTEGER",
+                    "description": "Minutes from now (5-240)",
+                },
                 "category": {
                     "type": "STRING",
                     "enum": ["break", "study", "hydration", "wellbeing"],
@@ -200,7 +216,10 @@ GEMINI_FUNCTION_DECLARATIONS: list[dict[str, Any]] = [
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "days": {"type": "INTEGER", "description": "Window in days (1-90), default 7"},
+                "days": {
+                    "type": "INTEGER",
+                    "description": "Window in days (1-90), default 7",
+                },
             },
         },
     },
@@ -319,9 +338,7 @@ def build_personalized_study_plan(
     break_minutes = prefs.preferred_break_minutes
 
     # Adapt block length gently when recent stress is high or sleep is short
-    pacing_note = (
-        f"Paced in {block_minutes}-minute focus blocks with {break_minutes}-minute breaks so your mind stays fresh."
-    )
+    pacing_note = f"Paced in {block_minutes}-minute focus blocks with {break_minutes}-minute breaks so your mind stays fresh."
     if insights.check_in_count > 0 and (
         insights.average_stress >= 4.0 or insights.average_sleep < 6.0
     ):
@@ -424,7 +441,11 @@ def execute_validated_tool(
     try:
         validated = spec.schema.model_validate(raw_args or {})
     except ValidationError as exc:
-        logger.warning("Rejected malformed arguments for tool %s (%d errors)", tool_name, len(exc.errors()))
+        logger.warning(
+            "Rejected malformed arguments for tool %s (%d errors)",
+            tool_name,
+            len(exc.errors()),
+        )
         return ToolOutcome(
             record=ToolExecutionRecord(
                 tool_name=tool_name,
@@ -448,7 +469,9 @@ def execute_validated_tool(
 
     # Execute allowlisted tool safely
     try:
-        return _dispatch_tool(tool_name, validated, session_id, confirmed_by_user=confirmed_by_user)
+        return _dispatch_tool(
+            tool_name, validated, session_id, confirmed_by_user=confirmed_by_user
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("Tool execution failed for %s (%s)", tool_name, type(exc).__name__)
         return ToolOutcome(
@@ -789,7 +812,9 @@ def _dispatch_tool(
         assert isinstance(args, SaveCompanionPreferenceArgs)
         current = storage.get_companion_preferences(session_id)
         updated = CompanionPreferences(
-            study_goal=args.study_goal if args.study_goal is not None else current.study_goal,
+            study_goal=args.study_goal
+            if args.study_goal is not None
+            else current.study_goal,
             preferred_study_block_minutes=args.preferred_study_block_minutes,
             preferred_break_minutes=args.preferred_break_minutes,
             preferred_tone=args.preferred_tone,

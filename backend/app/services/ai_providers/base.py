@@ -54,4 +54,6 @@ class BaseAIProvider(ABC):
         Optional multi-turn conversational method with structured tool declarations.
         Providers that do not implement function calling raise NotImplementedError.
         """
-        raise NotImplementedError("Conversational tool-calling not implemented for this provider")
+        raise NotImplementedError(
+            "Conversational tool-calling not implemented for this provider"
+        )
