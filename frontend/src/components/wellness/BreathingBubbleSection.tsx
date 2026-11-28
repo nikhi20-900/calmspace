@@ -71,6 +71,53 @@ const BREATHING_PATTERNS: readonly BreathingPattern[] = [
   },
 ];
 
+const PHASE_COLORS: Record<
+  BreathingPhase,
+  {
+    ring: string;
+    aura: string;
+    bubble: string;
+    pill: string;
+    dot: string;
+  }
+> = {
+  inhale: {
+    ring: '#5554B8',
+    aura: 'bg-gradient-to-br from-[#9C9AF2]/55 via-[#C7C5FA]/45 to-[#E9E7FB]/40',
+    bubble: 'bg-gradient-to-br from-[#D9D6FE] via-[#EAE8FC] to-[#FFFFFF] border-[#5554B8]/50',
+    pill: 'bg-[#5554B8] text-white border-[#5554B8]',
+    dot: 'bg-[#5554B8]',
+  },
+  hold: {
+    ring: '#2E8540',
+    aura: 'bg-gradient-to-br from-[#88D498]/55 via-[#BEE8C6]/45 to-[#DCE9DF]/40',
+    bubble: 'bg-gradient-to-br from-[#C4EBD0] via-[#E3F5E8] to-[#FFFFFF] border-[#2E8540]/45',
+    pill: 'bg-[#2E8540] text-white border-[#2E8540]',
+    dot: 'bg-[#2E8540]',
+  },
+  exhale: {
+    ring: '#D97745',
+    aura: 'bg-gradient-to-br from-[#F3B08E]/55 via-[#F7D7C4]/45 to-[#F4DCCB]/40',
+    bubble: 'bg-gradient-to-br from-[#FAD7C4] via-[#FDECE2] to-[#FFFFFF] border-[#D97745]/45',
+    pill: 'bg-[#D97745] text-white border-[#D97745]',
+    dot: 'bg-[#D97745]',
+  },
+  rest: {
+    ring: '#5B7CE2',
+    aura: 'bg-gradient-to-br from-[#A6BDF7]/55 via-[#D5E1FC]/45 to-[#E9E7FB]/40',
+    bubble: 'bg-gradient-to-br from-[#D0DFFC] via-[#EAF0FE] to-[#FFFFFF] border-[#5B7CE2]/45',
+    pill: 'bg-[#5B7CE2] text-white border-[#5B7CE2]',
+    dot: 'bg-[#5B7CE2]',
+  },
+};
+
+const PATTERN_ACCENTS: Record<PatternId, string> = {
+  '4-4-4': 'bg-[#5554B8]',
+  '4-7-8': 'bg-[#2E8540]',
+  '4-4-4-4': 'bg-[#D97745]',
+  '3-2-4': 'bg-[#5B7CE2]',
+};
+
 const DURATION_OPTIONS: readonly DurationMinutes[] = [1, 3, 5];
 
 const PHASE_LABELS: Record<BreathingPhase, string> = {
@@ -323,14 +370,18 @@ export const BreathingBubbleSection: React.FC = () => {
         ? 0
         : ringCircumference * (1 - phaseProgress);
 
+  const activeTheme = PHASE_COLORS[phase];
   const ringStrokeColor =
-    phase === 'inhale'
-      ? '#5554B8'
-      : phase === 'hold'
-        ? '#245532'
-        : phase === 'exhale'
-          ? '#7C7AD6'
-          : '#8E8AA7';
+    status === 'completed' ? '#2E8540' : activeTheme.ring;
+
+  const stageBgClass =
+    status === 'completed'
+      ? 'bg-gradient-to-br from-[#E6F4EA] via-[#F7F6FB] to-[#ECEAFD]'
+      : status === 'running' && phase === 'hold'
+        ? 'bg-gradient-to-br from-[#E8F5EC] via-[#F7F6FB] to-[#EEF2FF]'
+        : status === 'running' && phase === 'exhale'
+          ? 'bg-gradient-to-br from-[#FDF1EA] via-[#F7F6FB] to-[#EFEFFD]'
+          : 'bg-gradient-to-br from-[#EFEDFC] via-[#F7F6FB] to-[#E9F3EC]';
 
   return (
     <section aria-label="Breathing Bubble">
@@ -421,19 +472,24 @@ export const BreathingBubbleSection: React.FC = () => {
                 aria-pressed={active}
                 className={`p-2.5 rounded-input border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] ${
                   active
-                    ? 'bg-[#E9E7FB]/60 border-[#5554B8] shadow-subtle'
+                    ? 'bg-[#E9E7FB]/70 border-[#5554B8] shadow-subtle'
                     : 'bg-[#F7F6FB] border-[#E8E6F1] hover:bg-white'
                 }`}
               >
-                <span className="text-xs font-bold text-[#25233B] block">{p.name}</span>
-                <span className="text-[11px] font-medium text-[#5554B8]">{p.label}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${PATTERN_ACCENTS[p.id]}`} aria-hidden="true" />
+                  <span className="text-xs font-bold text-[#25233B]">{p.name}</span>
+                </div>
+                <span className="text-[11px] font-medium text-[#5554B8] pl-3.5 block">{p.label}</span>
               </button>
             );
           })}
         </div>
 
         {/* Interactive Breathing Stage */}
-        <div className="p-5 sm:p-6 flex flex-col items-center justify-center gap-5 bg-[#F7F6FB] rounded-card border border-[#E8E6F1]/80">
+        <div
+          className={`p-5 sm:p-6 flex flex-col items-center justify-center gap-5 rounded-card border border-[#E8E6F1] transition-colors duration-700 ${stageBgClass}`}
+        >
           {/* Live Phase Indicator Pills */}
           <div
             className="flex flex-wrap items-center justify-center gap-2"
@@ -442,21 +498,23 @@ export const BreathingBubbleSection: React.FC = () => {
             {pattern.steps.map((step, idx) => {
               const isCurrent =
                 (status === 'running' || status === 'paused') && stepIndex === idx;
+              const pColor = PHASE_COLORS[step.phase];
               return (
                 <div
                   key={`${step.phase}-${idx}`}
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
                     isCurrent
-                      ? step.phase === 'hold'
-                        ? 'bg-[#DCE9DF] text-[#245532] border-[#BCD4C3] shadow-subtle'
-                        : 'bg-[#5554B8] text-white border-[#5554B8] shadow-subtle'
-                      : 'bg-white text-[#625F78] border-[#E8E6F1]'
+                      ? `${pColor.pill} shadow-subtle`
+                      : 'bg-white/90 text-[#625F78] border-[#E8E6F1]'
                   }`}
                 >
+                  {!isCurrent && (
+                    <span className={`w-2 h-2 rounded-full ${pColor.dot}`} aria-hidden="true" />
+                  )}
                   <span>
                     {idx + 1}. {PHASE_LABELS[step.phase]}
                   </span>
-                  <span className="opacity-75">{step.seconds}s</span>
+                  <span className="opacity-80">{step.seconds}s</span>
                 </div>
               );
             })}
@@ -464,24 +522,28 @@ export const BreathingBubbleSection: React.FC = () => {
 
           {/* Interactive Concentric Bubble + SVG Phase Progress Ring */}
           <div className="relative w-56 h-56 flex items-center justify-center">
-            {/* Outer ambient halo */}
+            {/* Soft glowing color aura */}
             <div
               aria-hidden="true"
-              className="absolute w-44 h-44 rounded-full bg-[#E9E7FB]/60 transition-transform duration-150 ease-out pointer-events-none"
+              className={`absolute w-44 h-44 rounded-full blur-md transition-all duration-300 ease-out pointer-events-none ${
+                status === 'completed'
+                  ? PHASE_COLORS.hold.aura
+                  : activeTheme.aura
+              }`}
               style={{ transform: `scale(${haloScale})` }}
             />
 
-            {/* Floating calm particles */}
+            {/* Floating colorful calm particles */}
             {[
-              { top: '14%', left: '20%', size: 'w-2.5 h-2.5' },
-              { top: '20%', right: '16%', size: 'w-2 h-2' },
-              { bottom: '18%', left: '16%', size: 'w-2 h-2' },
-              { bottom: '14%', right: '20%', size: 'w-2.5 h-2.5' },
+              { top: '14%', left: '20%', size: 'w-3 h-3', color: 'bg-[#5554B8]/45' },
+              { top: '20%', right: '16%', size: 'w-2.5 h-2.5', color: 'bg-[#2E8540]/45' },
+              { bottom: '18%', left: '16%', size: 'w-2.5 h-2.5', color: 'bg-[#D97745]/45' },
+              { bottom: '14%', right: '20%', size: 'w-3 h-3', color: 'bg-[#7C7AD6]/50' },
             ].map((orb, idx) => (
               <span
                 key={idx}
                 aria-hidden="true"
-                className={`absolute rounded-full ${orb.size} bg-[#5554B8]/25 transition-all duration-500 pointer-events-none`}
+                className={`absolute rounded-full ${orb.size} ${orb.color} transition-all duration-500 pointer-events-none`}
                 style={{
                   top: orb.top,
                   left: orb.left,
@@ -490,7 +552,7 @@ export const BreathingBubbleSection: React.FC = () => {
                   transform:
                     status === 'running'
                       ? phase === 'inhale'
-                        ? 'scale(1.3)'
+                        ? 'scale(1.35)'
                         : phase === 'hold'
                           ? 'scale(1.15)'
                           : 'scale(0.8)'
@@ -511,7 +573,7 @@ export const BreathingBubbleSection: React.FC = () => {
                 r={ringRadius}
                 fill="none"
                 stroke="#E8E6F1"
-                strokeWidth="5"
+                strokeWidth="6"
               />
               <circle
                 cx="110"
@@ -519,7 +581,7 @@ export const BreathingBubbleSection: React.FC = () => {
                 r={ringRadius}
                 fill="none"
                 stroke={ringStrokeColor}
-                strokeWidth="5"
+                strokeWidth="6"
                 strokeLinecap="round"
                 strokeDasharray={ringCircumference}
                 strokeDashoffset={ringOffset}
@@ -539,12 +601,12 @@ export const BreathingBubbleSection: React.FC = () => {
                     : 'Start breathing exercise'
               }
               style={{ transform: `scale(${bubbleScale})` }}
-              className={`relative z-10 w-36 h-36 rounded-full border-2 shadow-soft flex flex-col items-center justify-center text-center cursor-pointer transition-transform duration-150 ease-out hover:brightness-[0.98] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
+              className={`relative z-10 w-36 h-36 rounded-full border-2 ring-4 ring-white/70 shadow-elevation flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-150 ease-out hover:brightness-[0.98] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5554B8] focus-visible:ring-offset-2 ${
                 status === 'completed'
-                  ? 'bg-gradient-to-br from-[#DCE9DF] to-[#E9E7FB] border-[#245532]/30'
-                  : phase === 'hold' && status === 'running'
-                    ? 'bg-gradient-to-br from-[#DCE9DF] via-[#E9E7FB] to-[#FFFFFF] border-[#245532]/30'
-                    : 'bg-gradient-to-br from-[#E9E7FB] via-[#DCD9F8] to-[#DCE9DF]/80 border-[#5554B8]/35'
+                  ? PHASE_COLORS.hold.bubble
+                  : status === 'idle'
+                    ? 'bg-gradient-to-br from-[#DCD9FC] via-[#EFEFFD] to-[#E3F2E7] border-[#5554B8]/40'
+                    : activeTheme.bubble
               }`}
             >
               {status === 'completed' ? (
@@ -689,7 +751,7 @@ export const BreathingBubbleSection: React.FC = () => {
                 aria-label="Breathing session progress"
               >
                 <div
-                  className="h-full bg-[#5554B8] rounded-full transition-all duration-150"
+                  className="h-full bg-gradient-to-r from-[#5554B8] via-[#7C7AD6] to-[#2E8540] rounded-full transition-all duration-150"
                   style={{ width: `${sessionProgress}%` }}
                 />
               </div>
