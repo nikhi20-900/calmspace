@@ -11,6 +11,8 @@ export interface BlobSceneProps {
   expression?: BlobExpression;
   isCtaHovered?: boolean;
   isBreathingActive?: boolean;
+  audioLevel?: number;
+  breathingPhase?: number | null;
   onBlobClick?: () => void;
   className?: string;
 }
@@ -44,6 +46,8 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
   expression = 'idle',
   isCtaHovered = false,
   isBreathingActive = false,
+  audioLevel = 0,
+  breathingPhase = null,
   onBlobClick,
   className = '',
 }) => {
@@ -59,6 +63,8 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
   const expressionRef = useRef(expression);
   const ctaHoveredRef = useRef(isCtaHovered);
   const breathingRef = useRef(isBreathingActive);
+  const audioLevelRef = useRef(audioLevel);
+  const breathingPhaseRef = useRef(breathingPhase);
   const reducedRef = useRef(isReducedMotion);
   const onClickRef = useRef(onBlobClick);
   const engineRef = useRef<BlobEngine | null>(null);
@@ -79,10 +85,12 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
     expressionRef.current = expression;
     ctaHoveredRef.current = isCtaHovered;
     breathingRef.current = isBreathingActive;
+    audioLevelRef.current = audioLevel;
+    breathingPhaseRef.current = breathingPhase;
     reducedRef.current = isReducedMotion;
     onClickRef.current = onBlobClick;
     engineRef.current?.wake();
-  }, [expression, isCtaHovered, isBreathingActive, isReducedMotion, onBlobClick]);
+  }, [expression, isCtaHovered, isBreathingActive, audioLevel, breathingPhase, isReducedMotion, onBlobClick]);
 
   /* ------------------------------------------------------------------------------------
    * Engine: created once per mount. Everything below is torn down in the cleanup.
@@ -191,6 +199,8 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
       else if (ctaHoveredRef.current) exp = 'welcoming';
       else if (inter.hovering && exp === 'idle') exp = 'curious';
       controller.setExpression(exp);
+      controller.setAudioLevel(audioLevelRef.current);
+      controller.setExternalBreath(breathingPhaseRef.current);
 
       // Gaze: the CTA wins, then the pointer anywhere on the page, then idle wandering.
       if (ctaHoveredRef.current) {
@@ -442,14 +452,38 @@ export const BlobScene: React.FC<BlobSceneProps> = ({
       {/* Graceful fallback while loading, if WebGL is unavailable, or while the context is lost */}
       {showFallback && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <div className="w-56 h-56 rounded-[50%_50%_46%_46%] bg-gradient-to-b from-[#C4BDF8] to-[#AFA6EC] shadow-2xl flex flex-col items-center justify-center border-2 border-white/40 motion-safe:animate-pulse">
+          <div
+            className={`w-52 h-52 sm:w-56 sm:h-56 rounded-[50%_50%_46%_46%] shadow-2xl flex flex-col items-center justify-center border-2 border-white/50 transition-transform duration-500 ${
+              isBreathingActive || expression === 'breathing'
+                ? 'bg-gradient-to-b from-[#BCE2DC] to-[#98CFC8]'
+                : expression === 'support'
+                  ? 'bg-gradient-to-b from-[#CBE6D4] to-[#9FC9AF]'
+                  : expression === 'error'
+                    ? 'bg-gradient-to-b from-[#F4DCCB] to-[#E2BBA2]'
+                    : 'bg-gradient-to-b from-[#C4BDF8] to-[#AFA6EC]'
+            } ${!isReducedMotion ? 'motion-safe:animate-pulse' : ''}`}
+            style={{
+              transform:
+                !isReducedMotion && (expression === 'listening' || expression === 'speaking')
+                  ? `scale(${1 + Math.min(audioLevel, 1) * 0.08})`
+                  : !isReducedMotion && (isBreathingActive || expression === 'breathing') && breathingPhase !== null
+                    ? `scale(${0.94 + breathingPhase * 0.14})`
+                    : undefined,
+            }}
+          >
             <div className="flex gap-10 mb-4">
               <div className="w-4 h-5 rounded-full bg-[#25233B]" />
               <div className="w-4 h-5 rounded-full bg-[#25233B]" />
             </div>
-            <div className="w-6 h-2 border-b-2 border-[#6E689C] rounded-full" />
+            <div
+              className={`border-b-2 border-[#48436E] rounded-full transition-all duration-150 ${
+                expression === 'speaking' ? 'w-7 h-3' : 'w-6 h-2'
+              }`}
+            />
           </div>
-          <span className="text-xs text-[#625F78] mt-4 font-medium">Calmspace Blob</span>
+          <span className="text-xs text-[#625F78] mt-4 font-medium">
+            Calm ({isBreathingActive ? 'breathing' : expression})
+          </span>
         </div>
       )}
     </div>

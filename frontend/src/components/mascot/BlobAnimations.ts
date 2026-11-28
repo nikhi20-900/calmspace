@@ -16,6 +16,11 @@ export type BlobAnimationState =
   | 'resting'
   | 'interacting'
   | 'breathing'
+  | 'listening'
+  | 'thinking'
+  | 'speaking'
+  | 'support'
+  | 'error'
   | 'reducedMotion';
 
 export interface AnimationPose {
@@ -39,6 +44,14 @@ export interface AnimationPose {
   /** Fast-following eye gaze, -1..1 (up is positive). */
   pupilX: number;
   pupilY: number;
+  /** Smoothed audio reactivity (0..1) for voice/listening deformation. */
+  audioLevel: number;
+  /** Smoothed thinking swirl intensity (0..1). */
+  swirlAmount: number;
+  /** Smooth state tint RGB delta for subtle aura transitions. */
+  tintR: number;
+  tintG: number;
+  tintB: number;
 }
 
 const EYE_OPEN = 1.18;
@@ -101,9 +114,12 @@ export class BlobAnimationController {
   private breathClock = 0;
   private breathValue = 0;
 
-  // Reactions
+  // Reactions & voice
   private delight = 0;
   private stateTime = 0;
+  private targetAudioLevel = 0;
+  private smoothedAudioLevel = 0;
+  private externalBreathPhase: number | null = null;
 
   private pose: AnimationPose = {
     floatElevation: 0,
@@ -121,7 +137,21 @@ export class BlobAnimationController {
     blushOpacity: 0.52,
     pupilX: 0,
     pupilY: 0,
+    audioLevel: 0,
+    swirlAmount: 0,
+    tintR: 0,
+    tintG: 0,
+    tintB: 0,
   };
+
+  setAudioLevel(level: number) {
+    this.targetAudioLevel = THREE.MathUtils.clamp(Number.isFinite(level) ? level : 0, 0, 1);
+  }
+
+  setExternalBreath(phase01: number | null) {
+    this.externalBreathPhase =
+      phase01 === null ? null : THREE.MathUtils.clamp(phase01, 0, 1);
+  }
 
   setState(state: BlobAnimationState) {
     if (this.currentState === state) return;
@@ -171,6 +201,10 @@ export class BlobAnimationController {
     if (calm) {
       gx *= 0.6;
       gy *= 0.6;
+    } else if (this.currentState === 'thinking' && !this.hasPointer) {
+      // Gentle upward contemplative gaze while reasoning
+      gx = Math.sin(sec * 0.9) * 0.35 + 0.15;
+      gy = 0.42 + Math.cos(sec * 0.7) * 0.08;
     } else if (!this.hasPointer && this.pointerIdleTime > 2.5) {
       // Nobody is looking: let the eyes drift between small, relaxed targets.
       this.wanderTimer -= dt;
@@ -245,8 +279,15 @@ export class BlobAnimationController {
 
     switch (this.currentState) {
       case 'breathing':
-        breathTarget = 0.5 - 0.5 * Math.cos((2 * Math.PI * this.breathClock) / GUIDED_BREATH_PERIOD);
-        breathAmp = 0.042;
+        breathTarget =
+          this.externalBreathPhase !== null
+            ? this.externalBreathPhase
+            : 0.5 - 0.5 * Math.cos((2 * Math.PI * this.breathClock) / GUIDED_BREATH_PERIOD);
+        breathAmp = calm ? 0.024 : 0.048;
+        break;
+      case 'support':
+        breathTarget = 0.5 - 0.5 * Math.cos((2 * Math.PI * this.breathClock) / 6.8);
+        breathAmp = calm ? 0 : 0.022;
         break;
       case 'resting':
         breathTarget = 0.5 - 0.5 * Math.cos((2 * Math.PI * this.breathClock) / 7.2);
@@ -259,6 +300,11 @@ export class BlobAnimationController {
     // Smoothing hides any phase discontinuity when the breathing mode changes.
     this.breathValue = smooth(this.breathValue, breathTarget, 9, dt);
     const breathSigned = this.breathValue * 2 - 1;
+
+    // Smooth audio level quickly on rise, gently on fall so lip/body motion feels organic.
+    const audioRate = this.targetAudioLevel > this.smoothedAudioLevel ? 18 : 9;
+    this.smoothedAudioLevel = smooth(this.smoothedAudioLevel, this.targetAudioLevel, audioRate, dt);
+    const audio = calm ? this.smoothedAudioLevel * 0.2 : this.smoothedAudioLevel;
 
     if (!calm) {
       floatElevation =
@@ -276,6 +322,10 @@ export class BlobAnimationController {
     let bodyRoll = 0;
     let tiltBoostY = 0;
     let lookDamp = 1;
+    let swirlTarget = 0;
+    let tintR = 0;
+    let tintG = 0;
+    let tintB = 0;
 
     switch (this.currentState) {
       case 'welcoming':
@@ -294,6 +344,72 @@ export class BlobAnimationController {
         eyeSizeScale = 1.08;
         mouthScaleX = 0.88;
         mouthScaleY = 0.82;
+        break;
+      case 'listening':
+        floatElevation += 0.025 + audio * 0.035;
+        bodyRoll = calm ? 0 : Math.sin(sec * 1.1) * 0.025 + audio * 0.03;
+        eyeOpen = 1.24;
+        eyeSizeScale = 1.06 + audio * 0.04;
+        eyeAngleZ = 0.03;
+        mouthScaleX = 0.92 + audio * 0.08;
+        mouthScaleY = 0.86 + audio * 0.12;
+        blushOpacity = 0.58 + audio * 0.14;
+        tintR = -0.02;
+        tintG = 0.03;
+        tintB = 0.08;
+        break;
+      case 'thinking':
+        floatElevation += calm ? 0 : Math.sin(sec * 1.8) * 0.02;
+        bodyRoll = calm ? 0 : Math.sin(sec * 1.4) * 0.055;
+        tiltBoostY = calm ? 0 : Math.cos(sec * 1.1) * 0.08;
+        eyeOpen = 1.06;
+        eyeAngleZ = 0.04;
+        mouthScaleX = 0.84;
+        mouthScaleY = 0.78;
+        blushOpacity = 0.48;
+        swirlTarget = calm ? 0.2 : 1.0;
+        tintR = 0.04;
+        tintG = 0.01;
+        tintB = 0.07;
+        break;
+      case 'speaking':
+        floatElevation += (calm ? 0 : Math.sin(sec * 2.2) * 0.015) + audio * 0.03;
+        bodyRoll = calm ? 0 : Math.sin(sec * 1.5) * 0.025;
+        eyeOpen = 1.12;
+        eyeAngleZ = 0.05;
+        eyeSizeScale = 1.02;
+        mouthScaleX = 1.08 + audio * 0.24;
+        mouthScaleY = 1.05 + audio * 0.65;
+        blushOpacity = 0.62 + audio * 0.12;
+        tintR = 0.03;
+        tintG = 0.02;
+        tintB = 0.05;
+        break;
+      case 'support':
+        floatElevation -= 0.02;
+        bodyRoll = 0;
+        eyeOpen = 1.08;
+        eyeAngleZ = 0.04;
+        mouthScaleX = 1.12;
+        mouthScaleY = 1.08;
+        blushOpacity = 0.68;
+        lookDamp = 0.45;
+        tintR = -0.03;
+        tintG = 0.06;
+        tintB = 0.03;
+        break;
+      case 'error':
+        floatElevation -= 0.03;
+        bodyRoll = 0.05;
+        eyeOpen = 1.0;
+        eyeAngleZ = -0.04;
+        mouthScaleX = 0.9;
+        mouthScaleY = 0.78;
+        blushOpacity = 0.36;
+        lookDamp = 0.5;
+        tintR = 0.05;
+        tintG = -0.02;
+        tintB = -0.03;
         break;
       case 'resting':
         floatElevation -= 0.06;
@@ -316,6 +432,9 @@ export class BlobAnimationController {
         mouthScaleY = 0.85 + breathSigned * 0.1;
         blushOpacity = 0.6;
         lookDamp = 0.35;
+        tintR = -0.02;
+        tintG = 0.05;
+        tintB = 0.06;
         break;
       case 'idle':
       case 'reducedMotion':
@@ -340,8 +459,8 @@ export class BlobAnimationController {
     p.eyeOpen = smooth(p.eyeOpen, eyeOpen, lidRate, dt);
     p.eyeAngleZ = smooth(p.eyeAngleZ, eyeAngleZ, 7, dt);
     p.eyeSizeScale = smooth(p.eyeSizeScale, eyeSizeScale, 7, dt);
-    p.mouthScaleX = smooth(p.mouthScaleX, mouthScaleX, 8, dt);
-    p.mouthScaleY = smooth(p.mouthScaleY, mouthScaleY, 8, dt);
+    p.mouthScaleX = smooth(p.mouthScaleX, mouthScaleX, 12, dt);
+    p.mouthScaleY = smooth(p.mouthScaleY, mouthScaleY, 14, dt);
     p.blushOpacity = smooth(p.blushOpacity, blushOpacity, 6, dt);
     p.bodyRoll = smooth(p.bodyRoll, bodyRoll, 5, dt);
     p.floatElevation = smooth(p.floatElevation, floatElevation, 8, dt);
@@ -355,7 +474,12 @@ export class BlobAnimationController {
     p.pupilY = this.eyeGazeY * lookDamp;
     p.blink = this.blinkValue;
     p.breath = this.breathValue;
-    p.breatheScale = 1 + breathSigned * breathAmp;
+    p.breatheScale = 1 + breathSigned * breathAmp + (this.currentState === 'listening' || this.currentState === 'speaking' ? audio * 0.025 : 0);
+    p.audioLevel = audio;
+    p.swirlAmount = smooth(p.swirlAmount, swirlTarget, 5, dt);
+    p.tintR = smooth(p.tintR, tintR, 4, dt);
+    p.tintG = smooth(p.tintG, tintG, 4, dt);
+    p.tintB = smooth(p.tintB, tintB, 4, dt);
 
     return p;
   }

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.session import require_session_id
 from app.models.schemas import SupportContact, UserSettings
+from app.services.companion_memory import companion_memory
 from app.services.storage import storage
 from app.services.support_directory import get_support_directory
 
@@ -38,8 +39,9 @@ async def update_settings(
 async def delete_all_user_data(
     session_id: str = Depends(require_session_id),
 ):
-    """Completely and permanently purges all check-ins, tasks, and settings"""
+    """Completely and permanently purges all check-ins, tasks, reminders, preferences, and volatile context"""
     storage.delete_all_data(session_id)
+    companion_memory.clear_session(session_id)
     return {
         "status": "success",
         "message": "All session data has been permanently deleted.",
