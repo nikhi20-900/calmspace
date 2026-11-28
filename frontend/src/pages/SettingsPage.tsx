@@ -219,10 +219,10 @@ export const SettingsPage: React.FC = () => {
           Calmspace does not require email addresses, student roll numbers, or Google logins. This browser scopes your local records using an anonymous session identifier stored on this device:
         </p>
         <div className="p-3 bg-[#F7F6FB] rounded-input border border-[#E8E6F1] font-mono text-xs text-[#25233B] select-all break-all">
-          {anonymousId}
+          {anonymousId || 'Erased (a fresh session credential will be issued on your next check-in)'}
         </div>
-        <p className="text-[11px] text-[#8E8AA7]">
-          This token acts as an unauthenticated partition key, not a password-protected account. Keep your device and session ID private.
+        <p className="text-[11px] text-[#625F78]">
+          Your browser authenticates requests using a server-issued anonymous Bearer credential (128-bit session ID paired with a 256-bit secret whose salted hash is verified server-side, with sliding inactivity expiry and immediate revocation on deletion).
         </p>
       </Card>
 
@@ -250,9 +250,9 @@ export const SettingsPage: React.FC = () => {
           {/* Configurable Rolling Data Retention Period */}
           <div className="pt-4 border-t border-[#F0EFF7] space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-[#625F78] mb-1">
+              <span id="retention-window-label" className="block text-xs font-semibold text-[#625F78] mb-1">
                 Data Retention Window
-              </label>
+              </span>
               <p className="text-[11px] text-[#8E8AA7] leading-relaxed">
                 Choose how long your check-in history is kept before being automatically pruned from the server.
               </p>
@@ -260,7 +260,7 @@ export const SettingsPage: React.FC = () => {
 
             <div
               role="radiogroup"
-              aria-label="Data retention window"
+              aria-labelledby="retention-window-label"
               className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
             >
               {RETENTION_OPTIONS.map((opt) => {
@@ -404,11 +404,15 @@ export const SettingsPage: React.FC = () => {
             </div>
           )}
 
-          <p className="text-xs text-[#625F78]">
+          <label
+            htmlFor="delete-confirmation-input"
+            className="block text-xs text-[#625F78]"
+          >
             To confirm permanent deletion, please type <strong className="text-red-700">DELETE</strong> in the box below:
-          </p>
+          </label>
 
           <input
+            id="delete-confirmation-input"
             type="text"
             value={deleteConfirmationText}
             onChange={(e) => setDeleteConfirmationText(e.target.value)}

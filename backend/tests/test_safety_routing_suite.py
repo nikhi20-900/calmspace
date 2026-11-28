@@ -806,7 +806,9 @@ class TestHighRouteAIBypassIntegration:
         - Reflection text is NEVER stored in check-in history
         """
         client = TestClient(app)
-        session_id = "test-session-issue-13-high-bypass"
+        sess = client.post("/api/sessions").json()
+        session_id = sess["session_id"]
+        headers = {"Authorization": f"Bearer {session_id}.{sess['session_secret']}"}
 
         with patch(
             "app.routers.checkin.generate_supportive_guidance"
@@ -820,7 +822,7 @@ class TestHighRouteAIBypassIntegration:
                     "reflection": "SENTINEL_CRISIS_TEXT: I want to end my life tonight.",
                     "consent_ai_processing": True,
                 },
-                headers={"x-session-id": session_id},
+                headers=headers,
             )
 
             assert response.status_code == 200
@@ -851,9 +853,7 @@ class TestHighRouteAIBypassIntegration:
             assert emergency["is_urgent"] is True
 
             # Data privacy: reflection text is NEVER stored in check-in history
-            history_res = client.get(
-                "/api/checkin/history", headers={"x-session-id": session_id}
-            )
+            history_res = client.get("/api/checkin/history", headers=headers)
             assert history_res.status_code == 200
             history_data = history_res.json()
             assert len(history_data) >= 1
@@ -864,6 +864,7 @@ class TestHighRouteAIBypassIntegration:
             assert "reflection" not in latest_record
             history_dump = json.dumps(history_data)
             assert "SENTINEL_CRISIS_TEXT" not in history_dump
+            client.delete("/api/settings/data", headers=headers)
 
     def test_non_diagnostic_and_supportive_language_guarantee(self):
         """Status label and summary use supportive, non-diagnostic, non-clinical language."""

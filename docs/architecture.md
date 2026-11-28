@@ -59,16 +59,16 @@ evaluate(checkin: CheckInRequest, history: list[CheckInRecord]) -> SafetyEvaluat
 ## 3. Privacy & Session Model
 
 1. **No User Accounts**: Calmspace does not request or store student names, emails, roll numbers, or passwords.
-2. **Anonymous Session Token (`X-Session-ID`)**:
-   - The frontend generates an anonymous UUID session token (stored locally in `localStorage`).
-   - Every API request sends the header: `X-Session-ID: <anonymous_session_id>` (never in URL query parameters).
-   - **Architectural Boundary**: All SQLite queries (`checkins`, `tasks`, `user_settings`) enforce strict relational isolation (`WHERE session_id = ?`). Because the MVP uses client-supplied UUIDs without signed JWTs or passwords, relational isolation relies on UUID secrecy rather than cryptographic authentication.
+2. **Server-Issued Anonymous Bearer Credentials (`session_credentials`)**:
+   - The frontend calls `POST /api/sessions` once to obtain a server-issued 128-bit UUIDv4 `session_id` and 256-bit CSPRNG `session_secret`, persisted in browser `localStorage`.
+   - Every session-scoped API request sends `Authorization: Bearer <session_id>.<session_secret>` (never in URL query parameters).
+   - **Cryptographic Verification & Isolation**: `backend/app/core/session.py` (`require_authenticated_session`) verifies the secret in constant time (`hmac.compare_digest`) against a salted SHA-256/HMAC-SHA256 hash in `session_credentials`, checks revocation (`revoked_at`) and sliding inactivity expiry (`expires_at`, default 90 days), and returns uniform `401 Unauthorized` responses with zero validation oracle. All SQLite queries (`checkins`, `tasks`, `user_settings`) additionally filter by `WHERE session_id = ?`.
 3. **Zero Reflection Retention**:
    - Student free-text reflections are processed in-memory during the check-in request to check for crisis keywords and, if `consent_ai_processing` is strictly `true`, generate supportive guidance on `LOW`/`MEDIUM` routes.
    - **The free-text reflection is never written to the database (`checkins` has no `reflection` column).** Only numeric scores (`mood`, `stress`, `sleep_hours`), the assigned `route`, and the UTC timestamp are persisted.
 4. **Configurable Retention & Full 2-Step Data Deletion**:
    - Students choose a `14`, `30` (default), `60`, or `90`-day retention window in Settings; `storage.cleanup_expired_records(session_id)` prunes older check-ins on API request boundaries.
-   - Students can permanently purge all data (`checkins`, `tasks`, `user_settings`) associated with their session token in a single atomic SQLite transaction via `DELETE /api/settings/data`.
+   - Students can permanently purge all data (`checkins`, `tasks`, `user_settings`, and `session_credentials`) in a single atomic SQLite transaction via `DELETE /api/settings/data`, immediately invalidating the deleted Bearer credential (`401` on reuse).
 
 ---
 

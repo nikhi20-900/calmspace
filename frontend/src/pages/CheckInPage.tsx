@@ -317,7 +317,7 @@ export const CheckInPage: React.FC = () => {
       {/* Privacy Footnote */}
       <div className="flex items-center justify-center gap-2 mt-6 text-xs text-[#625F78] flex-wrap">
         <ShieldCheck className="w-4 h-4 text-[#245532]" />
-        <span>Encrypted anonymous session. No clinical diagnosis.</span>
+        <span>Authenticated anonymous session. No clinical diagnosis.</span>
         <span>·</span>
         <button
           type="button"

@@ -89,6 +89,9 @@ class AIRateLimiter:
         self._session_timestamps.setdefault(session_id, []).append(now)
         self._daily_count += 1
 
+    def clear_session(self, session_id: str):
+        self._session_timestamps.pop(session_id, None)
+
     def reset(self):
         self._session_timestamps.clear()
         self._daily_count = 0

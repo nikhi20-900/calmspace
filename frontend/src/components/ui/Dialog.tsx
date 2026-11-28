@@ -19,15 +19,61 @@ export const Dialog: React.FC<DialogProps> = ({
   maxWidth = 'md',
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const getFocusable = (): HTMLElement[] => {
+      if (!dialogRef.current) return [];
+      const nodes = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      return Array.from(nodes).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    };
+
+    const focusTimer = window.setTimeout(() => {
+      const focusable = getFocusable();
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        dialogRef.current?.focus();
+      }
+    }, 0);
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        const focusable = getFocusable();
+        if (focusable.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
+        previousFocusRef.current.focus();
+      }
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -54,7 +100,8 @@ export const Dialog: React.FC<DialogProps> = ({
 
       <div
         ref={dialogRef}
-        className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white rounded-card shadow-elevation border border-[#E8E6F1] p-6 sm:p-7 z-10 animate-fade-up max-h-[90vh] overflow-y-auto`}
+        tabIndex={-1}
+        className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white rounded-card shadow-elevation border border-[#E8E6F1] p-6 sm:p-7 z-10 animate-fade-up max-h-[90vh] overflow-y-auto focus:outline-none`}
       >
         <div className="flex items-start justify-between mb-4">
           <div>

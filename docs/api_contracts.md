@@ -2,7 +2,7 @@
 
 > **Version**: 1.0.0  
 > **Base URL**: `/api` (local proxy) or `https://<backend-domain>/api`  
-> **Session Authentication**: Required header `X-Session-ID: <anonymous_uuid>`
+> **Session Authentication**: Required header `Authorization: Bearer <session_id>.<session_secret>` (issued by `POST /api/sessions`)
 
 All endpoints exchange JSON data unless otherwise specified.
 
@@ -12,23 +12,32 @@ All endpoints exchange JSON data unless otherwise specified.
 
 ### Request Headers
 - `Content-Type: application/json`
-- `X-Session-ID: <session_uuid>` (e.g. `student-a1b2c3d4`) — Mandatory for all user-scoped data.
+- `Authorization: Bearer <session_id>.<session_secret>` — Mandatory for all session-scoped endpoints. Self-asserted `X-Session-ID` headers without a valid Bearer secret are rejected with `401 Unauthorized`.
 
 ### Standard Response Status Codes
 - `200 OK`: Request succeeded.
-- `201 Created`: Resource successfully created.
+- `201 Created`: Resource successfully created (e.g., `POST /api/sessions`).
 - `400 Bad Request`: Invalid parameter or malformed payload.
-- `422 Unprocessable Entity`: Schema validation error (e.g. out-of-range mood or non-finite values).
-- `500 Internal Server Error`: Safe error response without database credential leakage.
+- `401 Unauthorized`: Missing, malformed, unknown, wrong-secret, expired, or revoked Bearer credential (`WWW-Authenticate: Bearer`).
+- `422 Unprocessable Entity`: Schema validation error (e.g. out-of-range mood, non-finite values, or non-`StrictBool` consent).
+- `500 Internal Server Error` / `503 Service Unavailable`: Safe error response without database credential, SQL, or reflection leakage.
 
 ---
 
 ## 2. API Endpoints
 
-### 2.1 Health & Liveness
-- **Endpoint**: `GET /api/health`
-- **Description**: Verifies service status and fundamental operating principles.
-- **Response**: `200 OK`
+### 2.0 Anonymous Session Credentials
+- **Issue Credential**: `POST /api/sessions` (`201 Created`, `Cache-Control: no-store`)
+  - Returns `{ "session_id": "<uuidv4>", "session_secret": "<256-bit-secret>", "expires_at": "<utc-iso>", "token_type": "Bearer" }`. Plaintext secret is returned once and stored server-side only as a salted SHA-256/HMAC-SHA256 hash.
+- **Rotate Secret**: `POST /api/sessions/rotate` (`200 OK`, `Cache-Control: no-store`)
+  - Requires active `Authorization: Bearer <id>.<secret>`. Issues a fresh `session_secret` while preserving existing session data and immediately invalidating the previous secret (`401`).
+- **Revoke Credential**: `POST /api/sessions/revoke` (`200 OK`, `Cache-Control: no-store`)
+  - Requires active `Authorization: Bearer <id>.<secret>`. Marks the session credential revoked so all subsequent calls return `401 Unauthorized`.
+
+---
+
+### 2.1 Health, Liveness & Readiness
+- **Liveness**: `GET /api/health` (`200 OK`)
 ```json
 {
   "status": "healthy",
@@ -36,12 +45,20 @@ All endpoints exchange JSON data unless otherwise specified.
   "principle": "Rules decide safety. AI writes the language. Humans help."
 }
 ```
+- **Readiness**: `GET /api/ready` (`200 OK` or `503 Service Unavailable` if SQLite fails)
+```json
+{
+  "status": "ready",
+  "database": "connected",
+  "ai_mode": "mock"
+}
+```
 
 ---
 
 ### 2.2 Submit Daily Check-In
 - **Endpoint**: `POST /api/checkin`
-- **Headers**: `X-Session-ID: <session_uuid>`
+- **Headers**: `Authorization: Bearer <session_id>.<session_secret>`
 - **Request Body** (`CheckInRequest`):
 ```json
 {
@@ -116,7 +133,7 @@ All endpoints exchange JSON data unless otherwise specified.
 
 ### 2.3 Check-In History
 - **Endpoint**: `GET /api/checkin/history`
-- **Headers**: `X-Session-ID: <session_uuid>`
+- **Headers**: `Authorization: Bearer <session_id>.<session_secret>`
 - **Response**: `200 OK` — `list[CheckInRecord]`
 ```json
 [
@@ -137,7 +154,7 @@ All endpoints exchange JSON data unless otherwise specified.
 
 ### 2.4 Personal Insights
 - **Endpoint**: `GET /api/insights?days=7`
-- **Headers**: `X-Session-ID: <session_uuid>`
+- **Headers**: `Authorization: Bearer <session_id>.<session_secret>`
 - **Query Params**: `days` (default: 7, max: 90)
 - **Response** (`InsightSummary`): `200 OK`
 ```json
@@ -198,7 +215,8 @@ All endpoints exchange JSON data unless otherwise specified.
   - Request: `{"nickname": "Student", "break_reminders_enabled": true, "reminder_interval_minutes": 45, "share_anonymous_analytics": false, "data_retention_days": 30}`
   - Response: `UserSettings`
 - **Permanent Data Deletion**: `DELETE /api/settings/data`
-  - Headers: `X-Session-ID: <session_uuid>`
+  - Headers: `Authorization: Bearer <session_id>.<session_secret>`
+  - Behavior: Atomically deletes all rows in `checkins`, `tasks`, `user_settings`, and `session_credentials` for `session_id` and clears in-memory rate-limit state; subsequent requests with the deleted credential fail with `401 Unauthorized`.
   - Response: `200 OK`
   ```json
   {

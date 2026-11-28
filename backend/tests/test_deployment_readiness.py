@@ -65,10 +65,10 @@ def test_database_error_handler_sanitizes_internal_details(monkeypatch):
 
     monkeypatch.setattr(storage, "get_checkins", broken_get_checkins)
     client = TestClient(app, raise_server_exceptions=False)
+    sess = client.post("/api/sessions").json()
+    headers = {"Authorization": f"Bearer {sess['session_id']}.{sess['session_secret']}"}
 
-    res = client.get(
-        "/api/checkin/history", headers={"X-Session-ID": "deploy-err-test"}
-    )
+    res = client.get("/api/checkin/history", headers=headers)
     assert res.status_code == 503
     assert (
         res.json()["detail"]
@@ -76,6 +76,7 @@ def test_database_error_handler_sanitizes_internal_details(monkeypatch):
     )
     assert "secret_internal_table" not in res.text
     assert "/var/data" not in res.text
+    client.delete("/api/settings/data", headers=headers)
 
 
 def test_production_cors_disallows_wildcard_origins():

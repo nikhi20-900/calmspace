@@ -15,29 +15,17 @@ services:
         value: production
       - key: DATABASE_URL
         value: sqlite:////data/calmspace.db
+      - key: CALMSPACE_SESSION_TTL_DAYS
+        value: "90"
+      - key: CALMSPACE_SESSION_PEPPER
+        generateValue: true
       - key: CORS_ORIGINS
         sync: false
       - key: CALMSPACE_AI_PROVIDER
         value: mock
       - key: CALMSPACE_AI_MODEL
         value: gemini-1.5-flash
-      - key: CALMSPACE_AI_API_KEY
-        sync: false
       - key: CALMSPACE_AI_ENABLED
         value: "true"
       - key: CALMSPACE_AI_ALLOW_LOCAL_RATE_LIMITER
         value: "true"
-
-  - type: web
-    name: calmspace-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_BASE_URL
-        sync: false

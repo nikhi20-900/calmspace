@@ -52,6 +52,13 @@ def isolated_storage():
         os.remove(temp_path)
 
 
+def _create_auth_headers(client: TestClient) -> tuple[str, dict[str, str]]:
+    sess = client.post("/api/sessions").json()
+    session_id = sess["session_id"]
+    headers = {"Authorization": f"Bearer {session_id}.{sess['session_secret']}"}
+    return session_id, headers
+
+
 # ==============================================================================
 # SECTION 1: SENTINEL CANARY TESTS
 # ==============================================================================
@@ -60,7 +67,7 @@ def isolated_storage():
 def test_canary_normal_checkin_processing(client, caplog, capsys):
     """Normal check-in with private reflection must not leak into logs, stdout, stderr, or responses."""
     canary = "SENTINEL_CANARY_REFLECT_NORMAL_101"
-    session_id = "session-canary-normal"
+    _, headers = _create_auth_headers(client)
 
     with caplog.at_level(logging.DEBUG):
         res = client.post(
@@ -72,7 +79,7 @@ def test_canary_normal_checkin_processing(client, caplog, capsys):
                 "reflection": canary,
                 "consent_ai_processing": False,
             },
-            headers={"X-Session-ID": session_id},
+            headers=headers,
         )
 
     out, err = capsys.readouterr()
@@ -85,17 +92,17 @@ def test_canary_normal_checkin_processing(client, caplog, capsys):
     assert canary not in res.text
 
     # Verify SQLite persistence layer contains zero canary
-    history = client.get("/api/checkin/history", headers={"X-Session-ID": session_id})
+    history = client.get("/api/checkin/history", headers=headers)
     assert history.status_code == 200
     assert canary not in history.text
 
-    client.delete("/api/settings/data", headers={"X-Session-ID": session_id})
+    client.delete("/api/settings/data", headers=headers)
 
 
 def test_canary_consented_ai_processing(client, caplog, capsys, monkeypatch):
     """Consented reflection processed by AI provider must not leak into server logs or response text."""
     canary = "SENTINEL_CANARY_REFLECT_CONSENT_202"
-    session_id = "session-canary-consented"
+    _, headers = _create_auth_headers(client)
 
     with caplog.at_level(logging.DEBUG):
         res = client.post(
@@ -107,7 +114,7 @@ def test_canary_consented_ai_processing(client, caplog, capsys, monkeypatch):
                 "reflection": canary,
                 "consent_ai_processing": True,
             },
-            headers={"X-Session-ID": session_id},
+            headers=headers,
         )
 
     out, err = capsys.readouterr()
@@ -119,16 +126,16 @@ def test_canary_consented_ai_processing(client, caplog, capsys, monkeypatch):
     assert canary not in res.text
 
     # Historical check-ins never store reflection
-    history = client.get("/api/checkin/history", headers={"X-Session-ID": session_id})
+    history = client.get("/api/checkin/history", headers=headers)
     assert canary not in history.text
 
-    client.delete("/api/settings/data", headers={"X-Session-ID": session_id})
+    client.delete("/api/settings/data", headers=headers)
 
 
 def test_canary_unconsented_fallback(client, caplog, capsys):
     """Unconsented reflection must return fallback guidance with zero canary leakage."""
     canary = "SENTINEL_CANARY_REFLECT_UNCONSENTED_303"
-    session_id = "session-canary-unconsented"
+    _, headers = _create_auth_headers(client)
 
     with caplog.at_level(logging.DEBUG):
         res = client.post(
@@ -140,7 +147,7 @@ def test_canary_unconsented_fallback(client, caplog, capsys):
                 "reflection": canary,
                 "consent_ai_processing": False,
             },
-            headers={"X-Session-ID": session_id},
+            headers=headers,
         )
 
     out, err = capsys.readouterr()
@@ -155,7 +162,7 @@ def test_canary_unconsented_fallback(client, caplog, capsys):
     assert canary not in err
     assert canary not in res.text
 
-    client.delete("/api/settings/data", headers={"X-Session-ID": session_id})
+    client.delete("/api/settings/data", headers=headers)
 
 
 def test_canary_provider_timeout(caplog, capsys):
@@ -259,12 +266,13 @@ def test_canary_unexpected_provider_exception(caplog, capsys):
 def test_canary_malformed_request_error_response(client, caplog, capsys):
     """FastAPI validation error (HTTP 422) must strip reflection input from response body."""
     canary = "SENTINEL_CANARY_REFLECT_MALFORMED_707"
+    _, headers = _create_auth_headers(client)
 
     with caplog.at_level(logging.DEBUG):
         # Exceeds 2000 character maximum limit to trigger RequestValidationError
         res = client.post(
             "/api/checkin",
-            headers={"X-Session-ID": "canary-session-1"},
+            headers=headers,
             json={
                 "mood": 4,
                 "stress": 2,
@@ -282,6 +290,7 @@ def test_canary_malformed_request_error_response(client, caplog, capsys):
     assert canary not in caplog.text
     assert canary not in out
     assert canary not in err
+    client.delete("/api/settings/data", headers=headers)
 
 
 def test_malformed_consent_rejected_without_ai_or_leakage(
@@ -289,6 +298,7 @@ def test_malformed_consent_rejected_without_ai_or_leakage(
 ):
     """Non-boolean consent values (e.g., 'true', 1) must be rejected and never call AI or leak reflection."""
     canary = "SENTINEL_CANARY_MALFORMED_CONSENT_708"
+    _, headers = _create_auth_headers(client)
     ai_calls = []
 
     def spy_guidance(*args, **kwargs):
@@ -302,7 +312,7 @@ def test_malformed_consent_rejected_without_ai_or_leakage(
         for bad_consent in ("true", "yes", 1):
             res = client.post(
                 "/api/checkin",
-                headers={"X-Session-ID": "canary-session-2"},
+                headers=headers,
                 json={
                     "mood": 4,
                     "stress": 2,
@@ -319,11 +329,13 @@ def test_malformed_consent_rejected_without_ai_or_leakage(
     assert canary not in caplog.text
     assert canary not in out
     assert canary not in err
+    client.delete("/api/settings/data", headers=headers)
 
 
 def test_canary_backend_exception_handling(client, monkeypatch, caplog, capsys):
     """Simulated internal backend crash during check-in must not leak canary in 500 error or traceback."""
     canary = "SENTINEL_CANARY_REFLECT_BACKEND_ERR_808"
+    _, headers = _create_auth_headers(client)
 
     def exploding_add_checkin(*args, **kwargs):
         raise ValueError(f"Simulated database crash on {canary}")
@@ -334,7 +346,7 @@ def test_canary_backend_exception_handling(client, monkeypatch, caplog, capsys):
         try:
             res = client.post(
                 "/api/checkin",
-                headers={"X-Session-ID": "canary-session-3"},
+                headers=headers,
                 json={
                     "mood": 4,
                     "stress": 2,
@@ -353,6 +365,7 @@ def test_canary_backend_exception_handling(client, monkeypatch, caplog, capsys):
     out, err = capsys.readouterr()
     assert canary not in out
     assert canary not in err
+    client.delete("/api/settings/data", headers=headers)
 
 
 # ==============================================================================
@@ -401,8 +414,7 @@ def test_reflection_never_persisted_in_sqlite(isolated_storage):
 def test_reflection_never_returned_in_historical_apis(client):
     """GET /api/checkin/history must strictly return CheckInRecord models without reflection field."""
     canary = "SENTINEL_CANARY_REFLECT_API_HISTORY_010"
-    session_id = "session-api-history-audit"
-    headers = {"X-Session-ID": session_id}
+    _, headers = _create_auth_headers(client)
 
     # Submit checkin
     client.post(
@@ -528,9 +540,8 @@ def test_retention_cleanup_exact_timestamp_boundary(isolated_storage):
 
 
 def test_safe_exit_data_deletion_succeeds(client):
-    """Safe exit deletion permanently wipes all check-ins, tasks, and settings from database."""
-    session_id = "session-safe-exit-success"
-    headers = {"X-Session-ID": session_id}
+    """Safe exit deletion permanently wipes all check-ins, tasks, settings, and session credentials."""
+    session_id, headers = _create_auth_headers(client)
 
     # Add records
     client.post(
@@ -558,15 +569,16 @@ def test_safe_exit_data_deletion_succeeds(client):
     assert del_res.status_code == 200
     assert del_res.json()["status"] == "success"
 
-    # Verify everything is empty
+    # Storage is empty and deleted credential is immediately invalidated (401)
+    assert storage.get_checkins(session_id) == []
+    assert storage.get_tasks(session_id) == []
     hist_res = client.get("/api/checkin/history", headers=headers)
-    assert len(hist_res.json()) == 0
+    assert hist_res.status_code == 401
 
 
 def test_safe_exit_failed_deletion_preserves_honesty(monkeypatch, client):
     """Simulated database failure during deletion returns 500 and prevents false success reporting."""
-    session_id = "session-safe-exit-failure"
-    headers = {"X-Session-ID": session_id}
+    _, headers = _create_auth_headers(client)
 
     def failing_delete_all_data(*args, **kwargs):
         raise RuntimeError("Simulated SQLite write failure on disk")
@@ -579,3 +591,6 @@ def test_safe_exit_failed_deletion_preserves_honesty(monkeypatch, client):
     except RuntimeError:
         # If uncaught in test harness, exception is raised
         pass
+    finally:
+        monkeypatch.undo()
+        client.delete("/api/settings/data", headers=headers)
