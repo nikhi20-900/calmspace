@@ -278,10 +278,13 @@ export const BreathingBubbleSection: React.FC = () => {
 
   const playCompletionChime = () => {
     if (!soundEnabled) return;
-    // Warm ascending C5 -> E5 -> G5 completion chime
-    playTone(523.25, 0.7, 0.14, 0.0);
-    playTone(659.25, 0.7, 0.14, 0.18);
-    playTone(783.99, 1.1, 0.16, 0.36);
+    // Clear, pleasant 3-pulse completion alarm ring + final bell
+    const pulseStarts = [0.0, 0.52, 1.04];
+    for (const offset of pulseStarts) {
+      playTone(880.0, 0.18, 0.18, offset);
+      playTone(1046.5, 0.22, 0.18, offset + 0.16);
+    }
+    playTone(1318.5, 0.9, 0.2, 1.56);
   };
 
   useEffect(() => {
@@ -345,9 +348,7 @@ export const BreathingBubbleSection: React.FC = () => {
   };
 
   const handleStart = () => {
-    if (soundEnabled) {
-      ensureAudioContext();
-    }
+    ensureAudioContext();
     resetSession();
     setStatus('running');
   };
@@ -357,9 +358,7 @@ export const BreathingBubbleSection: React.FC = () => {
   };
 
   const handleResume = () => {
-    if (soundEnabled) {
-      ensureAudioContext();
-    }
+    ensureAudioContext();
     setStatus('running');
   };
 
