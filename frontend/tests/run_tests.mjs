@@ -420,7 +420,15 @@ test('Wellness features: Daily Highlights, Explore, Daily Challenges, and Sound 
   assert.deepEqual(wellnessStorage.loadReadHighlightIds('2026-11-28'), [highlights[0].id]);
   assert.deepEqual(wellnessStorage.loadReadHighlightIds('2026-11-29'), []);
 
-  // 2. Explore & Relax: Likes & Bookmarks persistence
+  // 2. Explore & Relax: Likes & Bookmarks persistence + Video & Article formats
+  const videos = wellnessContent.EXPLORE_ARTICLES.filter((a) => a.format === 'video');
+  const articles = wellnessContent.EXPLORE_ARTICLES.filter((a) => a.format === 'article');
+  assert.ok(videos.length >= 3);
+  assert.ok(articles.length >= 6);
+  for (const v of videos) {
+    assert.ok(v.videoDurationSeconds > 0);
+    assert.ok(Array.isArray(v.videoCaptions) && v.videoCaptions.length > 0);
+  }
   wellnessStorage.saveExploreLikes(['exp-mindful-grounding']);
   wellnessStorage.saveExploreBookmarks(['exp-sleep-buffer']);
   assert.deepEqual(wellnessStorage.loadExploreLikes(), ['exp-mindful-grounding']);
