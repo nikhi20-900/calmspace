@@ -308,7 +308,7 @@ export const SOUND_LOUNGE_TRACKS: readonly SoundTrack[] = [
   {
     id: 'rain',
     title: 'Rain Sounds',
-    description: 'Clear, gentle rain droplets for relaxation and focus.',
+    description: 'Heavy rainfall ambience for deep focus and relaxation.',
     audioUrl: '/audio/rain.wav',
   },
   {
