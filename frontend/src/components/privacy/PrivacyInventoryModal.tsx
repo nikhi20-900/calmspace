@@ -34,12 +34,21 @@ interface InventoryRecord {
 const INVENTORY_DATA: InventoryRecord[] = [
   {
     field: 'session_id',
-    table: 'checkins, tasks, user_settings',
-    type: 'Text (Client Session ID)',
-    purpose: 'Anonymous session partition key (X-Session-ID)',
+    table: 'session_credentials, checkins, tasks, user_settings',
+    type: 'Text (UUIDv4)',
+    purpose: 'Server-issued anonymous session identifier',
     storedOnServer: true,
-    accessScope: 'Client & Server (WHERE session_id = ?)',
-    retention: 'Deleted when all check-ins, tasks, and settings are purged',
+    accessScope: 'Authenticated via Bearer secret hash',
+    retention: 'Deleted & revoked on "Delete all my data" or expiry',
+  },
+  {
+    field: 'secret_hash, secret_salt, expires_at, revoked_at',
+    table: 'session_credentials',
+    type: 'Text (SHA-256/HMAC hash + salt + UTC ISO)',
+    purpose: 'Constant-time Bearer credential verification, sliding expiry & revocation (plaintext secret never stored)',
+    storedOnServer: true,
+    accessScope: 'Server verification only',
+    retention: '90-day inactivity expiry; deleted immediately on purge',
   },
   {
     field: 'mood',
@@ -47,7 +56,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Integer (1–5)',
     purpose: 'Daily mood tracking & trend graphs',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Rolling retention (14, 30, 60, or 90 days; default 30d)',
   },
   {
@@ -56,7 +65,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Integer (1–5)',
     purpose: 'Stress load tracking & safety evaluation',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Rolling retention (14, 30, 60, or 90 days; default 30d)',
   },
   {
@@ -65,7 +74,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Float (0.0–24.0)',
     purpose: 'Rest tracking & restorative sleep insights',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Rolling retention (14, 30, 60, or 90 days; default 30d)',
   },
   {
@@ -74,7 +83,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: "Enum ('LOW', 'MEDIUM', 'HIGH')",
     purpose: 'Deterministic safety classification',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Rolling retention (14, 30, 60, or 90 days; default 30d)',
   },
   {
@@ -93,7 +102,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Text, Integer',
     purpose: 'Study planner task management',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Until deleted by student or purged in Settings',
   },
   {
@@ -102,7 +111,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Integer (Boolean)',
     purpose: 'Task completion indicator',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Until task or session is deleted',
   },
   {
@@ -111,7 +120,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Text (1–60 chars)',
     purpose: 'Friendly dashboard greeting (non-identifying)',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Until updated or session is deleted',
   },
   {
@@ -120,7 +129,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Boolean, Integer (5–240)',
     purpose: 'In-app study pacing break preferences',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Until updated or session is deleted',
   },
   {
@@ -129,7 +138,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Boolean (default false)',
     purpose: 'Opt-in anonymous trend preference',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Until updated or session is deleted',
   },
   {
@@ -138,7 +147,7 @@ const INVENTORY_DATA: InventoryRecord[] = [
     type: 'Integer (14/30/60/90), Boolean',
     purpose: 'Rolling retention window & one-time starter task flag',
     storedOnServer: true,
-    accessScope: 'Session-scoped (unauthenticated MVP key)',
+    accessScope: 'Authenticated session-scoped',
     retention: 'Default 30 days; purged on full data deletion',
   },
 ];
@@ -243,7 +252,7 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
             <div className="flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
               <span>Field-by-field storage and retention policies:</span>
               <span className="font-medium text-[var(--color-sage-text)] flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4" /> 12 documented fields
+                <CheckCircle2 className="w-4 h-4" /> 13 documented fields
               </span>
             </div>
 
@@ -422,11 +431,11 @@ export const PrivacyInventoryModal: React.FC<PrivacyInventoryModalProps> = ({
                     <span>Anonymous Session Scoping</span>
                   </div>
                   <p>
-                    All stored check-ins, study planner tasks, and settings are partitioned by your browser-generated anonymous session ID. Every database query enforces{' '}
+                    All stored check-ins, study planner tasks, and settings are authenticated by a server-issued anonymous Bearer credential (128-bit session ID paired with a 256-bit secret verified against a salted hash) and isolated via{' '}
                     <code className="px-1.5 py-0.5 bg-[var(--color-bg)] rounded text-[var(--color-primary)]">
                       WHERE session_id = ?
                     </code>
-                    . Because Calmspace uses anonymous browser tokens rather than user accounts or passwords, keep your device and session ID private.
+                    . Keep your device private; credentials expire after inactivity and are permanently invalidated upon deletion.
                   </p>
                 </div>
 

@@ -10,7 +10,7 @@
 ## 1. Presenter Roster & Role Assignments
 
 | Speaker | Team Member | Presentation Focus |
-|---|---|---|
+| --- | --- | --- |
 | **Speaker 1 (Lead & Coordinator)** | **Roushan (@roushan-23)** | System architecture, privacy-first anonymous session model, persistent storage isolation, and live data deletion proof. |
 | **Speaker 2 (Frontend & Design)** | Member 1 | Soft Editorial Wellness design philosophy, interactive 3D lavender mascot, single-column check-in UX, and Recharts analytics. |
 | **Speaker 3 (Safety & Ethics)** | Member 2 | Pure deterministic safety engine (zero I/O), multilingual crisis corpus (English, Hindi, Hinglish), and the strict AI bypass guarantee. |
@@ -28,12 +28,13 @@ flowchart LR
     S4 --> S5["5. Crisis Safety Proof\n(High Route + AI BYPASSED)"]
     S5 --> S6["6. Verified Helplines\n(Tele-MANAS 14416 + Campus)"]
     S6 --> S7["7. Privacy & 2-Step Wipe\n(Permanent Data Purge)"]
-    S7 --> S8["8. Technical QA & Proof\n(38 Automated Tests Passing)"]
+    S7 --> S8["8. Technical QA & Proof\n(285 Backend + 9 Frontend Tests Passing)"]
 ```
 
 ---
 
 ### Step 1: The Landing Experience & 3D Mascot (0:00 – 0:40)
+
 - **URL**: `http://localhost:3000/`
 - **Action**: Hover cursor or drag across the screen. Observe the volumetric 3D lavender blob gently leaning and smiling with subtle squash-and-stretch physics.
 - **Presenter Script (Member 1)**:
@@ -43,6 +44,7 @@ flowchart LR
 ---
 
 ### Step 2: Everyday Check-In — Low/Medium Route (0:40 – 1:20)
+
 - **URL**: `http://localhost:3000/checkin`
 - **Action**:
   1. **Mood**: Select `4 — Good`
@@ -57,6 +59,7 @@ flowchart LR
 ---
 
 ### Step 3: Deterministic Result & Pacing Guidance (1:20 – 1:50)
+
 - **Screen**: Check-In Result Screen (`/checkin/result`)
 - **Visuals**: Soft Sage badge (`#DCE9DF`), Leaf icon, status: *"Doing okay"*.
 - **Guidance Card**: Empathetic message with 2 suggestion chips (e.g. *"Take a stretch break"*, *"Hydrate"*).
@@ -66,6 +69,7 @@ flowchart LR
 ---
 
 ### Step 4: Personal Insights & Study Pacing (1:50 – 2:30)
+
 - **Navigation**: Click **"Insights"** in sidebar (`/insights`).
 - **Visuals**: Three clean Recharts visualizations showing Mood, Sleep, and Stress trends over the last 7 days.
 - **Accessible Summary**: *"Over your last check-ins, your mood averaged 4.0/5 with 7.5 hours average sleep..."*
@@ -76,6 +80,7 @@ flowchart LR
 ---
 
 ### Step 5: The High-Risk Escalation Proof — AI Bypassed! (2:30 – 3:30)
+>
 > **CRITICAL JUDGING MOMENT**: Demonstrates safety integrity.
 
 - **Action**: Click **"Check-in"** again. Enter synthetic crisis data:
@@ -94,39 +99,42 @@ flowchart LR
 ---
 
 ### Step 6: Verified Human Support Directory (3:30 – 4:00)
+
 - **Visuals**: High-priority cards:
   1. **Tele-MANAS**: National 24/7 Helpline (`14416` / `1800-891-4416`) — Verified: Govt. of India MoHFW.
-  2. **Campus Student Wellbeing Unit**: Dean of Student Affairs Directory (`+91 (011) 2659-7100`).
-  3. **National Emergency**: Immediate Dispatch (`112`).
+  2. **National Emergency**: Immediate Dispatch (`112`) — Verified: ERSS, Ministry of Home Affairs.
+  3. **University Student Wellbeing & Counselling Unit**: Explicitly badged **Demo Placeholder** (`Demo Only • Not Connected` / `Institutional Config Required`). Clicking **Integration Info** explains that institutional university endpoints are not connected in the demo environment and redirects students to Tele-MANAS (`14416`).
 - **Presenter Script (Member 3)**:
-  > *"Every resource includes its verified source and last-audit date. Students can tap to call directly without searching or leaving the application."*
+  > *"Every national helpline includes its official verification source and last-audit date so students can tap to call immediately. And we are completely transparent about campus counselling: it is clearly flagged as a demo template placeholder until configured by a university clinic."*
 
 ---
 
 ### Step 7: Privacy by Design & Permanent Data Wipe (4:00 – 4:30)
+
 - **Navigation**: Click **"Settings"** (`/settings`).
-- **Visuals**: Display anonymous Session ID (e.g. `student-a8f19c2d`). Show that no name, email, or college roll number is attached.
+- **Visuals**: Display the server-issued anonymous `session_id` UUID. Show that no name, email, or college roll number is attached, and authentication uses a salted, revocable Bearer credential (`Authorization: Bearer <id>.<secret>`).
 - **Action**:
   1. Click **"Delete all my data"**.
-  2. Confirm in the 2-step verification modal.
-  3. Return to **Insights** (`/insights`) — verify that all charts and historical check-ins are immediately and permanently erased.
+  2. Type `DELETE` and confirm in the 2-step verification modal.
+  3. Observe that the session ID displays as erased locally, and returning to **Insights** (`/insights`) shows a fresh empty session (while any attempted reuse of the old Bearer credential is rejected by the server with `401 Unauthorized`).
 - **Presenter Script (Roushan)**:
-  > *"Privacy in Calmspace is architectural, not contractual. Notice our database schema: reflections are never saved—even on the server. Data is indexed solely by an anonymous token. And when a student asks to delete their data, our backend executes a complete, transactional purge across all tables. Their data is truly gone."*
+  > *"Privacy in Calmspace is architectural, not contractual. Notice our database schema: reflections are never saved—even on the server. Sessions are backed by server-issued, salted-hash Bearer credentials. And when a student asks to delete their data, our backend executes a single atomic transaction across check-ins, tasks, settings, and session credentials—permanently erasing the data and revoking the old token."*
 
 ---
 
 ### Step 8: Technical Wrap-Up & Automated Test Evidence (4:30 – 5:00)
+
 - **Presenter Script (Roushan)**:
-  > *"Calmspace is backed by 38 automated tests covering 100% of safety routing, session isolation, cross-session security, multilingual crisis detection, and data persistence across server restarts. We have built an emotionally comforting, ethically guarded platform ready for university campuses."*
+  > *"Calmspace is backed by 285 backend automated tests (98% coverage on the deterministic safety engine) and 9 frontend unit/contract tests covering safety routing, Bearer credential expiry and revocation, cross-session security isolation, multilingual crisis detection, canary leakage, and persistence across server restarts."*
 
 ---
 
 ## 3. Deterministic Synthetic Demo Dataset
 
 | Persona | Mood | Stress | Sleep (hrs) | Synthetic Reflection | Expected Route | Expected AI Behavior |
-|---|:---:|:---:|:---:|---|:---:|---|
+| --- | :---: | :---: | :---: | --- | :---: | --- |
 | **Steady Baseline** | 4 | 2 | 7.5 | *"Finished my assignment, going for a walk."* | **LOW** | Supportive pacing advice + 2 chips |
-| **Exam Fatigue** | 2 | 4 | 5.0 | *"Struggling to keep up with lab reports."* | **MEDIUM** | Grounding breath exercise + campus link |
+| **Exam Fatigue** | 2 | 3 | 5.5 | *"Struggling to keep up with lab reports."* | **MEDIUM** | Grounding breath exercise + campus link |
 | **Acute Crisis** | 1 | 5 | 2.5 | *"I can't take this anymore, I feel so helpless."* | **HIGH** | **AI BYPASSED**; Instant Tele-MANAS escalation |
 
 ---
@@ -134,13 +142,17 @@ flowchart LR
 ## 4. Pre-Demo Checklist (15 Minutes Before Pitch)
 
 - [ ] **Python Backend Running**:
-  ```powershell
-  & ".\.venv\Scripts\python.exe" -m uvicorn app.main:app --port 8000 --reload
+
+  ```bash
+  PYTHONPATH=backend python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
   ```
+
 - [ ] **Frontend Dev Server Running**:
-  ```powershell
-  npm --prefix frontend run dev
+
+  ```bash
+  npm --prefix frontend run dev -- --host 127.0.0.1 --port 3000
   ```
-- [ ] **Health Endpoint Verified**: `http://localhost:8000/api/health` returns `200 OK`.
-- [ ] **Clean Browser Session**: Open Chrome in an Incognito window at `http://localhost:3000` to ensure no stale `localStorage` session token exists.
-- [ ] **Backup Offline Fallback**: The React frontend includes built-in offline demo resilience (`FALLBACK_SUPPORT_RESOURCES` in `api.ts`), ensuring the presentation never crashes even if the network fluctuates.
+
+- [ ] **Health & Readiness Endpoints Verified**: `http://127.0.0.1:8000/api/health` and `http://127.0.0.1:8000/api/ready` return `200 OK`.
+- [ ] **Clean Browser Session**: Open Chrome in an Incognito window at `http://127.0.0.1:3000` so a fresh anonymous Bearer credential is issued via `POST /api/sessions`.
+- [ ] **Backup Offline Support Directory**: `SupportNetworkPage` retains `FALLBACK_SUPPORT_RESOURCES` as an explicit offline safety net for verified national emergency numbers (`14416`, `112`) if the API becomes unreachable.

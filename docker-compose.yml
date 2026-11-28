@@ -6,6 +6,8 @@ services:
     environment:
       CALMSPACE_ENV: production
       DATABASE_URL: sqlite:////data/calmspace.db
+      CALMSPACE_SESSION_TTL_DAYS: ${CALMSPACE_SESSION_TTL_DAYS:-90}
+      CALMSPACE_SESSION_PEPPER: ${CALMSPACE_SESSION_PEPPER:?Set CALMSPACE_SESSION_PEPPER (>=16 chars) before starting production container}
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
       CALMSPACE_AI_PROVIDER: ${CALMSPACE_AI_PROVIDER:-mock}
       CALMSPACE_AI_MODEL: ${CALMSPACE_AI_MODEL:-gemini-1.5-flash}

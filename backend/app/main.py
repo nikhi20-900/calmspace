@@ -19,6 +19,7 @@ from app.core.config import AIServiceConfig, load_local_env
 from app.routers.checkin import router as checkin_router
 from app.routers.insights import router as insights_router
 from app.routers.planner import router as planner_router
+from app.routers.sessions import router as sessions_router
 from app.routers.support_and_settings import settings_router, support_router
 from app.services.storage import storage
 
@@ -84,6 +85,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-Session-ID", "Authorization"],
 )
 
+app.include_router(sessions_router)
 app.include_router(checkin_router)
 app.include_router(insights_router)
 app.include_router(planner_router)
@@ -147,6 +149,17 @@ async def readiness_check():
         return JSONResponse(
             status_code=503,
             content={"status": "unavailable", "database": "error"},
+        )
+
+    if not storage.is_session_pepper_valid():
+        logger.error("Readiness auth check failed: session pepper misconfigured.")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unavailable",
+                "database": "connected",
+                "auth": "misconfigured",
+            },
         )
 
     ai_status = "fallback"

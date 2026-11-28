@@ -284,10 +284,14 @@ def test_reflection_length_and_consent_contracts():
 
     # 3. Unconsented reflection still triggers local deterministic safety evaluation
     # (escalating to HIGH route) while strictly bypassing AI guidance
+    sess_safety = client.post("/api/sessions").json()
+    headers_safety = {
+        "Authorization": f"Bearer {sess_safety['session_id']}.{sess_safety['session_secret']}"
+    }
     crisis_text = "I feel hopeless and want to kill myself"
     resp = client.post(
         "/api/checkin",
-        headers={"X-Session-ID": "test-session-unconsented-safety"},
+        headers=headers_safety,
         json={
             "mood": 3,
             "stress": 3,
@@ -301,11 +305,16 @@ def test_reflection_length_and_consent_contracts():
     assert data["safety"]["route"] == "HIGH"
     assert data["safety"]["ai_eligible"] is False
     assert data["guidance"] is None
+    client.delete("/api/settings/data", headers=headers_safety)
 
     # 4. Unconsented non-crisis reflection receives fallback guidance without AI generation
+    sess_benign = client.post("/api/sessions").json()
+    headers_benign = {
+        "Authorization": f"Bearer {sess_benign['session_id']}.{sess_benign['session_secret']}"
+    }
     resp_benign = client.post(
         "/api/checkin",
-        headers={"X-Session-ID": "test-session-unconsented-benign"},
+        headers=headers_benign,
         json={
             "mood": 4,
             "stress": 2,
@@ -321,6 +330,7 @@ def test_reflection_length_and_consent_contracts():
     assert data_benign["guidance"] is not None
     assert data_benign["guidance"]["generated_by_ai"] is False
     assert data_benign["guidance"]["fallback_used"] is True
+    client.delete("/api/settings/data", headers=headers_benign)
 
 
 def test_insights_endpoint_contracts():
@@ -332,11 +342,15 @@ def test_insights_endpoint_contracts():
     4. Purging session data instantly clears insights.
     """
     client = TestClient(app)
-    session_a = "test-session-insights-a"
-    session_b = "test-session-insights-b"
+    sess_a = client.post("/api/sessions").json()
+    sess_b = client.post("/api/sessions").json()
+    session_a = sess_a["session_id"]
+    session_b = sess_b["session_id"]
+    headers_a = {"Authorization": f"Bearer {session_a}.{sess_a['session_secret']}"}
+    headers_b = {"Authorization": f"Bearer {session_b}.{sess_b['session_secret']}"}
 
     # 1. Fresh session empty state
-    res_empty = client.get("/api/insights?days=7", headers={"X-Session-ID": session_a})
+    res_empty = client.get("/api/insights?days=7", headers=headers_a)
     assert res_empty.status_code == 200
     empty_data = res_empty.json()
     assert empty_data["check_in_count"] == 0
@@ -350,7 +364,7 @@ def test_insights_endpoint_contracts():
     storage.add_checkin(session_a, mood=4, stress=2, sleep_hours=8.0, route="LOW")
     storage.add_checkin(session_a, mood=3, stress=3, sleep_hours=6.5, route="MEDIUM")
 
-    res_a = client.get("/api/insights?days=7", headers={"X-Session-ID": session_a})
+    res_a = client.get("/api/insights?days=7", headers=headers_a)
     assert res_a.status_code == 200
     data_a = res_a.json()
     assert data_a["check_in_count"] == 2
@@ -366,33 +380,35 @@ def test_insights_endpoint_contracts():
         assert forbidden not in data_a["plain_summary"].lower()
 
     # 3. Verify session B is strictly isolated (zero cross-exposure)
-    res_b = client.get("/api/insights?days=7", headers={"X-Session-ID": session_b})
+    res_b = client.get("/api/insights?days=7", headers=headers_b)
     assert res_b.status_code == 200
     data_b = res_b.json()
     assert data_b["check_in_count"] == 0
     assert data_b["mood_trend"] == []
 
     # Clean up test data
-    storage.delete_all_data(session_a)
-    storage.delete_all_data(session_b)
-    res_purged = client.get("/api/insights?days=7", headers={"X-Session-ID": session_a})
-    assert res_purged.json()["check_in_count"] == 0
+    assert client.delete("/api/settings/data", headers=headers_a).status_code == 200
+    assert client.delete("/api/settings/data", headers=headers_b).status_code == 200
+    assert storage.get_checkins(session_a) == []
+    assert client.get("/api/insights?days=7", headers=headers_a).status_code == 401
 
 
 def test_planner_task_lifecycle_and_session_isolation():
     """Validates full study planner lifecycle, persistent task editing, and session isolation."""
     client = TestClient(app)
-    session_1 = "test-session-planner-alice"
-    session_2 = "test-session-planner-bob"
-
-    # Start with clean sessions
-    storage.delete_all_data(session_1)
-    storage.delete_all_data(session_2)
+    sess_1 = client.post("/api/sessions").json()
+    sess_2 = client.post("/api/sessions").json()
+    headers_1 = {
+        "Authorization": f"Bearer {sess_1['session_id']}.{sess_1['session_secret']}"
+    }
+    headers_2 = {
+        "Authorization": f"Bearer {sess_2['session_id']}.{sess_2['session_secret']}"
+    }
 
     # 1. Session 1 creates a study task
     create_res = client.post(
         "/api/planner/tasks",
-        headers={"X-Session-ID": session_1},
+        headers=headers_1,
         json={
             "title": "Organic Chemistry Revision",
             "estimated_minutes": 45,
@@ -410,7 +426,7 @@ def test_planner_task_lifecycle_and_session_isolation():
     # 2. Session 2 cannot view Session 1's newly created task
     list_res_2 = client.get(
         "/api/planner/tasks",
-        headers={"X-Session-ID": session_2},
+        headers=headers_2,
     )
     assert list_res_2.status_code == 200
     session_2_task_ids = [t["id"] for t in list_res_2.json()]
@@ -419,7 +435,7 @@ def test_planner_task_lifecycle_and_session_isolation():
     # 3. Session 2 cannot update Session 1's task (strict 404 isolation)
     intruder_patch = client.patch(
         f"/api/planner/tasks/{task_id}",
-        headers={"X-Session-ID": session_2},
+        headers=headers_2,
         json={"title": "Hacked Title"},
     )
     assert intruder_patch.status_code == 404
@@ -427,7 +443,7 @@ def test_planner_task_lifecycle_and_session_isolation():
     # 4. Session 1 successfully updates the task (PATCH /api/planner/tasks/{id})
     update_res = client.patch(
         f"/api/planner/tasks/{task_id}",
-        headers={"X-Session-ID": session_1},
+        headers=headers_1,
         json={
             "title": "Advanced Organic Chemistry",
             "estimated_minutes": 60,
@@ -445,7 +461,7 @@ def test_planner_task_lifecycle_and_session_isolation():
     # 5. Verify persistence across refresh (GET /api/planner/tasks)
     list_res_1 = client.get(
         "/api/planner/tasks",
-        headers={"X-Session-ID": session_1},
+        headers=headers_1,
     )
     assert list_res_1.status_code == 200
     tasks_1 = list_res_1.json()
@@ -458,7 +474,7 @@ def test_planner_task_lifecycle_and_session_isolation():
     # 6. Toggle completion
     toggle_res = client.patch(
         f"/api/planner/tasks/{task_id}/toggle",
-        headers={"X-Session-ID": session_1},
+        headers=headers_1,
     )
     assert toggle_res.status_code == 200
     assert toggle_res.json()["completed"] is True
@@ -466,20 +482,20 @@ def test_planner_task_lifecycle_and_session_isolation():
     # 7. Delete task
     del_res = client.delete(
         f"/api/planner/tasks/{task_id}",
-        headers={"X-Session-ID": session_1},
+        headers=headers_1,
     )
     assert del_res.status_code == 200
 
     # Verify task is deleted
     list_after_del = client.get(
         "/api/planner/tasks",
-        headers={"X-Session-ID": session_1},
+        headers=headers_1,
     )
     assert task_id not in [t["id"] for t in list_after_del.json()]
 
     # Clean up
-    storage.delete_all_data(session_1)
-    storage.delete_all_data(session_2)
+    client.delete("/api/settings/data", headers=headers_1)
+    client.delete("/api/settings/data", headers=headers_2)
 
 
 if __name__ == "__main__":

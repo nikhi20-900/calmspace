@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB?style=flat-square" alt="Frontend: React 18 + TypeScript" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square" alt="Backend: FastAPI" />
   <img src="https://img.shields.io/badge/Persistence-SQLite%20WAL-003B57?style=flat-square" alt="Persistence: SQLite WAL" />
-  <img src="https://img.shields.io/badge/Backend%20Tests-271%20Passing-245532?style=flat-square" alt="Backend Tests: 271 Passing" />
+  <img src="https://img.shields.io/badge/Backend%20Tests-285%20Passing-245532?style=flat-square" alt="Backend Tests: 285 Passing" />
   <img src="https://img.shields.io/badge/Safety%20Engine-98%25%20Coverage-5554B8?style=flat-square" alt="Safety Engine: 98% Coverage" />
 </p>
 
@@ -63,7 +63,7 @@ $$\text{\textbf{Rules decide safety. AI writes the language. Humans help.}}$$
 Calmspace follows a **Soft Editorial Wellness** aesthetic — designed to feel like entering a quiet, sunlit study room rather than a clinical triage portal.
 
 | Principle | How It Shapes the Product |
-|---|---|
+| --- | --- |
 | **Calm over clutter** | Single-column check-in steps, generous whitespace, and zero streak guilt |
 | **Human over clinical** | Supportive everyday language (`Doing okay`, `Carrying a lot`) instead of diagnostic labels |
 | **Accessible by default** | Keyboard focus trapping, non-color status indicators, data tables alongside charts, reduced motion |
@@ -73,7 +73,7 @@ Calmspace follows a **Soft Editorial Wellness** aesthetic — designed to feel l
 ### Core Color Tokens (`frontend/src/styles/tokens.css`)
 
 | Token | Hex | Role |
-|---|---|---|
+| --- | --- | --- |
 | **Background Canvas** | `#F7F6FB` | Serene lavender-tinted paper canvas |
 | **Surface** | `#FFFFFF` | Elevated editorial cards and panels |
 | **Primary Ink / Action** | `#5554B8` | Primary actions, focus rings (`focus-visible`), active states |
@@ -111,14 +111,16 @@ Calmspace strictly isolates the React frontend, FastAPI API routers, pure determ
 
 ```mermaid
 flowchart TD
-    Browser["React 18 + TypeScript + Vite SPA<br/>(X-Session-ID UUID in localStorage)"] -->|HTTPS / Reverse Proxy JSON| API["FastAPI App (backend/app/main.py)<br/>CORS Guard + 422 Input Sanitizer + SQLite Handler"]
+    Browser["React 18 + TypeScript + Vite SPA<br/>(Bearer Credential in localStorage)"] -->|HTTPS / Reverse Proxy JSON| API["FastAPI App (backend/app/main.py)<br/>CORS Guard + 422 Input Sanitizer + SQLite Handler"]
 
+    API --> R0["sessions.py<br/>POST /api/sessions, /rotate, /revoke"]
     API --> R1["checkin.py<br/>POST /api/checkin<br/>GET /api/checkin/history"]
     API --> R2["insights.py<br/>GET /api/insights"]
     API --> R3["planner.py<br/>CRUD /api/planner/tasks"]
     API --> R4["support_and_settings.py<br/>GET /api/support/resources<br/>GET/PUT /api/settings<br/>DELETE /api/settings/data"]
     API --> R5["Health & Readiness<br/>GET /api/health & GET /api/ready"]
 
+    R0 --> DB
     R1 -->|"1. Prune expired checkins"| DB[("SQLite WAL Database<br/>backend/app/services/storage.py")]
     R1 -->|"2. Pure evaluation (Zero I/O)"| Safety["Protected Safety Evaluator<br/>backend/app/services/safety_evaluator.py<br/>SHA: 8f5e2e98..."]
     R1 -->|"3. Persist numeric scores only"| DB
@@ -135,14 +137,14 @@ flowchart TD
 ### Technology Stack (Verified Against Manifests)
 
 | Layer | Implemented Technology |
-|---|---|
+| --- | --- |
 | **Frontend** | React 18 (`^18.3.1`), React Router DOM (`^6.28.1`), TypeScript (`^5.7.2`), Vite (`^6.0.7`) |
 | **Styling & Motion** | Tailwind CSS (`^3.4.17`), custom CSS design tokens, Framer Motion (`^11.15.0`), Lucide icons |
 | **Charts & 3D** | Recharts (`^2.15.0`), Three.js (`^0.187.0`) custom GLSL lavender mascot |
 | **Backend** | Python 3.12+, FastAPI (`>=0.110.0`), Uvicorn (`>=0.28.0`), Pydantic (`>=2.6.0`) |
 | **Persistence** | SQLite in WAL mode (`calmspace.db`, `backend/app/services/storage.py`) |
 | **AI Providers** | `mock` (offline deterministic default) and `gemini` (`x-goog-api-key` header) with fail-closed fallback |
-| **Quality & CI** | Pytest (`271` passing tests), `pytest-cov` (`98%` on `safety_evaluator.py`), Ruff lint/format, `tsc && vite build` |
+| **Quality & CI** | Pytest (`285` passing tests), `pytest-cov` (`98%` on `safety_evaluator.py`), Ruff lint/format, `node tests/run_tests.mjs` (`9` passing), `tsc && vite build` |
 
 ---
 
@@ -194,10 +196,10 @@ sequenceDiagram
     participant DB as SQLite WAL (calmspace.db)
     participant AI as Gemini API (Optional)
 
-    Note over Student,FE: Browser generates anonymous UUID in localStorage (X-Session-ID)
+    Note over Student,FE: Browser requests server-issued credential via POST /api/sessions (stored in localStorage)
     Student->>FE: Submit mood, stress, sleep, reflection + consent (default OFF)
-    FE->>API: POST /api/checkin (Header: X-Session-ID, Body: consent_ai_processing)
-    API->>DB: cleanup_expired_records(session_id) -> Prune checkins older than 14/30/60/90d
+    FE->>API: POST /api/checkin (Header: Authorization Bearer id.secret, Body: consent_ai_processing)
+    API->>DB: Verify salted secret hash, expiry & revocation + prune checkins older than 14/30/60/90d
     API->>API: safety_evaluator.evaluate(...) [reflection in RAM only]
     API->>DB: INSERT INTO checkins (id, session_id, timestamp, mood, stress, sleep_hours, route)
     Note over API,DB: NO reflection column exists in checkins; reflection is never logged or persisted
@@ -214,10 +216,9 @@ sequenceDiagram
 
     Note over Student,DB: 2-Step Erasure ("Delete all my data" in Settings)
     Student->>FE: Confirm DELETE
-    FE->>API: DELETE /api/settings/data (Header: X-Session-ID)
-    API->>DB: Atomic Transaction: DELETE FROM checkins, tasks, user_settings WHERE session_id = ?
-    API-->>FE: 200 OK (Frontend clears cached result; failure triggers Retry alert)
-    Note over FE,DB: Note: Client UUID is not server-revoked; reusing UUID starts a fresh empty session
+    FE->>API: DELETE /api/settings/data (Header: Authorization Bearer id.secret)
+    API->>DB: Atomic Transaction: DELETE FROM checkins, tasks, user_settings, session_credentials WHERE session_id = ?
+    API-->>FE: 200 OK (Frontend clears credential & cached state; old Bearer token now returns 401)
 ```
 
 ### Key Privacy & Retention Guarantees (Verified by Automated Tests)
@@ -232,12 +233,18 @@ sequenceDiagram
 
 ## 07 — SQLite Data Model (ER Diagram)
 
-All application state lives in three SQLite tables (`backend/app/services/storage.py`, WAL mode enabled). Rows are partitioned logically by the client-supplied `session_id` string (`WHERE session_id = ?`).
+All application state lives in four SQLite tables (`backend/app/services/storage.py`, WAL mode enabled). Rows are authenticated via server-issued Bearer credentials (`session_credentials`) and partitioned by `session_id` (`WHERE session_id = ?`).
 
 ```mermaid
 erDiagram
-    ANONYMOUS_CLIENT_SESSION {
-        string session_id "Client-supplied X-Session-ID UUID (unauthenticated partition key)"
+    SESSION_CREDENTIALS {
+        text session_id PK "Server-issued UUIDv4"
+        text secret_hash "Salted SHA-256 / HMAC-SHA256 hash"
+        text secret_salt "16-byte CSPRNG salt (hex)"
+        text created_at "UTC ISO-8601"
+        text last_seen_at "UTC ISO-8601"
+        text expires_at "Sliding inactivity expiry (default 90d)"
+        text revoked_at "Nullable UTC revocation timestamp"
     }
 
     CHECKINS {
@@ -267,11 +274,12 @@ erDiagram
         integer reminder_interval_minutes "Default: 45"
         integer share_anonymous_analytics "0 or 1 (default 0)"
         integer data_retention_days "14 | 30 | 60 | 90 (default 30)"
+        integer planner_seeded "0 or 1 (default 0)"
     }
 
-    ANONYMOUS_CLIENT_SESSION ||--o{ CHECKINS : "partitions via X-Session-ID"
-    ANONYMOUS_CLIENT_SESSION ||--o{ TASKS : "partitions via X-Session-ID"
-    ANONYMOUS_CLIENT_SESSION ||--o| USER_SETTINGS : "stores preferences"
+    SESSION_CREDENTIALS ||--o{ CHECKINS : "authenticates & partitions"
+    SESSION_CREDENTIALS ||--o{ TASKS : "authenticates & partitions"
+    SESSION_CREDENTIALS ||--o| USER_SETTINGS : "stores preferences"
 ```
 
 ---
@@ -289,7 +297,7 @@ flowchart LR
 ```
 
 | Resource | Category | Contact | Verification Authority | Last Verified |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **Tele-MANAS** | Official National Helpline | `14416` / `1800-891-4416` (24/7) | Ministry of Health & Family Welfare (MoHFW), Govt. of India | `2026-11-20` |
 | **Emergency Services** | Immediate Dispatch | `112` (24/7) | Emergency Response Support System (ERSS), MHA | `2026-11-20` |
 | **Vandrevala Foundation** | Crisis Counselling | `+91 9999 666 555` (24/7) | Vandrevala Foundation Mental Health Registry | `2026-11-20` |
@@ -320,7 +328,7 @@ flowchart LR
 ### Project Status by Issue
 
 | Issue | Scope | Status |
-|---|---|---|
+| --- | --- | --- |
 | **#1 – #4** | Architecture, deterministic safety engine (`safety_evaluator.py`), multilingual crisis corpus, high-risk escalation | **Closed** |
 | **#5 – #9** | AI guidance adapter + fallback, check-in UX, dashboard shell, Insights UI, Study Planner + breather timer | **Closed** |
 | **#10 – #14** | SQLite WAL persistence, Privacy UI + retention pruning + canary leak suite, Support Directory, 262-test suite, Analytics | **Closed** |
@@ -330,17 +338,16 @@ flowchart LR
 ### Explicit Architectural & Repository Limitations (Honest Scope)
 
 1. **SQLite MVP vs. Proposed PostgreSQL/Supabase**: Current persistence uses single-node SQLite in WAL mode (`calmspace.db`), not PostgreSQL/Supabase (`docs/database_architecture_issue_10.md` documents the earlier multi-user PostgreSQL proposal).
-2. **`X-Session-ID` Is Relational Isolation, Not Cryptographic Authentication**: Requests without a valid `X-Session-ID` header (`^[A-Za-z0-9._-]+$`, 1–128 chars) are rejected with HTTP `422`, and every query filters by `WHERE session_id = ?` to isolate normal clients, but client-supplied UUIDs lack signed JWTs or hashed secrets. Anyone possessing another browser's exact UUID string can access that session.
-3. **Retention Cleanup Prunes `checkins` Only**: Automated request-boundary pruning deletes expired rows in `checkins`; `tasks` and `user_settings` remain until removed individually or via `DELETE /api/settings/data`.
-4. **Deletion Does Not Cryptographically Revoke Browser UUIDs**: `DELETE /api/settings/data` atomically purges all DB rows (`checkins`, `tasks`, `user_settings`) for `session_id`, but reusing the same client UUID starts a new empty session.
-5. **Campus Support Is a Labeled Demo Placeholder**: The institutional campus entry has `is_demo_placeholder: true` and `official_source_url: null` until configured by a university clinic.
+2. **Bearer Credential Storage in `localStorage` vs. `HttpOnly` Cookies**: Anonymous sessions now use server-issued 256-bit Bearer credentials (`Authorization: Bearer <session_id>.<session_secret>`) verified in constant time against salted hashes in `session_credentials`, with 90-day sliding expiry, secret rotation, and immediate revocation on deletion. Because the SPA and FastAPI API may be hosted on separate origins, credentials are stored in `localStorage` rather than `HttpOnly` cookies, making XSS prevention and device privacy important.
+3. **Retention Cleanup Prunes `checkins` Only**: Automated request-boundary pruning deletes expired rows in `checkins`; `tasks` and `user_settings` remain until removed individually, purged via `DELETE /api/settings/data`, or cleaned up upon session expiry (`cleanup_expired_sessions`).
+4. **Campus Support Is a Labeled Demo Placeholder**: The institutional campus entry has `is_demo_placeholder: true` and `official_source_url: null` until configured by a university clinic. Do not present it as a live university integration.
 
 ---
 
 ## 11 — Team Ownership & Module Boundaries
 
 | Workstream | Owner | Scope & Owned Paths |
-|---|---|---|
+| --- | --- | --- |
 | **Frontend UX, Insights, Planner & Privacy UI** | **Nikhil Chhetri** ([@nikhi20-900](https://github.com/nikhi20-900)) | `frontend/src/**`, 3D mascot, Check-in, Insights, Planner, Support UI, `PrivacyInventoryModal` |
 | **Deterministic Safety & Test Suites** | **Nikhil Chhetri** ([@nikhi20-900](https://github.com/nikhi20-900)) | `backend/app/services/safety_evaluator.py` (protected), multilingual corpus & canary suites |
 | **Persistence, Analytics, Retention & Deployment** | **Roushan** ([@roushan-23](https://github.com/roushan-23)) | `storage.py`, `analytics.py`, `api_contracts.md`, live deployment orchestration (Issue #15) |
@@ -353,14 +360,15 @@ flowchart LR
 ### Documentation Index
 
 | Document | Purpose |
-|---|---|
+| --- | --- |
 | [Architecture & Boundaries](docs/architecture.md) | Contributor boundaries, safety bypass diagram, SQLite session model |
 | [API Contracts](docs/api_contracts.md) | REST endpoints, headers, `StrictBool` rules, sanitized `422` schemas |
 | [Privacy & Data Inventory](docs/privacy_data_inventory.md) | SQLite table inventory, retention pruning, deletion mechanics & limitations |
 | [AI Support Service](docs/ai_support_service.md) | Consent, untrusted-tag prompt isolation, rate limits, fallback rules |
 | [Safety Corpus](docs/safety_corpus.md) | Multilingual crisis patterns (English, Hinglish, Devanagari) and negation guards |
 | [High-Risk Escalation](docs/high_risk_escalation.md) | Crisis UI, Safe Exit policy, verified helpline provenance |
-| [Deployment Guide](docs/deployment.md) | Containers, `/api/ready`, CORS guard, backup/rollback, live host checklist |
+| [Deployment Guide](docs/deployment.md) | Containers, `/api/ready`, CORS guard, backup/rollback, smoke tests |
+| [Release Checklist](docs/release_checklist.md) | Production readiness status, test evidence, and remaining live hosting items |
 | [Demo Journey](docs/demo_journey.md) | 3–5 minute presentation walkthrough and deterministic synthetic personas |
 | [DB Architecture Proposal](docs/database_architecture_issue_10.md) | Proposed PostgreSQL/Supabase dual-token architecture (future multi-tenant upgrade) |
 
@@ -380,8 +388,9 @@ calmspace/
 │   ├── app/
 │   │   ├── main.py                  # FastAPI app, production CORS guard, /api/health, /api/ready, 422/DB handlers
 │   │   ├── core/config.py           # Env loader & AI configuration validation
+│   │   ├── core/session.py          # Bearer session credential authentication dependency
 │   │   ├── models/schemas.py        # Pydantic contracts (StrictBool consent, 14/30/60/90 retention)
-│   │   ├── routers/                 # checkin.py, insights.py, planner.py, support_and_settings.py
+│   │   ├── routers/                 # sessions.py, checkin.py, insights.py, planner.py, support_and_settings.py
 │   │   └── services/
 │   │       ├── safety_evaluator.py  # PROTECTED (SHA 8f5e2e984c4ab41212a74a16158200b2c7a126b2)
 │   │       ├── ai_guidance.py       # Supportive AI orchestration & deterministic fallback
@@ -389,8 +398,8 @@ calmspace/
 │   │       ├── ai_providers/        # Mock & Gemini REST adapters
 │   │       ├── analytics.py         # Session-scoped non-diagnostic trend aggregation
 │   │       ├── support_directory.py # Verified helpline & demo campus resource registry
-│   │       └── storage.py           # SQLite WAL engine, pruning & atomic deletion
-│   └── tests/                       # 271 automated tests across 12 test modules
+│   │       └── storage.py           # SQLite WAL engine, session credentials, pruning & atomic deletion
+│   └── tests/                       # 285 automated tests across 13 test modules
 ├── frontend/
 │   ├── Dockerfile                   # Multi-stage Node 20 build -> Nginx 1.27 static/proxy server
 │   ├── nginx.conf                   # Security headers, /api proxy & SPA routing
@@ -443,9 +452,11 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ### 3. Environment Variables Reference (`backend/.env.example` & `frontend/.env.example`)
 
 | Variable | Scope | Default | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `CALMSPACE_ENV` | Backend | `development` | Set to `production` to enforce strict CORS & rate-limit guards |
 | `DATABASE_URL` | Backend | `sqlite:///./calmspace.db` | SQLite database file path (use `sqlite:////data/calmspace.db` in containers) |
+| `CALMSPACE_SESSION_TTL_DAYS` | Backend | `90` | Sliding inactivity session expiry in days (`1`–`365`) |
+| `CALMSPACE_SESSION_PEPPER` | Backend | *(empty)* | Optional server-side HMAC pepper for session secret hashing |
 | `CORS_ORIGINS` | Backend | Dev localhost origins | Comma-separated frontend origins (wildcard `*` rejected in production) |
 | `CALMSPACE_AI_PROVIDER` | Backend | `mock` | `mock` (offline deterministic) or `gemini` |
 | `CALMSPACE_AI_API_KEY` | Backend | *(empty)* | Gemini secret key (`GEMINI_API_KEY` alias; backend only, never in `VITE_*`) |
@@ -457,14 +468,15 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ### 4. Local CI Parity Verification
 
 ```bash
-# Backend formatting, linting, and 271-test suite with safety evaluator coverage
+# Backend formatting, linting, and 285-test suite with safety evaluator coverage
 cd backend
 ruff format --check .
 ruff check .
 pytest -v --cov=app.services.safety_evaluator --cov-report=term-missing
 
-# Frontend TypeScript check and production bundle
+# Frontend tests, TypeScript check, and production bundle
 cd ../frontend
+npm test
 npm run build
 ```
 

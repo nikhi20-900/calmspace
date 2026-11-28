@@ -11,14 +11,34 @@ Key Principles:
 """
 
 import atexit
+import hashlib
+import hmac
 import os
+import secrets
 import sqlite3
 import threading
 import uuid
 import weakref
 from datetime import UTC, datetime, timedelta
 
-from app.models.schemas import CheckInRecord, StudyTask, UserSettings
+from app.models.schemas import (
+    CheckInRecord,
+    SessionCreateResponse,
+    StudyTask,
+    UserSettings,
+)
+
+_WEAK_PEPPERS = frozenset(
+    {
+        "changeme",
+        "placeholder",
+        "secret",
+        "default",
+        "pepper",
+        "your-session-pepper",
+        "calmspace-session-pepper",
+    }
+)
 
 
 class _ThreadConnectionHolder:
@@ -162,6 +182,27 @@ class CalmspaceStorage:
                 """
             )
 
+            # Anonymous session credentials table (stores salted hashes ONLY, never plaintext secrets)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS session_credentials (
+                    session_id TEXT PRIMARY KEY,
+                    secret_hash TEXT NOT NULL,
+                    secret_salt TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    last_seen_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    revoked_at TEXT DEFAULT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_session_credentials_expires
+                ON session_credentials(expires_at);
+                """
+            )
+
             # Defensive migrations for older local SQLite schemas
             cursor = conn.execute("PRAGMA table_info(user_settings);")
             columns = [row[1] for row in cursor.fetchall()]
@@ -201,6 +242,336 @@ class CalmspaceStorage:
         conn = self._get_connection()
         conn.execute("SELECT 1;").fetchone()
         return True
+
+    # --------------------------------------------------------------------------
+    # Anonymous Session Credentials (Issuance, Verification, Rotation, Revocation)
+    # --------------------------------------------------------------------------
+    @staticmethod
+    def _normalize_utc(now: datetime | None = None) -> datetime:
+        if now is None:
+            return datetime.now(UTC)
+        if now.tzinfo is None:
+            return now.replace(tzinfo=UTC)
+        return now.astimezone(UTC)
+
+    @staticmethod
+    def _parse_iso_utc(raw: str | None) -> datetime | None:
+        if not raw:
+            return None
+        try:
+            dt = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
+
+    @staticmethod
+    def _resolve_session_ttl_days(ttl_days: int | None = None) -> int:
+        if ttl_days is None:
+            raw = os.getenv("CALMSPACE_SESSION_TTL_DAYS", "90").strip()
+            try:
+                ttl_days = int(raw)
+            except ValueError:
+                ttl_days = 90
+        return max(1, min(ttl_days, 365))
+
+    @staticmethod
+    def is_session_pepper_valid() -> bool:
+        """
+        In production (`CALMSPACE_ENV=production`), require a non-placeholder
+        `CALMSPACE_SESSION_PEPPER` of at least 16 characters.
+        """
+        env_mode = os.getenv("CALMSPACE_ENV", "development").strip().lower()
+        if env_mode != "production":
+            return True
+        pepper = os.getenv("CALMSPACE_SESSION_PEPPER", "").strip()
+        return len(pepper) >= 16 and pepper.lower() not in _WEAK_PEPPERS
+
+    @classmethod
+    def _get_session_pepper(cls) -> str:
+        pepper = os.getenv("CALMSPACE_SESSION_PEPPER", "").strip()
+        env_mode = os.getenv("CALMSPACE_ENV", "development").strip().lower()
+        if env_mode == "production" and (
+            len(pepper) < 16 or pepper.lower() in _WEAK_PEPPERS
+        ):
+            raise RuntimeError(
+                "CALMSPACE_SESSION_PEPPER must be configured with at least 16 non-placeholder characters in production."
+            )
+        return pepper
+
+    @classmethod
+    def _hash_session_secret(cls, salt_hex: str, session_secret: str) -> str:
+        payload = bytes.fromhex(salt_hex) + session_secret.encode("utf-8")
+        pepper = cls._get_session_pepper()
+        if pepper:
+            return hmac.new(pepper.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+        return hashlib.sha256(payload).hexdigest()
+
+    def create_session(
+        self, ttl_days: int | None = None, now: datetime | None = None
+    ) -> SessionCreateResponse:
+        """
+        Issue a brand-new anonymous session ID (128-bit UUIDv4) and 256-bit CSPRNG secret.
+        Only the salted SHA-256/HMAC hash is stored; plaintext secret is returned once.
+        """
+        now_dt = self._normalize_utc(now)
+        resolved_ttl = self._resolve_session_ttl_days(ttl_days)
+        session_id = str(uuid.uuid4())
+        session_secret = secrets.token_urlsafe(32)
+        secret_salt = secrets.token_bytes(16).hex()
+        secret_hash = self._hash_session_secret(secret_salt, session_secret)
+
+        now_iso = now_dt.isoformat()
+        expires_iso = (now_dt + timedelta(days=resolved_ttl)).isoformat()
+
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO session_credentials (
+                    session_id, secret_hash, secret_salt,
+                    created_at, last_seen_at, expires_at, revoked_at
+                ) VALUES (?, ?, ?, ?, ?, ?, NULL);
+                """,
+                (
+                    session_id,
+                    secret_hash,
+                    secret_salt,
+                    now_iso,
+                    now_iso,
+                    expires_iso,
+                ),
+            )
+
+        return SessionCreateResponse(
+            session_id=session_id,
+            session_secret=session_secret,
+            expires_at=expires_iso,
+        )
+
+    def verify_session_credential(
+        self,
+        session_id: str,
+        session_secret: str,
+        now: datetime | None = None,
+        touch_last_seen: bool = True,
+        ttl_days: int | None = None,
+    ) -> bool:
+        """
+        Verify a session credential in constant time, enforcing expiry and revocation.
+        """
+        if not session_id or not session_secret:
+            return False
+
+        conn = self._get_connection()
+        row = conn.execute(
+            """
+            SELECT secret_hash, secret_salt, expires_at, revoked_at
+            FROM session_credentials
+            WHERE session_id = ?;
+            """,
+            (session_id,),
+        ).fetchone()
+
+        if not row:
+            return False
+
+        if row["revoked_at"] is not None:
+            return False
+
+        now_dt = self._normalize_utc(now)
+        expires_dt = self._parse_iso_utc(row["expires_at"])
+        if expires_dt is None or expires_dt <= now_dt:
+            return False
+
+        try:
+            computed_hash = self._hash_session_secret(
+                row["secret_salt"], session_secret
+            )
+        except ValueError:
+            return False
+
+        if not hmac.compare_digest(computed_hash, row["secret_hash"]):
+            return False
+
+        if touch_last_seen:
+            resolved_ttl = self._resolve_session_ttl_days(ttl_days)
+            new_expires_iso = (now_dt + timedelta(days=resolved_ttl)).isoformat()
+            with conn:
+                cursor = conn.execute(
+                    """
+                    UPDATE session_credentials
+                    SET last_seen_at = ?, expires_at = ?
+                    WHERE session_id = ? AND secret_hash = ? AND revoked_at IS NULL;
+                    """,
+                    (
+                        now_dt.isoformat(),
+                        new_expires_iso,
+                        session_id,
+                        row["secret_hash"],
+                    ),
+                )
+                if cursor.rowcount == 0:
+                    return False
+        else:
+            still_valid = conn.execute(
+                """
+                SELECT 1
+                FROM session_credentials
+                WHERE session_id = ? AND secret_hash = ? AND revoked_at IS NULL;
+                """,
+                (session_id, row["secret_hash"]),
+            ).fetchone()
+            if not still_valid:
+                return False
+
+        return True
+
+    def revoke_session(self, session_id: str, now: datetime | None = None) -> bool:
+        """Mark a session credential as revoked so all future calls fail with 401."""
+        if not session_id:
+            return False
+        now_iso = self._normalize_utc(now).isoformat()
+        conn = self._get_connection()
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE session_credentials
+                SET revoked_at = ?
+                WHERE session_id = ? AND revoked_at IS NULL;
+                """,
+                (now_iso, session_id),
+            )
+            return cursor.rowcount > 0
+
+    def rotate_session_secret(
+        self,
+        session_id: str,
+        ttl_days: int | None = None,
+        now: datetime | None = None,
+        current_secret: str | None = None,
+        expected_secret_hash: str | None = None,
+    ) -> SessionCreateResponse | None:
+        """
+        Atomically issue a fresh 256-bit secret for an active non-revoked, non-expired session
+        using optimistic concurrency against the prior secret hash, invalidating the prior
+        secret immediately while preserving session data.
+        """
+        if not session_id:
+            return None
+
+        now_dt = self._normalize_utc(now)
+        conn = self._get_connection()
+        row = conn.execute(
+            """
+            SELECT secret_hash, secret_salt, expires_at, revoked_at
+            FROM session_credentials
+            WHERE session_id = ?;
+            """,
+            (session_id,),
+        ).fetchone()
+
+        if not row or row["revoked_at"] is not None:
+            return None
+
+        expires_dt = self._parse_iso_utc(row["expires_at"])
+        if expires_dt is None or expires_dt <= now_dt:
+            return None
+
+        prior_hash = row["secret_hash"]
+        if current_secret is not None:
+            try:
+                computed = self._hash_session_secret(row["secret_salt"], current_secret)
+            except ValueError:
+                return None
+            if not hmac.compare_digest(computed, prior_hash):
+                return None
+        elif expected_secret_hash is not None and not hmac.compare_digest(
+            expected_secret_hash, prior_hash
+        ):
+            return None
+
+        resolved_ttl = self._resolve_session_ttl_days(ttl_days)
+        new_secret = secrets.token_urlsafe(32)
+        new_salt = secrets.token_bytes(16).hex()
+        new_hash = self._hash_session_secret(new_salt, new_secret)
+        now_iso = now_dt.isoformat()
+        new_expires_iso = (now_dt + timedelta(days=resolved_ttl)).isoformat()
+
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE session_credentials
+                SET secret_hash = ?, secret_salt = ?, last_seen_at = ?, expires_at = ?
+                WHERE session_id = ? AND secret_hash = ? AND revoked_at IS NULL;
+                """,
+                (
+                    new_hash,
+                    new_salt,
+                    now_iso,
+                    new_expires_iso,
+                    session_id,
+                    prior_hash,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+
+        return SessionCreateResponse(
+            session_id=session_id,
+            session_secret=new_secret,
+            expires_at=new_expires_iso,
+        )
+
+    def cleanup_expired_sessions(
+        self, now: datetime | None = None, purge_orphaned_data: bool = True
+    ) -> int:
+        """
+        Purge expired or revoked session credentials and, optionally, their orphaned
+        check-in, task, and settings rows in a single atomic transaction.
+        """
+        now_dt = self._normalize_utc(now)
+        conn = self._get_connection()
+        rows = conn.execute(
+            """
+            SELECT session_id, expires_at, revoked_at
+            FROM session_credentials;
+            """
+        ).fetchall()
+
+        expired_ids: list[str] = []
+        for row in rows:
+            if row["revoked_at"] is not None:
+                expired_ids.append(row["session_id"])
+                continue
+            expires_dt = self._parse_iso_utc(row["expires_at"])
+            if expires_dt is None or expires_dt <= now_dt:
+                expired_ids.append(row["session_id"])
+
+        if not expired_ids:
+            return 0
+
+        placeholders = ", ".join("?" for _ in expired_ids)
+        with conn:
+            if purge_orphaned_data:
+                conn.execute(
+                    f"DELETE FROM checkins WHERE session_id IN ({placeholders});",
+                    tuple(expired_ids),
+                )
+                conn.execute(
+                    f"DELETE FROM tasks WHERE session_id IN ({placeholders});",
+                    tuple(expired_ids),
+                )
+                conn.execute(
+                    f"DELETE FROM user_settings WHERE session_id IN ({placeholders});",
+                    tuple(expired_ids),
+                )
+            cursor = conn.execute(
+                f"DELETE FROM session_credentials WHERE session_id IN ({placeholders});",
+                tuple(expired_ids),
+            )
+            return cursor.rowcount
 
     # --------------------------------------------------------------------------
     # Settings Management (Session-Scoped)
@@ -535,7 +906,7 @@ class CalmspaceStorage:
     def delete_all_data(self, session_id: str) -> bool:
         """
         Permanently purges all records associated with this session token across
-        all tables: check-in records, study tasks, and user settings.
+        all tables: check-in records, study tasks, user settings, and session credentials.
         """
         conn = self._get_connection()
         with conn:
@@ -543,6 +914,9 @@ class CalmspaceStorage:
             conn.execute("DELETE FROM tasks WHERE session_id = ?;", (session_id,))
             conn.execute(
                 "DELETE FROM user_settings WHERE session_id = ?;", (session_id,)
+            )
+            conn.execute(
+                "DELETE FROM session_credentials WHERE session_id = ?;", (session_id,)
             )
         return True
 

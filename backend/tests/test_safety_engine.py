@@ -396,6 +396,8 @@ def test_sleep_rejects_non_finite_values(sleep_hours):
 def test_fastapi_endpoint_ai_bypass_on_high():
     """Test B: Test actual FastAPI checkin endpoint; verify AI guidance service is bypassed on HIGH."""
     client = TestClient(app)
+    sess = client.post("/api/sessions").json()
+    headers = {"Authorization": f"Bearer {sess['session_id']}.{sess['session_secret']}"}
     with patch("app.routers.checkin.generate_supportive_guidance") as mock_ai:
         response = client.post(
             "/api/checkin",
@@ -406,7 +408,7 @@ def test_fastapi_endpoint_ai_bypass_on_high():
                 "reflection": "I want to end my life",
                 "consent_ai_processing": True,
             },
-            headers={"x-session-id": "test-session-bypass-high"},
+            headers=headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -414,12 +416,15 @@ def test_fastapi_endpoint_ai_bypass_on_high():
         assert data["safety"]["ai_eligible"] is False
         assert data["guidance"] is None
         mock_ai.assert_not_called()
+    client.delete("/api/settings/data", headers=headers)
     print("✓ FastAPI endpoint guarantees zero AI calls on HIGH safety route")
 
 
 def test_fastapi_endpoint_ai_called_on_eligible_route():
     """Verify AI guidance is called on LOW/MEDIUM when consented."""
     client = TestClient(app)
+    sess = client.post("/api/sessions").json()
+    headers = {"Authorization": f"Bearer {sess['session_id']}.{sess['session_secret']}"}
     with patch("app.routers.checkin.generate_supportive_guidance") as mock_ai:
         mock_ai.return_value = {
             "message": "Take it steady today.",
@@ -437,7 +442,7 @@ def test_fastapi_endpoint_ai_called_on_eligible_route():
                 "reflection": "Feeling steady.",
                 "consent_ai_processing": True,
             },
-            headers={"x-session-id": "test-session-eligible-ai"},
+            headers=headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -445,6 +450,7 @@ def test_fastapi_endpoint_ai_called_on_eligible_route():
         assert data["safety"]["ai_eligible"] is True
         assert data["guidance"] is not None
         mock_ai.assert_called_once()
+    client.delete("/api/settings/data", headers=headers)
     print("✓ FastAPI endpoint invokes guidance service on eligible non-high route")
 
 

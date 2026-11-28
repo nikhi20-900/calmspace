@@ -121,11 +121,14 @@ def test_non_diagnostic_language_guardrails(temp_storage):
 
 
 def test_api_insights_endpoint():
-    """Verify FastAPI router integration and header validation."""
+    """Verify FastAPI router integration and authenticated session validation."""
     client = TestClient(app)
-    response = client.get("/api/insights", headers={"X-Session-ID": "test-api-session"})
+    sess = client.post("/api/sessions").json()
+    headers = {"Authorization": f"Bearer {sess['session_id']}.{sess['session_secret']}"}
+    response = client.get("/api/insights", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert "average_mood" in data
     assert "plain_summary" in data
     assert "mood_trend" in data
+    client.delete("/api/settings/data", headers=headers)
