@@ -284,10 +284,10 @@ test('UI source contracts verify Safe Exit destination, Planner editNotice, and 
   assert.ok(overviewPage.includes('Lowest Day'));
 
   const insightsPage = readFileSync(
-    path.join(frontendRoot, 'src/pages/InsightsPage.tsx'),
+    path.join(frontendRoot, 'src/pages/InsightsV2Page.tsx'),
     'utf8'
   );
-  assert.ok(insightsPage.includes('7h Reference'));
+  assert.ok(insightsPage.includes('7h reference'));
 });
 
 test('aggregateDailyMoodTrend merges repeated same-day check-ins and preserves chronological order', () => {

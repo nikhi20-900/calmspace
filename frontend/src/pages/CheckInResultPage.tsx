@@ -402,6 +402,41 @@ export const CheckInResultPage: React.FC = () => {
             {safety.status_label}
           </h1>
           <p className="text-xs text-[#625F78] mt-1">{safety.status_summary}</p>
+          {safety.reasons && safety.reasons.length > 0 && (
+            <details className="group rounded-card border border-[#E8E6F1] bg-[#FBFAFE] p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm font-semibold text-[#25233B]">
+                  <Info className="h-4 w-4 text-[#5554B8]" />
+                  Why am I seeing this result?
+                </span>
+
+                <span className="text-xs font-medium text-[#5554B8] group-open:hidden">
+                  Explain
+                </span>
+                <span className="hidden text-xs font-medium text-[#5554B8] group-open:inline">
+                  Hide
+                </span>
+              </summary>
+
+              <div className="mt-4 border-t border-[#E8E6F1] pt-3">
+                <p className="mb-3 text-xs leading-relaxed text-[#625F78]">
+                  Your result is based on the information you shared in this check-in.
+                  These are the factors considered by Calmspace's safety system:
+                </p>
+
+                <ul className="space-y-3">
+                  {safety.reasons.map((reason, index) => (
+                    <li key={`${index}-${reason}`} className="flex items-start gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#84A98C]" />
+                      <span className="text-sm leading-relaxed text-[#25233B]">
+                        {reason}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </details>
+          )}
         </div>
 
         {/* AI Guidance Text */}

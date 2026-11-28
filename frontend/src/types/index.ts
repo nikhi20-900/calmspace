@@ -73,6 +73,81 @@ export interface InsightSummary {
   stress_trend: Array<{ day: string; stress: number }>;
 }
 
+export interface InsightTimelineEntry {
+  id: string;
+  timestamp: string;
+  date_key: string;
+  day_label: string;
+  local_time_label: string;
+  mood: number;
+  stress: number;
+  sleep_hours: number;
+  route: RiskRoute;
+}
+
+export interface DailyInsightPoint {
+  date_key: string;
+  day_label: string;
+  entry_count: number;
+  average_mood: number;
+  average_stress: number;
+  average_sleep: number;
+}
+
+export interface ComparisonMetric {
+  current_average: number;
+  previous_average: number;
+  difference: number;
+}
+
+export interface PeriodComparison {
+  state: 'ready' | 'not_enough_data';
+  period_days: number;
+  minimum_checkins_per_period: number;
+  current_check_in_count: number;
+  previous_check_in_count: number;
+  current_active_days: number;
+  previous_active_days: number;
+  mood?: ComparisonMetric | null;
+  stress?: ComparisonMetric | null;
+  sleep?: ComparisonMetric | null;
+}
+
+export interface PatternHighlight {
+  id: string;
+  category: 'steady_rhythm' | 'directional_shift' | 'co_observation' | 'varied_rhythm';
+  title: string;
+  summary: string;
+  sample_basis: string;
+}
+
+export interface InsightSummaryV2 {
+  window_days: number;
+  timezone: string;
+  window_start_date: string;
+  window_end_date: string;
+  retention_days: number;
+  state: 'brand_new' | 'empty_window' | 'building_baseline' | 'active';
+  check_in_count: number;
+  total_stored_count: number;
+  distinct_local_days: number;
+  sleep_7h_plus_count: number;
+  sleep_7h_plus_day_count: number;
+  average_checkins_per_week: number;
+  active_day_rate: number;
+  comparison: PeriodComparison;
+  average_mood: number;
+  average_stress: number;
+  average_sleep: number;
+  mood_range?: { min: number; max: number } | null;
+  stress_range?: { min: number; max: number } | null;
+  sleep_range?: { min: number; max: number } | null;
+  plain_summary: string;
+  timeline_entries: InsightTimelineEntry[];
+  daily_series: DailyInsightPoint[];
+  pattern_highlights: PatternHighlight[];
+}
+
 export interface StudyTask {
   id: string;
   title: string;
